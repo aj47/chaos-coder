@@ -16,8 +16,6 @@ import {
   FaQuestionCircle,
 } from "react-icons/fa";
 
-// Signup Modal Component
-export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { theme } = useTheme();
   const router = useRouter();
   

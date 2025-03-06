@@ -10,10 +10,6 @@ export default function SignupPage() {
   const { theme } = useTheme();
   const router = useRouter();
   
-  // Redirect to Google Form on component mount
-  useEffect(() => {
-    window.location.href = "https://docs.google.com/forms/d/e/1FAIpQLSdBUzzrsu74cJlRhZZVSQuYAcGZ4_8RKB-G7vYZGibU7S5T4g/viewform?usp=header";
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -37,17 +33,7 @@ export default function SignupPage() {
             If you are not redirected automatically, please click the button below:
           </p>
           <a 
-            href="https://docs.google.com/forms/d/e/1FAIpQLSdBUzzrsu74cJlRhZZVSQuYAcGZ4_8RKB-G7vYZGibU7S5T4g/viewform?usp=header"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-full py-2 px-4 rounded-lg font-medium text-center ${
-              theme === "dark" 
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
-          >
-            Go to Signup Form
-          </a>
+          <SignupModal isOpen={true} onClose={() => router.push("/")} />
           <button
             onClick={() => router.push("/")}
             className={`w-full py-2 px-4 rounded-lg font-medium ${
