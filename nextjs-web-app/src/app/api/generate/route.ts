@@ -76,6 +76,12 @@ export async function POST(req: NextRequest) {
             },
           },
           {
+            virtual_key: "sambanova-6bc4d0",
+            override_params: {
+              model: "Meta-Llama-3.2-1B-Instruct",
+            },
+          },
+          {
             virtual_key: "openrouter-07e727",
             override_params: {
               model: "google/gemini-flash-1.5-8b",
