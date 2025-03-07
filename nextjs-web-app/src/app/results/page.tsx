@@ -5,11 +5,9 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
-import AppTile from "@/components/AppTile";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
 import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
-import ThemeToggle from "@/components/ThemeToggle";
 import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
@@ -72,7 +70,7 @@ function ResultsContent() {
   const [generationTimes, setGenerationTimes] = useState<{
     [key: number]: number;
   }>({});
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const { theme } = useTheme();
 
@@ -392,25 +390,15 @@ function ResultsContent() {
                 theme === "dark" ? "text-white" : "text-gray-900"
               }`}
             >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 ">
-                Chaos Coder
-              </span>
+              <Link href="/">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 cursor-pointer hover:opacity-80 transition-opacity">
+                  Chaos Coder
+                </span>
+              </Link>
             </motion.h1>
             <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <Link
-                href="/"
-                className={`hover:underline transition-colors ${
-                  theme === "dark"
-                    ? "text-gray-300 hover:text-white"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                ← Back to Prompt
-              </Link>
+              {/* ThemeToggle and Back to Prompt link removed */}
             </div>
-
-            {/* <ThemeToggle /> */}
           </div>
 
           {error && (
