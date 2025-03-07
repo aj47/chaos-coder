@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
@@ -20,22 +20,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>("");
-  
-  // Debug effect to check environment variables
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    setDebugInfo(`Supabase URL: ${supabaseUrl ? "Set" : "Not set"}, Supabase Key: ${supabaseKey ? "Set" : "Not set"}`);
-    
-    console.log("Debug info:", {
-      supabaseUrl,
-      supabaseKey,
-      mode,
-      isOpen
-    });
-  }, [mode, isOpen]);
   
   if (!isOpen) return null;
 
@@ -45,44 +29,34 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setMessage(null);
     
     try {
-      console.log("Starting authentication process...");
       const supabase = createClient();
-      console.log("Supabase client created");
       
       if (mode === "login") {
-        console.log("Attempting login with:", { email });
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         
-        console.log("Login response:", { data, error });
-        
         if (error) throw error;
-        setMessage({ type: "success", text: "Logged in successfully!" });
-        setTimeout(() => {
-          onClose();
-          window.location.reload(); // Refresh to update auth state
-        }, 1000);
+        
+        setMessage({ type: "success", text: "Login successful!" });
+        onClose();
       } else {
-        // Validate first name for signup
+        // Validate form
         if (!firstName.trim()) {
-          throw new Error("First name is required");
+          setMessage({ type: "error", text: "Please enter your name" });
+          return;
         }
         
-        console.log("Attempting signup with:", { email, firstName });
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
-              first_name: firstName
-            }
+              first_name: firstName,
+            },
           },
         });
-        
-        console.log("Signup response:", { data, error });
         
         if (error) throw error;
         
@@ -95,7 +69,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         });
       }
     } catch (error: unknown) {
-      console.error("Authentication error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during authentication" 
@@ -110,28 +83,19 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setMessage(null);
     
     try {
-      console.log("Starting Google authentication process...");
       const supabase = createClient();
-      console.log("Supabase client created for Google auth");
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
         }
       });
-      
-      console.log("Google auth response:", { data, error });
       
       if (error) throw error;
       
       // No need to set success message as we're redirecting to Google
     } catch (error: unknown) {
-      console.error("Google authentication error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during Google authentication" 
@@ -180,13 +144,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
               : "bg-green-500/10 text-green-500"
           }`}>
             {message.text}
-          </div>
-        )}
-        
-        {/* Debug information */}
-        {debugInfo && (
-          <div className="p-2 mb-4 text-xs bg-gray-800 text-gray-300 rounded overflow-auto">
-            <pre>{debugInfo}</pre>
           </div>
         )}
         
