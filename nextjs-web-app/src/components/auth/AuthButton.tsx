@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 export function AuthButton() {
   const { theme } = useTheme();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -58,10 +60,6 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="flex items-center gap-3">
-        <div className="text-sm">
-          <span className="opacity-70">Hello, </span>
-          <span>{user.email?.split('@')[0] || 'User'}</span>
-        </div>
         <button
           onClick={handleLogout}
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
@@ -72,6 +70,16 @@ export function AuthButton() {
         >
           Log Out
         </button>
+        <button
+          onClick={() => router.push("/dashboard")}
+          className={`py-2 px-4 rounded-lg text-sm font-medium ${
+            theme === 'dark'
+              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          }`}
+        >
+          Settings
+        </button>
       </div>
     );
   }
@@ -81,6 +89,7 @@ export function AuthButton() {
       <div className="flex gap-2">
         <button
           onClick={() => setShowLoginModal(true)}
+          data-login-button="true"
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
             theme === 'dark'
               ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
@@ -91,6 +100,7 @@ export function AuthButton() {
         </button>
         <button
           onClick={() => setShowSignupModal(true)}
+          data-signup-button="true"
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
             theme === 'dark' 
               ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 

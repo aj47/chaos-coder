@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
-import { AuthButton } from "@/components/auth/AuthButton";
 import { SignupModal } from "@/components/SignupModal";
 import {
   FaTasks,
@@ -122,9 +121,6 @@ export default function Home() {
       )}
       <div className="relative z-10">
         <HeroGeometric badge="" title1="Chaos Coder" title2="9x Dev">
-          <div className="absolute top-4 right-4 z-20">
-            <AuthButton />
-          </div>
           <div className="w-full max-w-3xl mx-auto">
             <div className="relative bg-[#1a1f2e]/80 backdrop-blur-xl rounded-2xl overflow-hidden border border-[#2a3040] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)]">
               <div className="relative p-6 z-10">
