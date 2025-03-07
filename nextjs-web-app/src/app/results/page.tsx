@@ -13,6 +13,7 @@ import { SignupModal } from "../page";
 import styled from "styled-components";
 import CodeExecutionPanel from "@/components/CodeExecutionPanel";
 import { SunIcon, MoonIcon, MicrophoneIcon } from "@heroicons/react/24/outline";
+import { executeCode } from "@/services/codeExecution";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -74,6 +75,9 @@ function ResultsContent() {
   const [activePanel, setActivePanel] = useState<'preview' | 'execution'>('execution');
   const [promptText, setPromptText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [executionResults, setExecutionResults] = useState<{[key: number]: {output: string; error?: string}}>({});
+  const [isExecuting, setIsExecuting] = useState<{[key: number]: boolean}>({});
+  const [tileViews, setTileViews] = useState<{[key: number]: 'code' | 'terminal'}>({});
 
   const variations = [
     "",
@@ -178,6 +182,15 @@ function ResultsContent() {
         ...prev,
         [index]: (endTime - startTime) / 1000, // Convert to seconds
       }));
+
+      // Execute the generated code
+      setIsExecuting(prev => ({...prev, [index]: true}));
+      const executionResult = await executeCode(data.code);
+      setExecutionResults(prev => ({...prev, [index]: executionResult}));
+      setIsExecuting(prev => ({...prev, [index]: false}));
+      
+      // Set the tile view to terminal by default after execution
+      setTileViews(prev => ({...prev, [index]: 'terminal'}));
     } catch (err) {
       console.error("Error generating app:", err);
     } finally {
@@ -236,6 +249,15 @@ function ResultsContent() {
         block: 'start'
       });
     }, 100);
+  };
+
+  // Function to toggle tile view between code and terminal
+  const toggleTileView = (index: number, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent triggering the tile click
+    setTileViews(prev => ({
+      ...prev, 
+      [index]: prev[index] === 'terminal' ? 'code' : 'terminal'
+    }));
   };
 
   return (
@@ -348,19 +370,54 @@ function ResultsContent() {
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
                 </div>
               ) : (
-                <div className="h-48 overflow-hidden">
-                  <div
-                    className={`p-4 h-full overflow-hidden font-mono text-xs ${
-                      theme === "dark" ? "text-gray-300" : "text-gray-800"
-                    }`}
-                  >
-                    <pre className="whitespace-pre-wrap">
-                      {editedResults[index]
-                        ? editedResults[index].slice(0, 500) +
-                          (editedResults[index].length > 500 ? "..." : "")
-                        : "No code generated yet"}
-                    </pre>
-                  </div>
+                <div className="h-48 overflow-hidden relative">
+                  {/* Toggle button */}
+                  {executionResults[index] && (
+                    <button
+                      onClick={(e) => toggleTileView(index, e)}
+                      className={`absolute top-2 right-2 z-10 p-1 rounded-md text-xs ${
+                        theme === "dark" 
+                          ? "bg-gray-700 text-gray-300 hover:bg-gray-600" 
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      {tileViews[index] === 'terminal' ? 'View Code' : 'View Output'}
+                    </button>
+                  )}
+                  
+                  {isExecuting[index] ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                        <p className={theme === "dark" ? "text-gray-300" : "text-gray-600"}>
+                          Executing code...
+                        </p>
+                      </div>
+                    </div>
+                  ) : executionResults[index] && (tileViews[index] === 'terminal') ? (
+                    <div className={`h-full p-4 font-mono text-xs overflow-auto ${
+                      theme === "dark" ? "bg-gray-900 text-gray-100" : "bg-black text-green-400"
+                    }`}>
+                      <pre className="whitespace-pre-wrap">
+                        {executionResults[index]?.error ? 
+                          `Error: ${executionResults[index]?.error}` : 
+                          executionResults[index]?.output || "No output"}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div
+                      className={`p-4 h-full overflow-hidden font-mono text-xs ${
+                        theme === "dark" ? "text-gray-300" : "text-gray-800"
+                      }`}
+                    >
+                      <pre className="whitespace-pre-wrap">
+                        {editedResults[index]
+                          ? editedResults[index].slice(0, 500) +
+                            (editedResults[index].length > 500 ? "..." : "")
+                          : "No code generated yet"}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
               <div
@@ -461,6 +518,8 @@ function ResultsContent() {
                     code={editedResults[selectedAppIndex] || ""}
                     onChange={handleCodeChange}
                     theme={theme}
+                    initialOutput={executionResults[selectedAppIndex]?.output || ""}
+                    initialError={executionResults[selectedAppIndex]?.error}
                   />
                 ) : (
                   <CodePreviewPanel

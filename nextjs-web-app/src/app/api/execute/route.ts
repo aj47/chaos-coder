@@ -14,8 +14,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a new sandbox instance
-    const sandbox = await Sandbox.create();
+    const e2bApiKey = process.env.E2B_API_KEY;
+    if (!e2bApiKey) {
+      return NextResponse.json(
+        { error: "E2B_API_KEY not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Create a new sandbox instance with API key
+    const sandbox = await Sandbox.create({
+      apiKey: e2bApiKey
+    });
     
     try {
       // Execute the code
