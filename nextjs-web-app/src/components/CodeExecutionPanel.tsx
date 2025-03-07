@@ -12,6 +12,11 @@ interface CodeExecutionPanelProps {
   showControls?: boolean;
   initialOutput?: string;
   initialError?: string;
+  errorDetails?: {
+    name?: string;
+    message?: string;
+    traceback?: string;
+  };
 }
 
 export default function CodeExecutionPanel({ 
@@ -21,13 +26,12 @@ export default function CodeExecutionPanel({
   theme,
   showControls = true,
   initialOutput = '',
-  initialError
+  initialError,
+  errorDetails
 }: CodeExecutionPanelProps) {
   const [activeTab, setActiveTab] = useState<'split' | 'code' | 'terminal'>('split');
   const [editedCode, setEditedCode] = useState(code);
-  const [output, setOutput] = useState<string>(
-    initialError ? `Error: ${initialError}\n\n${initialOutput}` : initialOutput
-  );
+  const [output, setOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
 
   useEffect(() => {
@@ -35,9 +39,22 @@ export default function CodeExecutionPanel({
   }, [code]);
 
   useEffect(() => {
-    // Update output when initialOutput or initialError changes
-    setOutput(initialError ? `Error: ${initialError}\n\n${initialOutput}` : initialOutput);
-  }, [initialOutput, initialError]);
+    // Format output with error information if available
+    let formattedOutput = initialOutput || '';
+    
+    if (initialError) {
+      let errorText = `Error: ${initialError}\n`;
+      
+      // Add traceback if available
+      if (errorDetails?.traceback) {
+        errorText += `\n${errorDetails.traceback}\n`;
+      }
+      
+      formattedOutput = errorText + (formattedOutput ? `\n${formattedOutput}` : '');
+    }
+    
+    setOutput(formattedOutput);
+  }, [initialOutput, initialError, errorDetails]);
 
   const handleCodeChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -53,11 +70,22 @@ export default function CodeExecutionPanel({
     try {
       const result = await executeCode(editedCode);
       
+      let formattedOutput = result.output || '';
+      
       if (result.error) {
-        setOutput(`Error: ${result.error}\n\n${result.output || ''}`);
+        let errorText = `Error: ${result.error}\n`;
+        
+        // Add traceback if available
+        if (result.errorDetails?.traceback) {
+          errorText += `\n${result.errorDetails.traceback}\n`;
+        }
+        
+        formattedOutput = errorText + (formattedOutput ? `\n${formattedOutput}` : '');
       } else {
-        setOutput(result.output || 'No output');
+        formattedOutput = formattedOutput || 'No output';
       }
+      
+      setOutput(formattedOutput);
     } catch (error) {
       setOutput(`Failed to execute code: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

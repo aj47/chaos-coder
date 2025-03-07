@@ -75,7 +75,17 @@ function ResultsContent() {
   const [activePanel, setActivePanel] = useState<'preview' | 'execution'>('execution');
   const [promptText, setPromptText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [executionResults, setExecutionResults] = useState<{[key: number]: {output: string; error?: string}}>({});
+  const [executionResults, setExecutionResults] = useState<{
+    [key: number]: {
+      output: string; 
+      error?: string;
+      errorDetails?: {
+        name?: string;
+        message?: string;
+        traceback?: string;
+      }
+    }
+  }>({});
   const [isExecuting, setIsExecuting] = useState<{[key: number]: boolean}>({});
   const [tileViews, setTileViews] = useState<{[key: number]: 'code' | 'terminal'}>({});
 
@@ -160,7 +170,9 @@ function ResultsContent() {
       }
 
       if (!response.ok) {
-        throw new Error(`Failed to generate app ${index + 1}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `HTTP error ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -193,6 +205,42 @@ function ResultsContent() {
       setTileViews(prev => ({...prev, [index]: 'terminal'}));
     } catch (err) {
       console.error("Error generating app:", err);
+      
+      // Set error message in the UI
+      setEditedResults((prev) => {
+        const newResults = [...prev];
+        newResults[index] = `// Error: ${err instanceof Error ? err.message : String(err)}`;
+        return newResults;
+      });
+      
+      // Set execution result to show the error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      let errorDetails: {
+        name?: string;
+        message?: string;
+        traceback?: string;
+      } | undefined = undefined;
+      
+      // Check if this is a structured error
+      if (err instanceof Error && err.cause && typeof err.cause === 'object') {
+        errorDetails = err.cause as {
+          name?: string;
+          message?: string;
+          traceback?: string;
+        };
+      }
+      
+      setExecutionResults(prev => ({
+        ...prev, 
+        [index]: {
+          output: "",
+          error: errorMessage,
+          errorDetails
+        }
+      }));
+      
+      // Set the tile view to terminal to show the error
+      setTileViews(prev => ({...prev, [index]: 'terminal'}));
     } finally {
       setLoadingStates((prev) => {
         const newStates = [...prev];
@@ -399,9 +447,16 @@ function ResultsContent() {
                       theme === "dark" ? "bg-gray-900 text-gray-100" : "bg-black text-green-400"
                     }`}>
                       <pre className="whitespace-pre-wrap">
-                        {executionResults[index]?.error ? 
-                          `Error: ${executionResults[index]?.error}` : 
-                          executionResults[index]?.output || "No output"}
+                        {executionResults[index]?.error ? (
+                          <div className="text-red-500 whitespace-pre-wrap font-mono text-sm">
+                            <div className="font-bold">{executionResults[index]?.error}</div>
+                            {executionResults[index]?.errorDetails?.traceback && (
+                              <pre className="mt-2 p-2 bg-red-50 rounded overflow-auto max-h-40 text-xs">
+                                {executionResults[index]?.errorDetails?.traceback}
+                              </pre>
+                            )}
+                          </div>
+                        ) : executionResults[index]?.output || "No output"}
                       </pre>
                     </div>
                   ) : (
@@ -520,6 +575,7 @@ function ResultsContent() {
                     theme={theme}
                     initialOutput={executionResults[selectedAppIndex]?.output || ""}
                     initialError={executionResults[selectedAppIndex]?.error}
+                    errorDetails={executionResults[selectedAppIndex]?.errorDetails}
                   />
                 ) : (
                   <CodePreviewPanel

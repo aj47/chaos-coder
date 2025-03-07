@@ -67,12 +67,12 @@ export async function POST(req: NextRequest) {
           mode: "fallback",
         },
         targets: [
-          {
-            virtual_key: "sambanova-6bc4d0",
-            override_params: {
-              model: "Meta-Llama-3.2-1B-Instruct",
-            },
-          },
+          // {
+          //   virtual_key: "sambanova-6bc4d0",
+          //   override_params: {
+          //     model: "Meta-Llama-3.2-1B-Instruct",
+          //   },
+          // },
           {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
@@ -176,8 +176,29 @@ Format the code with proper indentation and spacing for readability.`;
     return NextResponse.json({ code });
   } catch (error) {
     console.error("Error:", error);
+    
+    // Improved error handling
+    let errorMessage = "Failed to generate code";
+    let errorDetails = null;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack;
+    } else if (typeof error === 'object' && error !== null) {
+      try {
+        errorMessage = JSON.stringify(error);
+      } catch {
+        errorMessage = "Unserializable error object";
+        errorDetails = Object.getOwnPropertyNames(error).map(prop => 
+          `${prop}: ${String(error[prop as keyof typeof error])}`
+        ).join(', ');
+      }
+    }
+    
+    console.error("Detailed error:", { message: errorMessage, details: errorDetails });
+    
     return NextResponse.json(
-      { error: "Failed to generate code" },
+      { error: errorMessage, details: errorDetails },
       { status: 500 }
     );
   }

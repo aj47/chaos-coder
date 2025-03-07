@@ -30,11 +30,24 @@ export async function POST(req: NextRequest) {
     try {
       // Execute the code
       const execution = await sandbox.runCode(code);
+      console.log(execution);
+      
+      // Properly handle execution errors
+      let errorOutput = null;
+      if (execution.error) {
+        // Extract detailed error information
+        errorOutput = {
+          name: execution.error.name,
+          message: execution.error.value,
+          traceback: execution.error.traceback
+        };
+        console.log("Execution error details:", errorOutput);
+      }
       
       // Return the execution results
       return NextResponse.json({
-        output: execution.text,
-        error: execution.error
+        output: execution.text || '',
+        error: errorOutput
       });
     } finally {
       // Always close the sandbox to free resources
@@ -42,8 +55,29 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error("Error executing code:", error);
+    
+    // Improved error handling
+    let errorMessage = "Failed to execute code";
+    let errorDetails = null;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack;
+    } else if (typeof error === 'object' && error !== null) {
+      try {
+        errorMessage = JSON.stringify(error);
+      } catch {
+        errorMessage = "Unserializable error object";
+        errorDetails = Object.getOwnPropertyNames(error).map(prop => 
+          `${prop}: ${String(error[prop as keyof typeof error])}`
+        ).join(', ');
+      }
+    }
+    
+    console.error("Detailed execution error:", { message: errorMessage, details: errorDetails });
+    
     return NextResponse.json(
-      { error: "Failed to execute code" },
+      { error: errorMessage, details: errorDetails },
       { status: 500 }
     );
   }
