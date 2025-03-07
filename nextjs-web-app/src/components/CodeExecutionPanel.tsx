@@ -17,6 +17,26 @@ interface CodeExecutionPanelProps {
     message?: string;
     traceback?: string;
   };
+  onIterativeDevelopment?: (executionHistory: Array<{
+    code: string;
+    output?: string;
+    error?: string;
+    errorDetails?: {
+      name?: string;
+      message?: string;
+      traceback?: string;
+    }
+  }>) => void;
+  executionHistory?: Array<{
+    code: string;
+    output?: string;
+    error?: string;
+    errorDetails?: {
+      name?: string;
+      message?: string;
+      traceback?: string;
+    }
+  }>;
 }
 
 export default function CodeExecutionPanel({ 
@@ -27,12 +47,16 @@ export default function CodeExecutionPanel({
   showControls = true,
   initialOutput = '',
   initialError,
-  errorDetails
+  errorDetails,
+  onIterativeDevelopment,
+  executionHistory = []
 }: CodeExecutionPanelProps) {
   const [activeTab, setActiveTab] = useState<'split' | 'code' | 'terminal'>('split');
   const [editedCode, setEditedCode] = useState(code);
   const [output, setOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isGeneratingNext, setIsGeneratingNext] = useState(false);
+  const [localExecutionHistory, setLocalExecutionHistory] = useState(executionHistory);
 
   useEffect(() => {
     setEditedCode(code);
@@ -55,6 +79,10 @@ export default function CodeExecutionPanel({
     
     setOutput(formattedOutput);
   }, [initialOutput, initialError, errorDetails]);
+
+  useEffect(() => {
+    setLocalExecutionHistory(executionHistory);
+  }, [executionHistory]);
 
   const handleCodeChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -86,10 +114,27 @@ export default function CodeExecutionPanel({
       }
       
       setOutput(formattedOutput);
+
+      // Add to execution history
+      const newHistoryEntry = {
+        code: editedCode,
+        output: result.output || '',
+        error: result.error,
+        errorDetails: result.errorDetails
+      };
+      
+      setLocalExecutionHistory(prev => [...prev, newHistoryEntry]);
     } catch (error) {
       setOutput(`Failed to execute code: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const handleIterativeDevelopment = () => {
+    if (onIterativeDevelopment && localExecutionHistory.length > 0) {
+      setIsGeneratingNext(true);
+      onIterativeDevelopment(localExecutionHistory);
     }
   };
 
@@ -111,6 +156,22 @@ export default function CodeExecutionPanel({
             >
               {isExecuting ? 'Executing...' : 'Run Code'}
             </button>
+            
+            {localExecutionHistory.length > 0 && onIterativeDevelopment && (
+              <button
+                onClick={handleIterativeDevelopment}
+                disabled={isGeneratingNext}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  isGeneratingNext
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : theme === 'dark' 
+                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                      : 'bg-purple-500 text-white hover:bg-purple-600'
+                }`}
+              >
+                {isGeneratingNext ? 'Generating...' : 'Generate Next Iteration'}
+              </button>
+            )}
           </div>
           <div className="space-x-2">
             <button
@@ -144,6 +205,15 @@ export default function CodeExecutionPanel({
               Terminal
             </button>
           </div>
+        </div>
+      )}
+      
+      {localExecutionHistory.length > 0 && (
+        <div className={`px-4 py-2 text-xs ${
+          theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          <span className="font-medium">Execution History: </span>
+          {localExecutionHistory.length} iterations
         </div>
       )}
 

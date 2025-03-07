@@ -88,6 +88,18 @@ function ResultsContent() {
   }>({});
   const [isExecuting, setIsExecuting] = useState<{[key: number]: boolean}>({});
   const [tileViews, setTileViews] = useState<{[key: number]: 'code' | 'terminal'}>({});
+  const [executionHistory, setExecutionHistory] = useState<{
+    [key: number]: Array<{
+      code: string;
+      output?: string;
+      error?: string;
+      errorDetails?: {
+        name?: string;
+        message?: string;
+        traceback?: string;
+      }
+    }>
+  }>({});
 
   const variations = [
     "",
@@ -137,7 +149,16 @@ function ResultsContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const generateApp = async (index: number, promptText: string) => {
+  const generateApp = async (index: number, promptText: string, history?: Array<{
+    code: string;
+    output?: string;
+    error?: string;
+    errorDetails?: {
+      name?: string;
+      message?: string;
+      traceback?: string;
+    }
+  }>) => {
     const startTime = performance.now();
     try {
       const scriptType =
@@ -160,6 +181,7 @@ function ResultsContent() {
           prompt: promptText,
           variation: variations[index],
           scriptType,
+          ...(history && history.length > 0 ? { executionHistory: history } : {})
         }),
       });
 
@@ -306,6 +328,36 @@ function ResultsContent() {
       ...prev, 
       [index]: prev[index] === 'terminal' ? 'code' : 'terminal'
     }));
+  };
+
+  const handleIterativeDevelopment = async (index: number, history: Array<{
+    code: string;
+    output?: string;
+    error?: string;
+    errorDetails?: {
+      name?: string;
+      message?: string;
+      traceback?: string;
+    }
+  }>) => {
+    // Store the history
+    setExecutionHistory(prev => ({
+      ...prev,
+      [index]: history
+    }));
+    
+    // Set loading state
+    setLoadingStates(prev => {
+      const newStates = [...prev];
+      newStates[index] = true;
+      return newStates;
+    });
+    
+    // Get the original prompt
+    const prompt = searchParams.get("prompt") || "";
+    
+    // Generate the next iteration
+    await generateApp(index, prompt, history);
   };
 
   return (
@@ -576,6 +628,8 @@ function ResultsContent() {
                     initialOutput={executionResults[selectedAppIndex]?.output || ""}
                     initialError={executionResults[selectedAppIndex]?.error}
                     errorDetails={executionResults[selectedAppIndex]?.errorDetails}
+                    executionHistory={executionHistory[selectedAppIndex] || []}
+                    onIterativeDevelopment={(history) => handleIterativeDevelopment(selectedAppIndex, history)}
                   />
                 ) : (
                   <CodePreviewPanel

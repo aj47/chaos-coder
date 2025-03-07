@@ -102,10 +102,58 @@ export async function POST(req: NextRequest) {
     // Determine if this is an update request
     const isUpdate = body.isUpdate === true;
     const existingCode = body.existingCode || "";
+    
+    // New: Handle execution history for iterative development
+    const executionHistory = body.executionHistory || [];
+    const isIterative = executionHistory.length > 0;
 
     let fullPrompt;
 
-    if (isUpdate) {
+    if (isIterative) {
+      // Format the execution history for the LLM
+      const formattedHistory = executionHistory.map((entry: {
+        code: string;
+        output?: string;
+        error?: string;
+        errorDetails?: {
+          name?: string;
+          message?: string;
+          traceback?: string;
+        }
+      }, index: number) => {
+        return `
+ITERATION ${index + 1}:
+CODE:
+${entry.code}
+
+EXECUTION RESULT:
+${entry.output || 'No output'}
+${entry.error ? `ERROR: ${entry.error}${entry.errorDetails?.traceback ? `\nTRACEBACK: ${entry.errorDetails.traceback}` : ''}` : ''}
+`;
+      }).join('\n');
+
+      fullPrompt = `You are a helpful assistant that can execute python code in a Jupyter notebook. Only respond with the code to be executed and nothing else. Strip backticks in code block.
+
+Instructions:
+1. User request: ${prompt}
+2. Script type: ${scriptTypeInstructions}
+
+EXECUTION HISTORY:
+${formattedHistory}
+
+Based on the execution history above, provide the next iteration of code to execute. Consider:
+1. Fix any errors from previous executions
+2. Implement the next logical step based on successful executions
+3. Build upon the previous code iterations
+
+Technical Requirements:
+- Return ONLY the Python script content without any explanations or markdown formatting
+- The code must be complete and immediately runnable
+- Focus on clean, maintainable code structure
+- Format the code with proper indentation and spacing for readability
+
+Return the COMPLETE updated Python script content:`;
+    } else if (isUpdate) {
       fullPrompt = `You are a helpful assistant that can execute python code in a Jupyter notebook. Only respond with the code to be executed and nothing else. Strip backticks in code block.
 
 Instructions:
