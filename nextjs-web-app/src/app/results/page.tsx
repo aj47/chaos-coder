@@ -1,20 +1,18 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
-import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
-import ThemeToggle from "@/components/ThemeToggle";
 import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
-import MockDeployButton from "@/components/MockDeployButton";
 import { SignupModal } from "../page";
 import styled from "styled-components";
+import CodeExecutionPanel from "@/components/CodeExecutionPanel";
+import { SunIcon, MoonIcon, MicrophoneIcon } from "@heroicons/react/24/outline";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -61,8 +59,6 @@ function ResultsContent() {
   const [loadingStates, setLoadingStates] = useState<boolean[]>(
     new Array(NUM_APPS).fill(true)
   );
-  const [results, setResults] = useState<string[]>(new Array(NUM_APPS).fill(""));
-  const [error, setError] = useState<string | null>(null);
   const [selectedAppIndex, setSelectedAppIndex] = useState(0);
   const [editedResults, setEditedResults] = useState<string[]>(
     new Array(NUM_APPS).fill("")
@@ -74,7 +70,10 @@ function ResultsContent() {
   }>({});
   const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const [activePanel, setActivePanel] = useState<'preview' | 'execution'>('execution');
+  const [promptText, setPromptText] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const variations = [
     "",
@@ -168,12 +167,6 @@ function ResultsContent() {
         throw new Error(data.error);
       }
 
-      setResults((prev) => {
-        const newResults = [...prev];
-        newResults[index] = data.code;
-        return newResults;
-      });
-
       setEditedResults((prev) => {
         const newResults = [...prev];
         newResults[index] = data.code;
@@ -186,9 +179,7 @@ function ResultsContent() {
         [index]: (endTime - startTime) / 1000, // Convert to seconds
       }));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to generate applications"
-      );
+      console.error("Error generating app:", err);
     } finally {
       setLoadingStates((prev) => {
         const newStates = [...prev];
@@ -198,145 +189,29 @@ function ResultsContent() {
     }
   };
 
-  const handleNewPrompt = async (prompt: string, isUpdate: boolean = false, chaosMode: boolean = false) => {
-    if (isUpdate) {
-      if (chaosMode) {
-        // Update all apps in chaos mode
-        setLoadingStates(new Array(6).fill(true));
-        
-        try {
-          // Create an array of promises for all apps
-          const updatePromises = appTitles.map(async (title, index) => {
-            const scriptType =
-              title === "Basic Python Script"
-                ? "basic"
-                : title === "Data Processing Script"
-                ? "data"
-                : title === "CLI Script"
-                ? "cli"
-                : title === "Web API Script"
-                ? "web"
-                : title === "Automation Script"
-                ? "automation"
-                : "basic";
-
-            const response = await fetch("/api/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt,
-                existingCode: editedResults[index],
-                scriptType,
-                isUpdate: true,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error(`Failed to update app ${index + 1}`);
-            }
-
-            const data = await response.json();
-            if (data.error) {
-              throw new Error(data.error);
-            }
-
-            return { index, code: data.code };
-          });
-
-          // Wait for all updates to complete
-          const results = await Promise.all(updatePromises);
-          
-          // Update all results at once
-          setEditedResults((prev) => {
-            const newResults = [...prev];
-            results.forEach(result => {
-              newResults[result.index] = result.code;
-            });
-            return newResults;
-          });
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Failed to update applications in chaos mode"
-          );
-        } finally {
-          setLoadingStates(new Array(6).fill(false));
-        }
-      } else {
-        // Update only the selected app (original behavior)
-        setLoadingStates((prev) => {
-          const newStates = [...prev];
-          newStates[selectedAppIndex] = true;
-          return newStates;
-        });
-
-        try {
-          const scriptType =
-            appTitles[selectedAppIndex] === "Basic Python Script"
-              ? "basic"
-              : appTitles[selectedAppIndex] === "Data Processing Script"
-              ? "data"
-              : appTitles[selectedAppIndex] === "CLI Script"
-              ? "cli"
-              : appTitles[selectedAppIndex] === "Web API Script"
-              ? "web"
-              : appTitles[selectedAppIndex] === "Automation Script"
-              ? "automation"
-              : "basic";
-
-          const response = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt,
-              existingCode: editedResults[selectedAppIndex],
-              scriptType,
-              isUpdate: true,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to update app ${selectedAppIndex + 1}`);
-          }
-
-          const data = await response.json();
-          if (data.error) {
-            throw new Error(data.error);
-          }
-
-          setEditedResults((prev) => {
-            const newResults = [...prev];
-            newResults[selectedAppIndex] = data.code;
-            return newResults;
-          });
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Failed to update application"
-          );
-        } finally {
-          setLoadingStates((prev) => {
-            const newStates = [...prev];
-            newStates[selectedAppIndex] = false;
-            return newStates;
-          });
-        }
-      }
-    } else {
-      setLoadingStates(new Array(NUM_APPS).fill(true));
-      setResults(new Array(NUM_APPS).fill(""));
-      setEditedResults(new Array(NUM_APPS).fill(""));
-      setGenerationTimes({});
-      Promise.all(variations.map((_, index) => generateApp(index, prompt)));
+  const handleNewPrompt = async (prompt: string) => {
+    setIsGenerating(true);
+    setLoadingStates(new Array(NUM_APPS).fill(true));
+    setEditedResults(new Array(NUM_APPS).fill(""));
+    setGenerationTimes({});
+    
+    try {
+      // Generate all apps in parallel
+      await Promise.all(variations.map((_, index) => generateApp(index, prompt)));
+    } catch (error) {
+      console.error("Error generating apps:", error);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   const handleVoiceInput = (text: string) => {
-    handleNewPrompt(text, true, false); // Default to single mode for voice input
+    handleNewPrompt(text);
   };
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
     if (!prompt) {
-      setError("No prompt provided");
       setLoadingStates(new Array(NUM_APPS).fill(false));
       return;
     }
@@ -371,202 +246,234 @@ function ResultsContent() {
           onClose={() => setShowSignupModal(false)}
         />
       )}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className={`w-full h-screen p-6 pb-20 md:p-8 ${
-          theme === "dark" ? "bg-gray-900" : ""
-        }`}
-      >
-        <div
-          className={`max-w-7xl mx-auto h-[calc(100vh-2rem)] flex flex-col ${
-            theme === "light" ? "backdrop-blur-sm" : ""
-          }`}
-        >
-          <div className="flex items-center justify-between mb-8">
-            <motion.h1
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={`text-xl ${
-                theme === "dark" ? "text-white" : "text-gray-900"
-              }`}
-            >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 ">
-                Chaos Coder
-              </span>
-            </motion.h1>
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <Link
-                href="/"
-                className={`hover:underline transition-colors ${
-                  theme === "dark"
-                    ? "text-gray-300 hover:text-white"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                ← Back to Prompt
-              </Link>
-            </div>
-
-            {/* <ThemeToggle /> */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row items-start justify-between mb-8">
+          <div>
+            <h1 className={`text-3xl font-bold ${
+              theme === "dark" ? "text-white" : "text-gray-900"
+            }`}>
+              Python Code Generator
+            </h1>
+            <p className={`mt-2 ${
+              theme === "dark" ? "text-gray-300" : "text-gray-600"
+            }`}>
+              Generate and execute Python code with AI
+            </p>
           </div>
-
-          {error && (
-            <div
-              className={`p-4 rounded-lg ${
-                theme === "dark" ? "bg-red-900/20" : "bg-red-50"
+          <div className="mt-4 md:mt-0 flex items-center space-x-4">
+            <button
+              onClick={toggleTheme}
+              className={`p-2 rounded-full ${
+                theme === "dark" ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-800"
               }`}
             >
-              <p
-                className={`text-center ${
-                  theme === "dark" ? "text-red-400" : "text-red-600"
+              {theme === "dark" ? (
+                <SunIcon className="h-5 w-5" />
+              ) : (
+                <MoonIcon className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
+            <div className="flex-1">
+              <label
+                htmlFor="prompt"
+                className={`block text-sm font-medium mb-1 ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
                 }`}
               >
-                {error}
-              </p>
-            </div>
-          )}
-
-          {results.length > 0 && (
-            <div className="h-[calc(100vh-10rem)] overflow-y-auto">
-              {/* Grid of all app previews */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {appTitles.map((title, index) => (
-                  <motion.div
-                    key={title}
-                    className={`rounded-lg overflow-hidden border ${
-                      selectedAppIndex === index 
-                        ? theme === "dark" 
-                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30" 
-                          : "border-indigo-500 ring-2 ring-indigo-300/50"
-                        : theme === "dark"
-                          ? "border-gray-700"
-                          : "border-gray-200"
-                    } transition-all duration-200 cursor-pointer`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => handleTileClick(index)}
-                  >
-                    <div className="h-[300px]">
-                      <BrowserContainer theme={theme} title={title}>
-                        {loadingStates[index] ? (
-                          <LoadingContainer>
-                            <LoadingTitle>Generating</LoadingTitle>
-                            <LoadingBar>
-                              <LoadingProgress
-                                animate={{
-                                  x: ["-100%", "100%"],
-                                }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 1.5,
-                                  ease: "linear",
-                                }}
-                              />
-                            </LoadingBar>
-                            <ShortLoadingBar>
-                              <LoadingProgress
-                                animate={{
-                                  x: ["-100%", "100%"],
-                                }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 2,
-                                  ease: "linear",
-                                  delay: 0.2,
-                                }}
-                              />
-                            </ShortLoadingBar>
-                          </LoadingContainer>
-                        ) : (
-                          <CodePreviewPanel
-                            code={editedResults[index] || ""}
-                            onChange={(newCode) => {
-                              const newResults = [...editedResults];
-                              newResults[index] = newCode;
-                              setEditedResults(newResults);
-                            }}
-                            isLoading={loadingStates[index]}
-                            theme={theme}
-                            showControls={false}
-                          />
-                        )}
-                      </BrowserContainer>
-                    </div>
-                  </motion.div>
-                ))}
+                What would you like to create?
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="prompt"
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleNewPrompt(promptText);
+                    }
+                  }}
+                  placeholder="Describe the Python code you want to generate..."
+                  className={`w-full p-3 pr-10 rounded-lg border ${
+                    theme === "dark"
+                      ? "bg-gray-800 text-white border-gray-700"
+                      : "bg-white text-gray-900 border-gray-300"
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+                <button
+                  onClick={() => handleVoiceInput(promptText)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <MicrophoneIcon className="h-5 w-5" />
+                </button>
               </div>
-              
-              {/* Expanded view of selected app */}
-              <motion.div
-                id="detailed-view"
-                className="mt-8"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                <h2 className={`text-xl font-semibold mb-4 ${
-                  theme === "dark" ? "text-white" : "text-gray-900"
-                }`}>
-                  {appTitles[selectedAppIndex]} - Detailed View
-                </h2>
-                <div className="h-[500px]">
-                  <BrowserContainer theme={theme} title={`${appTitles[selectedAppIndex]} - Detailed View`}>
-                    {loadingStates[selectedAppIndex] ? (
-                      <LoadingContainer>
-                        <LoadingTitle>Generating</LoadingTitle>
-                        <LoadingBar>
-                          <LoadingProgress
-                            animate={{
-                              x: ["-100%", "100%"],
-                            }}
-                            transition={{
-                              repeat: Infinity,
-                              duration: 1.5,
-                              ease: "linear",
-                            }}
-                          />
-                        </LoadingBar>
-                        <ShortLoadingBar>
-                          <LoadingProgress
-                            animate={{
-                              x: ["-100%", "100%"],
-                            }}
-                            transition={{
-                              repeat: Infinity,
-                              duration: 2,
-                              ease: "linear",
-                              delay: 0.2,
-                            }}
-                          />
-                        </ShortLoadingBar>
-                      </LoadingContainer>
-                    ) : (
-                      <div className="relative h-full">
-                        <CodePreviewPanel
-                          code={editedResults[selectedAppIndex] || ""}
-                          onChange={handleCodeChange}
-                          isLoading={loadingStates[selectedAppIndex]}
-                          theme={theme}
-                          deployButton={
-                            <MockDeployButton 
-                              code={editedResults[selectedAppIndex] || ""} 
-                              theme={theme} 
-                            />
-                          }
-                        />
-                      </div>
-                    )}
-                  </BrowserContainer>
-                </div>
-              </motion.div>
             </div>
-          )}
+            <button
+              onClick={() => handleNewPrompt(promptText)}
+              disabled={isGenerating}
+              className={`px-4 py-3 rounded-lg font-medium ${
+                isGenerating
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : theme === "dark"
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-blue-500 text-white hover:bg-blue-600"
+              } transition-colors`}
+            >
+              {isGenerating ? "Generating..." : "Generate"}
+            </button>
+          </div>
         </div>
-      </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {variations.map((variation, index) => (
+            <div
+              key={index}
+              onClick={() => handleTileClick(index)}
+              className={`relative rounded-lg overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-105 ${
+                selectedAppIndex === index
+                  ? "ring-4 ring-blue-500"
+                  : "hover:shadow-xl"
+              } ${
+                theme === "dark" ? "bg-gray-800" : "bg-white shadow-md"
+              }`}
+            >
+              {loadingStates[index] ? (
+                <div className="h-48 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <div className="h-48 overflow-hidden">
+                  <div
+                    className={`p-4 h-full overflow-hidden font-mono text-xs ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-800"
+                    }`}
+                  >
+                    <pre className="whitespace-pre-wrap">
+                      {editedResults[index]
+                        ? editedResults[index].slice(0, 500) +
+                          (editedResults[index].length > 500 ? "..." : "")
+                        : "No code generated yet"}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              <div
+                className={`p-4 border-t ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`font-semibold ${
+                    theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {appTitles[index]}
+                </h3>
+                <p
+                  className={`text-sm mt-1 ${
+                    theme === "dark" ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  {variations[index]}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Expanded view of selected app */}
+        <motion.div
+          id="detailed-view"
+          className="mt-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className={`text-xl font-semibold ${
+              theme === "dark" ? "text-white" : "text-gray-900"
+            }`}>
+              {appTitles[selectedAppIndex]} - Detailed View
+            </h2>
+            <div className="space-x-2">
+              <button
+                onClick={() => setActivePanel('execution')}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  activePanel === 'execution'
+                    ? theme === 'dark' ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                    : theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Code Execution
+              </button>
+              <button
+                onClick={() => setActivePanel('preview')}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  activePanel === 'preview'
+                    ? theme === 'dark' ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                    : theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                HTML Preview
+              </button>
+            </div>
+          </div>
+          <div className="h-[500px]">
+            {loadingStates[selectedAppIndex] ? (
+              <LoadingContainer>
+                <LoadingTitle>Generating</LoadingTitle>
+                <LoadingBar>
+                  <LoadingProgress
+                    animate={{
+                      x: ["-100%", "100%"],
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1.5,
+                      ease: "linear",
+                    }}
+                  />
+                </LoadingBar>
+                <ShortLoadingBar>
+                  <LoadingProgress
+                    animate={{
+                      x: ["-100%", "100%"],
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 2,
+                      ease: "linear",
+                      delay: 0.2,
+                    }}
+                  />
+                </ShortLoadingBar>
+              </LoadingContainer>
+            ) : (
+              <div className="relative h-full">
+                {activePanel === 'execution' ? (
+                  <CodeExecutionPanel
+                    code={editedResults[selectedAppIndex] || ""}
+                    onChange={handleCodeChange}
+                    theme={theme}
+                  />
+                ) : (
+                  <CodePreviewPanel
+                    code={editedResults[selectedAppIndex] || ""}
+                    onChange={handleCodeChange}
+                    theme={theme}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
       <PromptInput
         isOpen={isPromptOpen}
         onSubmit={handleNewPrompt}
@@ -588,15 +495,8 @@ function ResultsContent() {
 // Main component with Suspense boundary
 export default function Results() {
   return (
-    <Suspense fallback={
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Loading...</h2>
-          <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-    }>
+    <div className="w-full h-screen flex items-center justify-center">
       <ResultsContent />
-    </Suspense>
+    </div>
   );
 }

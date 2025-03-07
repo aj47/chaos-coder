@@ -106,16 +106,14 @@ export async function POST(req: NextRequest) {
     let fullPrompt;
 
     if (isUpdate) {
-      fullPrompt = `Update the following Python script based on these instructions:
+      fullPrompt = `You are a helpful assistant that can execute python code in a Jupyter notebook. Only respond with the code to be executed and nothing else. Strip backticks in code block.
 
 Instructions:
 1. Update request: ${prompt}
 2. Script type: ${scriptTypeInstructions}
 
 EXISTING CODE TO MODIFY:
-\`\`\`python
 ${existingCode}
-\`\`\`
 
 Technical Requirements:
 - Maintain the overall structure of the existing code
@@ -127,11 +125,11 @@ Technical Requirements:
 Additional Notes:
 - Return the COMPLETE updated Python script content
 - Do not remove existing functionality unless specifically requested
-- Return ONLY the Python script content without any explanations
+- Return ONLY the Python script content without any explanations or markdown formatting
 
 Format the code with proper indentation and spacing for readability.`;
     } else {
-      fullPrompt = `Create a well-structured Python script:
+      fullPrompt = `You are a helpful assistant that can execute python code in a Jupyter notebook. Only respond with the code to be executed and nothing else. Strip backticks in code block.
 
 Instructions:
 1. Base functionality: ${prompt}
@@ -156,7 +154,7 @@ Technical Requirements:
 Additional Notes:
 - The code must be complete and immediately runnable
 - Focus on clean, maintainable code structure
-- Return ONLY the Python script content without any explanations
+- Return ONLY the Python script content without any explanations or markdown formatting
 
 Format the code with proper indentation and spacing for readability.`;
     }
