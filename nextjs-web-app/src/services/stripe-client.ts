@@ -85,40 +85,42 @@ export async function getUserCreditsInfo() {
     
     console.log("[DEBUG] User ID for profile query:", session.user.id, "Type:", typeof session.user.id);
     
-    // First, ensure the profile exists by calling the API
+    // Instead of querying the profiles table directly, use a custom API endpoint
+    // that can handle the type conversion properly
     try {
-      const profileResponse = await fetch('/api/create-profile', {
-        method: 'POST',
+      const response = await fetch('/api/user/profile', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       
-      if (!profileResponse.ok) {
-        console.error("[DEBUG] Error ensuring profile exists:", await profileResponse.text());
-      } else {
-        const profileResult = await profileResponse.json();
-        console.log("[DEBUG] Profile check result:", profileResult);
-      }
-    } catch (profileError) {
-      console.error("[DEBUG] Error checking profile:", profileError);
-      // Continue anyway, as we'll try to get the profile directly
-    }
-    
-    // Get user profile with credits and subscription info
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('credits, subscription_tier')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (error) {
-        console.error("[DEBUG] Profile query error:", error);
-        throw new Error(error.message);
+      if (!response.ok) {
+        console.error("[DEBUG] Error fetching profile from API:", await response.text());
+        throw new Error('Failed to fetch profile from API');
       }
       
-      if (!profile) {
-        console.log("[DEBUG] No profile found after API call, using default values");
+      const data = await response.json();
+      console.log("[DEBUG] Profile data from API:", data);
+      
+      if (data.profile) {
+        // Get subscription details
+        const tier = data.profile.subscription_tier || 'free';
+        const planDetails = SUBSCRIPTION_PLANS[tier as SubscriptionTier];
         
-        // Return default values if profile still doesn't exist
+        return {
+          credits: data.profile.credits || 0,
+          subscription: {
+            tier: tier as SubscriptionTier,
+            name: planDetails.name,
+            description: planDetails.description,
+            price: planDetails.price,
+            creditsPerMonth: planDetails.credits_per_month,
+          },
+        };
+      } else {
+        // Return default values if no profile
+        console.log("[DEBUG] No profile found, using default values");
         return {
           credits: 25,
           subscription: {
@@ -130,27 +132,10 @@ export async function getUserCreditsInfo() {
           },
         };
       }
+    } catch (error) {
+      console.error("[DEBUG] Error in profile API call:", error);
       
-      console.log("[DEBUG] Profile found:", profile);
-      
-      // Get subscription details
-      const tier = profile.subscription_tier || 'free';
-      const planDetails = SUBSCRIPTION_PLANS[tier as SubscriptionTier];
-      
-      return {
-        credits: profile.credits || 0,
-        subscription: {
-          tier: tier as SubscriptionTier,
-          name: planDetails.name,
-          description: planDetails.description,
-          price: planDetails.price,
-          creditsPerMonth: planDetails.credits_per_month,
-        },
-      };
-    } catch (queryError) {
-      console.error("[DEBUG] Error in profile query:", queryError);
-      
-      // If there's an error with the query, return default values
+      // If there's an error with the API call, return default values
       return {
         credits: 25,
         subscription: {

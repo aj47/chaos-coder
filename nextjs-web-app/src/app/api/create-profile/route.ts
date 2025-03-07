@@ -41,6 +41,15 @@ export async function POST() {
     
     if (queryError && !queryError.message.includes('No rows found')) {
       console.error("[DEBUG] Error checking existing profile:", queryError);
+      
+      // If the error is about type mismatch, return a more helpful error
+      if (queryError.message.includes('invalid input syntax for type bigint')) {
+        return NextResponse.json({ 
+          error: 'Database schema issue: The id column in profiles table is defined as bigint, but auth user IDs are UUIDs. Please update the database schema.',
+          details: queryError
+        }, { status: 500 });
+      }
+      
       return NextResponse.json({ 
         error: 'Error checking existing profile: ' + queryError.message,
         details: queryError
@@ -55,7 +64,7 @@ export async function POST() {
       });
     }
     
-    // Try direct insert since RPC might not be available
+    // Try direct insert
     console.log("[DEBUG] Attempting direct insert");
     
     const { data: insertData, error: insertError } = await supabase
@@ -73,6 +82,15 @@ export async function POST() {
     
     if (insertError) {
       console.error("[DEBUG] Error with insert:", insertError);
+      
+      // If the error is about type mismatch, return a more helpful error
+      if (insertError.message.includes('invalid input syntax for type bigint')) {
+        return NextResponse.json({ 
+          error: 'Database schema issue: The id column in profiles table is defined as bigint, but auth user IDs are UUIDs. Please update the database schema.',
+          details: insertError
+        }, { status: 500 });
+      }
+      
       return NextResponse.json({ 
         error: 'Failed to create profile: ' + insertError.message,
         details: insertError
