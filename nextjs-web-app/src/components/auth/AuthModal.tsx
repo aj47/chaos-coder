@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
+import { FcGoogle } from "react-icons/fc";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>("");
   
@@ -87,6 +89,42 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleGoogleAuth = async () => {
+    setGoogleLoading(true);
+    setMessage(null);
+    
+    try {
+      console.log("Starting Google authentication process...");
+      const supabase = createClient();
+      console.log("Supabase client created for Google auth");
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+      
+      console.log("Google auth response:", { data, error });
+      
+      if (error) throw error;
+      
+      // No need to set success message as we're redirecting to Google
+    } catch (error: unknown) {
+      console.error("Google authentication error:", error);
+      setMessage({ 
+        type: "error", 
+        text: error instanceof Error ? error.message : "An error occurred during Google authentication" 
+      });
+    } finally {
+      setGoogleLoading(false);
     }
   };
   
@@ -195,6 +233,39 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
               )}
             </button>
           </form>
+          
+          {/* Add divider with "or" text */}
+          <div className="relative my-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className={`w-full border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className={`px-2 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                or
+              </span>
+            </div>
+          </div>
+          
+          {/* Google Sign In Button */}
+          <button
+            type="button"
+            onClick={handleGoogleAuth}
+            disabled={googleLoading}
+            className={`w-full py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 ${
+              theme === 'dark'
+                ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-700'
+                : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'
+            } ${googleLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {googleLoading ? (
+              <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+            ) : (
+              <>
+                <FcGoogle size={20} />
+                <span>{mode === "login" ? "Continue with Google" : "Sign up with Google"}</span>
+              </>
+            )}
+          </button>
           
           <div className="text-center text-sm mt-4">
             {mode === "login" ? (
