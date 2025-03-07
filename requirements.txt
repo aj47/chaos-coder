@@ -1,5 +1,0 @@
-streamlit==1.31.0
-litellm==1.16.8
-python-dotenv==1.0.0
-watchdog==3.0.0
-
