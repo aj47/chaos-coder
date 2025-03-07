@@ -1,8 +1,6 @@
 "use client";
 
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { Circle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { cn } from "../ui/utils";
 
 function ElegantShape({
@@ -147,17 +145,6 @@ function HeroGeometric({
       </div>
 
       <div className="relative z-10 container mx-auto px-4 md:px-6 pt-20 ">
-        <motion.div
-          custom={0}
-          variants={fadeUpVariants}
-          initial="hidden"
-          animate="visible"
-          className="absolute top-5 left-5 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] mb-2 md:mb-14"
-        >
-          <Circle className="h-3 w-3 fill-green-500/80" />
-          {/* <span className="text-base text-white/60 tracking-wide">Chaos Coder</span> */}
-        </motion.div>
-
         <div className="max-w-3xl mx-auto text-center">
           <motion.div
             custom={1}

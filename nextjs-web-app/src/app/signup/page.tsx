@@ -4,12 +4,36 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { RainbowButton } from "@/components/ui/rainbow-button";
+import { SignupModal } from "@/components/SignupModal";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const { theme } = useTheme();
   const router = useRouter();
-  
+  const [isModalOpen, setIsModalOpen] = useState(true);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkUser = async () => {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
+      
+      if (data?.user) {
+        router.push("/dashboard");
+      }
+    };
+    
+    checkUser();
+  }, [router]);
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    router.push("/");
+  };
+
+  const handleSuccessfulSignup = () => {
+    router.push("/dashboard");
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -26,14 +50,13 @@ export default function SignupPage() {
         
         <div className="flex flex-col items-center justify-center space-y-4">
           <p className="text-center">
-            Redirecting you to our signup form...
+            Please fill out the form to create your account.
           </p>
-          <div className="w-8 h-8 border-4 border-t-indigo-500 border-indigo-200 rounded-full animate-spin"></div>
-          <p className="text-sm text-center">
-            If you are not redirected automatically, please click the button below:
-          </p>
-          <a 
-          <SignupModal isOpen={true} onClose={() => router.push("/")} />
+          <SignupModal 
+            isOpen={isModalOpen} 
+            onClose={handleCloseModal} 
+            onSuccess={handleSuccessfulSignup}
+          />
           <button
             onClick={() => router.push("/")}
             className={`w-full py-2 px-4 rounded-lg font-medium ${

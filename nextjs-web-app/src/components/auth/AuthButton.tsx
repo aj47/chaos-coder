@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 export function AuthButton() {
   const { theme } = useTheme();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -62,6 +64,16 @@ export function AuthButton() {
           <span className="opacity-70">Hello, </span>
           <span>{user.email?.split('@')[0] || 'User'}</span>
         </div>
+        <button
+          onClick={() => router.push("/dashboard")}
+          className={`py-2 px-4 rounded-lg text-sm font-medium ${
+            theme === 'dark'
+              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+          }`}
+        >
+          Dashboard
+        </button>
         <button
           onClick={handleLogout}
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
