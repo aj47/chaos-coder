@@ -253,7 +253,10 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
                 <button 
                   onClick={() => {
                     onClose();
-                    // You can add logic here to switch to signup mode
+                    setTimeout(() => {
+                      const signupButton = document.querySelector('button[data-signup-button="true"]') as HTMLElement;
+                      signupButton?.click();
+                    }, 100);
                   }}
                   className="text-indigo-500 hover:underline"
                 >
@@ -266,7 +269,10 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
                 <button 
                   onClick={() => {
                     onClose();
-                    // You can add logic here to switch to login mode
+                    setTimeout(() => {
+                      const loginButton = document.querySelector('button[data-login-button="true"]') as HTMLElement;
+                      loginButton?.click();
+                    }, 100);
                   }}
                   className="text-indigo-500 hover:underline"
                 >

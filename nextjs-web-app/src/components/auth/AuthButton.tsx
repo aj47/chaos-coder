@@ -89,6 +89,7 @@ export function AuthButton() {
       <div className="flex gap-2">
         <button
           onClick={() => setShowLoginModal(true)}
+          data-login-button="true"
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
             theme === 'dark'
               ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
@@ -99,6 +100,7 @@ export function AuthButton() {
         </button>
         <button
           onClick={() => setShowSignupModal(true)}
+          data-signup-button="true"
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
             theme === 'dark' 
               ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
