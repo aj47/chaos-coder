@@ -10,7 +10,6 @@ import {
   FaTasks,
   FaBlog,
   FaUserTie,
-  FaCalendarAlt,
   FaStore,
   FaRobot,
   FaQuestionCircle,
@@ -19,7 +18,6 @@ import {
 // Signup Modal Component
 export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { theme } = useTheme();
-  const router = useRouter();
   
   if (!isOpen) return null;
   
@@ -50,7 +48,7 @@ export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
         </button>
         
         <h2 className="text-xl font-bold mb-4">Free Limit Reached</h2>
-        <p className="mb-6">You've reached the limit of 25 free generations. Create an account to continue using our service.</p>
+        <p className="mb-6">You&apos;ve reached the limit of 25 free generations. Create an account to continue using our service.</p>
         
         <div className="flex flex-col gap-4">
           <a 
@@ -88,45 +86,45 @@ export default function Home() {
   const examples = [
     {
       prompt:
-        "A web app for creating a simple to-do list without user authentication",
+        "A Python script for creating a simple to-do list application with file storage",
       icon: <FaTasks className="w-4 h-4" />,
-      label: "Simple To-Do List",
+      label: "To-Do List Script",
     },
     {
       prompt:
-        "A web app for creating a simple blog with a list of posts, without user authentication",
+        "A Python script for data analysis that reads CSV files and generates statistics",
       icon: <FaBlog className="w-4 h-4" />,
-      label: "Simple Blog",
+      label: "Data Analysis Script",
     },
     {
       prompt:
-        "A web app for creating a simple portfolio with a list of projects, without user authentication",
+        "A Python script for web scraping that extracts information from a website",
       icon: <FaUserTie className="w-4 h-4" />,
-      label: "Simple Portfolio",
+      label: "Web Scraping Script",
     },
     {
       prompt:
-        "A web app for displaying a hardware diagram from a given .asc file, context:",
+        "A Python script for automating file organization in a directory",
       icon: <FaRobot className="w-4 h-4" />,
-      label: "Hardware Diagram",
+      label: "File Automation Script",
     },
     {
       prompt:
-        "A web app for generating a simple website for a small business, with a homepage, about page, and contact page, without user authentication",
+        "A Python script for creating a simple CLI tool that converts between different units",
       icon: <FaStore className="w-4 h-4" />,
-      label: "Simple Website for Small Business",
+      label: "Unit Converter Script",
     },
     {
       prompt:
-        "A web app for creating a simple chatbot that can answer basic questions about a company's products and services, without user authentication",
+        "A Python script for creating a simple chatbot that can answer basic questions",
       icon: <FaRobot className="w-4 h-4" />,
-      label: "Simple Chatbot",
+      label: "Simple Chatbot Script",
     },
     {
       prompt:
-        "A web app for creating a simple quiz or trivia game with multiple choice questions and scoring, without user authentication",
+        "A Python script for creating a simple quiz or trivia game with scoring",
       icon: <FaQuestionCircle className="w-4 h-4" />,
-      label: "Simple Quiz or Trivia Game",
+      label: "Quiz Game Script",
     },
   ];
   const [isLoading, setIsLoading] = useState(false);
@@ -135,7 +133,7 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!prompt) {
-      setError("Please enter a prompt to generate web applications.");
+      setError("Please enter a prompt to generate Python scripts.");
       return;
     }
 
@@ -150,7 +148,7 @@ export default function Home() {
         body: JSON.stringify({
           prompt: prompt.substring(0, 50), // Just send a small part of the prompt for the check
           variation: "rate-limit-check",
-          framework: "none",
+          scriptType: "basic",
         }),
       });
       
@@ -195,14 +193,18 @@ export default function Home() {
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="E.g., A to-do list app with local storage and dark mode"
+                  placeholder="E.g., A Python script that organizes files by extension and creation date"
                   className="w-full h-32 p-4 bg-[#1a1f2e]/50 font-sans text-base
                          border border-[#2a3040] rounded-xl mb-4 
-                         focus:ring-2 focus:ring-[#3b82f6]/50 focus:border-transparent resize-none
-                         placeholder:text-gray-400/70
-                         text-gray-200"
+                         text-white placeholder-gray-400 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20
+                         focus:outline-none transition-all"
                 />
-
+                
+                {/* Display error message if there is one */}
+                {error && (
+                  <div className="text-red-500 mb-4 text-sm">{error}</div>
+                )}
+                
                 <div className="flex flex-wrap gap-2 mb-4">
                   {examples.map((example, i) => (
                     <button
@@ -226,7 +228,7 @@ export default function Home() {
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
                   ) : null}
-                  Generate Web Apps {!isLoading && <>+</>}
+                  Generate Python Scripts {!isLoading && <>+</>}
                 </RainbowButton>
                 
                 <div className="mt-4 text-center text-sm text-gray-400">

@@ -5,7 +5,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
-import AppTile from "@/components/AppTile";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
 import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
@@ -14,7 +13,7 @@ import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import MockDeployButton from "@/components/MockDeployButton";
-import { SignupModal } from "@/components/SignupModal";
+import { SignupModal } from "../page";
 import styled from "styled-components";
 
 const LoadingContainer = styled.div`
@@ -33,6 +32,7 @@ const LoadingTitle = styled.div`
   margin-bottom: 10px;
 `;
 
+// Define LoadingBar and LoadingProgress directly in this file
 const LoadingBar = styled(motion.div)`
   width: 100%;
   max-width: 500px;
@@ -72,34 +72,34 @@ function ResultsContent() {
   const [generationTimes, setGenerationTimes] = useState<{
     [key: number]: number;
   }>({});
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const { theme } = useTheme();
 
   const variations = [
     "",
-    "Make it visually appealing and use a different framework than the other versions.",
-    "Focus on simplicity and performance. Use minimal dependencies.",
-    "Add some creative features that might not be explicitly mentioned in the prompt.",
-    "Create an enhanced version with additional features and modern design patterns.",
-    "Build a version with accessibility and internationalization features in mind.",
-    "Create a version optimized for mobile devices with responsive design.",
-    "Build a version with advanced animations and interactive elements.",
-    "Create a version with data visualization capabilities.",
-    "Build a version with offline functionality and progressive web app features.",
+    "Make it handle data processing and analysis tasks with pandas and numpy.",
+    "Focus on simplicity and performance. Create a command-line interface with argparse.",
+    "Add some creative features using web frameworks like Flask or FastAPI.",
+    "Create an enhanced version with additional features and modern Python patterns.",
+    "Build a version with automation capabilities for files, scheduling, or system tasks.",
+    "Create a version optimized for data visualization with matplotlib or seaborn.",
+    "Build a version with advanced error handling and logging capabilities.",
+    "Create a version with database integration using SQLAlchemy.",
+    "Build a version with API integration and external service connections.",
   ];
 
   const appTitles = [
-    "Standard Version",
-    "Visual Focus",
-    "Minimalist Version",
-    "Creative Approach",
-    "Enhanced Version",
-    "Accessible Version",
-    "Mobile Optimized",
-    "Interactive Version",
+    "Basic Python Script",
+    "Data Processing Script",
+    "CLI Script",
+    "Web API Script",
+    "Enhanced Script",
+    "Automation Script",
     "Data Visualization",
-    "Progressive Web App",
+    "Error Handling Script",
+    "Database Script",
+    "API Integration Script",
   ];
 
   // Handle keyboard shortcuts
@@ -127,18 +127,18 @@ function ResultsContent() {
   const generateApp = async (index: number, promptText: string) => {
     const startTime = performance.now();
     try {
-      const framework =
-        appTitles[index] === "Standard Version"
-          ? "bootstrap"
-          : appTitles[index] === "Visual Focus"
-          ? "materialize"
-          : appTitles[index] === "Minimalist Version"
-          ? "pure"
-          : appTitles[index] === "Creative Approach"
-          ? "tailwind"
-          : appTitles[index] === "Accessible Version"
-          ? "foundation"
-          : "Bulma";
+      const scriptType =
+        appTitles[index] === "Basic Python Script"
+          ? "basic"
+          : appTitles[index] === "Data Processing Script"
+          ? "data"
+          : appTitles[index] === "CLI Script"
+          ? "cli"
+          : appTitles[index] === "Web API Script"
+          ? "web"
+          : appTitles[index] === "Automation Script"
+          ? "automation"
+          : "basic";
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -146,7 +146,7 @@ function ResultsContent() {
         body: JSON.stringify({
           prompt: promptText,
           variation: variations[index],
-          framework,
+          scriptType,
         }),
       });
 
@@ -207,18 +207,18 @@ function ResultsContent() {
         try {
           // Create an array of promises for all apps
           const updatePromises = appTitles.map(async (title, index) => {
-            const framework =
-              title === "Standard Version"
-                ? "bootstrap"
-                : title === "Visual Focus"
-                ? "materialize"
-                : title === "Minimalist Version"
-                ? "pure"
-                : title === "Creative Approach"
-                ? "tailwind"
-                : title === "Accessible Version"
-                ? "foundation"
-                : "Bulma";
+            const scriptType =
+              title === "Basic Python Script"
+                ? "basic"
+                : title === "Data Processing Script"
+                ? "data"
+                : title === "CLI Script"
+                ? "cli"
+                : title === "Web API Script"
+                ? "web"
+                : title === "Automation Script"
+                ? "automation"
+                : "basic";
 
             const response = await fetch("/api/generate", {
               method: "POST",
@@ -226,7 +226,7 @@ function ResultsContent() {
               body: JSON.stringify({
                 prompt,
                 existingCode: editedResults[index],
-                framework,
+                scriptType,
                 isUpdate: true,
               }),
             });
@@ -270,18 +270,18 @@ function ResultsContent() {
         });
 
         try {
-          const framework =
-            appTitles[selectedAppIndex] === "Standard Version"
-              ? "bootstrap"
-              : appTitles[selectedAppIndex] === "Visual Focus"
-              ? "materialize"
-              : appTitles[selectedAppIndex] === "Minimalist Version"
-              ? "pure"
-              : appTitles[selectedAppIndex] === "Creative Approach"
-              ? "tailwind"
-              : appTitles[selectedAppIndex] === "Accessible Version"
-              ? "foundation"
-              : "Bulma";
+          const scriptType =
+            appTitles[selectedAppIndex] === "Basic Python Script"
+              ? "basic"
+              : appTitles[selectedAppIndex] === "Data Processing Script"
+              ? "data"
+              : appTitles[selectedAppIndex] === "CLI Script"
+              ? "cli"
+              : appTitles[selectedAppIndex] === "Web API Script"
+              ? "web"
+              : appTitles[selectedAppIndex] === "Automation Script"
+              ? "automation"
+              : "basic";
 
           const response = await fetch("/api/generate", {
             method: "POST",
@@ -289,7 +289,7 @@ function ResultsContent() {
             body: JSON.stringify({
               prompt,
               existingCode: editedResults[selectedAppIndex],
-              framework,
+              scriptType,
               isUpdate: true,
             }),
           });
