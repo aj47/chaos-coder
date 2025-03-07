@@ -71,6 +71,7 @@ export default function DashboardPage() {
         }
         
         // Get user's credits and subscription info using the client-side function
+        // This function will ensure the profile exists
         try {
           const creditsInfo = await getUserCreditsInfo();
           setCredits(creditsInfo.credits);
