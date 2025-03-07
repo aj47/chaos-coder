@@ -6,30 +6,67 @@ import type { NextRequest } from 'next/server';
  * Middleware to handle authentication and protected routes
  */
 export async function middleware(req: NextRequest) {
+  console.log("[DEBUG] Middleware running for path:", req.nextUrl.pathname);
+  
+  // Log all cookies to see if auth token exists
+  const allCookies = req.cookies.getAll();
+  console.log("[DEBUG] Request cookies:", allCookies.map(c => `${c.name}=${c.value.substring(0, 10)}...`));
+  
+  // Check if auth token cookie exists
+  const authCookie = req.cookies.get('sb-xskelhjnymrbogeloxfy-auth-token');
+  console.log("[DEBUG] Auth cookie exists:", !!authCookie);
+  
   const res = NextResponse.next();
   
   // Create a Supabase client for the middleware
+  console.log("[DEBUG] Creating Supabase server client in middleware");
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     {
       cookies: {
         get: (name) => {
-          return req.cookies.get(name)?.value;
+          const cookie = req.cookies.get(name)?.value;
+          console.log(`[DEBUG] Middleware getting cookie: ${name}, exists: ${!!cookie}`);
+          return cookie;
         },
         set: (name, value, options) => {
+          // This is important for session cookies to be set properly
+          console.log(`[DEBUG] Middleware setting cookie: ${name}, options:`, options);
+          
+          // Ensure the cookie is set with the correct options for session persistence
+          const cookieOptions = {
+            ...options,
+            // Make sure the cookie is accessible from client-side JavaScript
+            httpOnly: false,
+            // Set a long expiry time if not specified
+            maxAge: options.maxAge || 60 * 60 * 24 * 7, // 7 days
+            // Ensure the path is set to root
+            path: options.path || '/',
+          };
+          
           req.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           });
+          
           res.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           });
+          
+          console.log(`[DEBUG] Cookie set in middleware: ${name}`);
         },
         remove: (name, options) => {
+          // CRITICAL FIX: Don't remove the auth token cookie
+          if (name.includes('auth-token')) {
+            console.log(`[DEBUG] Middleware NOT removing auth cookie: ${name} (preserving session)`);
+            return;
+          }
+          
+          console.log(`[DEBUG] Middleware removing cookie: ${name}`);
           req.cookies.set({
             name,
             value: '',
@@ -46,7 +83,10 @@ export async function middleware(req: NextRequest) {
   );
   
   // Refresh session if expired - required for Server Components
+  console.log("[DEBUG] Checking session in middleware");
   const { data: { session } } = await supabase.auth.getSession();
+  
+  console.log("[DEBUG] Session in middleware:", session ? `User: ${session.user.id}` : "No session");
   
   // Get the pathname from the URL
   const path = req.nextUrl.pathname;
@@ -59,15 +99,21 @@ export async function middleware(req: NextRequest) {
     path === route || path.startsWith(`${route}/`)
   );
   
-  // If accessing a protected route without a session, redirect to login
-  if (isProtectedRoute && !session) {
+  console.log("[DEBUG] Is protected route:", isProtectedRoute);
+  
+  // If accessing a protected route and no auth cookie exists, redirect to login
+  if (isProtectedRoute && !authCookie) {
+    console.log("[DEBUG] Redirecting to login from protected route (no auth cookie)");
+    // Create a new URL for the redirect
     const redirectUrl = new URL('/', req.url);
+    // Add the original path as a redirect parameter
     redirectUrl.searchParams.set('redirect', path);
+    // Return the redirect response
     return NextResponse.redirect(redirectUrl);
   }
   
-  // Remove automatic redirection to dashboard
-  // Users should stay on the same page after login
+  // Log response cookies
+  console.log("[DEBUG] Response cookies:", res.cookies.getAll().map(c => `${c.name}=${c.value.substring(0, 10)}...`));
   
   return res;
 }

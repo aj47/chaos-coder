@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +21,12 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   
+  useEffect(() => {
+    if (isOpen) {
+      console.log(`[DEBUG] AuthModal opened in ${mode} mode`);
+    }
+  }, [isOpen, mode]);
+  
   if (!isOpen) return null;
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -28,23 +34,55 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setLoading(true);
     setMessage(null);
     
+    console.log(`[DEBUG] Starting ${mode} with email:`, email);
+    
     try {
       const supabase = createClient();
       
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log("[DEBUG] Attempting to sign in with password");
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         
         if (error) throw error;
         
+        console.log("[DEBUG] Login successful, session:", data.session?.user.id);
+        console.log("[DEBUG] Session expires at:", new Date(data.session!.expires_at! * 1000).toISOString());
+        console.log("[DEBUG] Access token:", data.session?.access_token?.substring(0, 10) + "...");
+        console.log("[DEBUG] Refresh token exists:", !!data.session?.refresh_token);
+        
+        // Log all cookies to see if auth cookie is set
+        setTimeout(() => {
+          console.log("[DEBUG] Cookies after login:", document.cookie);
+          
+          // Check if auth cookie exists
+          const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+          console.log("[DEBUG] Auth cookie exists after login:", hasAuthCookie);
+          
+          if (!hasAuthCookie) {
+            console.log("[DEBUG] Auth cookie not found, manually setting it");
+            // If cookie doesn't exist, try to manually set it
+            document.cookie = `sb-xskelhjnymrbogeloxfy-auth-token=${JSON.stringify([data.session?.access_token, data.session?.refresh_token])}; path=/; max-age=604800; SameSite=Lax`;
+          }
+        }, 100);
+        
         setMessage({ type: "success", text: "Login successful!" });
-        onClose();
+        
+        // Close the modal after a short delay to allow the session to be set
+        setTimeout(() => {
+          console.log("[DEBUG] Closing modal and reloading page");
+          onClose();
+          
+          // Force a hard refresh to ensure the auth state is updated everywhere
+          window.location.href = window.location.href;
+        }, 500);
       } else {
         // No need to validate firstName since it's a hidden field with default value
+        console.log("[DEBUG] Attempting to sign up with email:", email);
         
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -52,6 +90,8 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
               // Always use "User" as the first name if not provided
               first_name: firstName.trim() || "User",
             },
+            // Ensure the email redirect URL is correct
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         });
         
@@ -60,12 +100,16 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         // Store first name in localStorage as a backup
         localStorage.setItem('firstName', firstName);
         
+        console.log("[DEBUG] Signup successful, user:", data.user?.id);
+        console.log("[DEBUG] Email confirmation needed:", !data.session);
+        
         setMessage({ 
           type: "success", 
           text: "Check your email for the confirmation link!" 
         });
       }
     } catch (error: unknown) {
+      console.error("[DEBUG] Auth error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during authentication" 
@@ -79,10 +123,12 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setGoogleLoading(true);
     setMessage(null);
     
+    console.log("[DEBUG] Starting Google OAuth flow");
+    
     try {
       const supabase = createClient();
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -91,8 +137,10 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       
       if (error) throw error;
       
+      console.log("[DEBUG] Google auth initiated, URL:", data.url?.substring(0, 30) + "...");
       // No need to set success message as we're redirecting to Google
     } catch (error: unknown) {
+      console.error("[DEBUG] Google auth error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during Google authentication" 

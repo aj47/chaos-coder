@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { SignupModal } from "@/components/SignupModal";
@@ -17,7 +18,63 @@ import {
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Handle redirect parameter if present
+  useEffect(() => {
+    const redirect = searchParams.get('redirect');
+    
+    // Check if user is authenticated before redirecting to protected routes
+    const checkAuthAndRedirect = async () => {
+      if (redirect) {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        console.log("[DEBUG] Redirect check - Session:", session ? `User: ${session.user.id}` : "No session");
+        
+        // Only redirect if user is authenticated
+        if (session) {
+          router.push(redirect);
+        }
+      }
+    };
+    
+    checkAuthAndRedirect();
+  }, [searchParams, router]);
+  
+  // Debug function to check authentication state
+  const checkAuthState = async () => {
+    try {
+      console.log("[DEBUG] Manually checking auth state");
+      const supabase = createClient();
+      
+      // Get session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Get all cookies
+      const cookies = document.cookie;
+      
+      // Create debug info
+      let info = "=== AUTH DEBUG INFO ===\n";
+      info += `Session exists: ${!!session}\n`;
+      if (session) {
+        info += `User ID: ${session.user.id}\n`;
+        info += `Session expires: ${new Date(session.expires_at! * 1000).toISOString()}\n`;
+        info += `Access token (first 10 chars): ${session.access_token.substring(0, 10)}...\n`;
+        info += `Refresh token exists: ${!!session.refresh_token}\n`;
+      }
+      info += `\nCookies: ${cookies}\n`;
+      
+      console.log(info);
+      setDebugInfo(info);
+    } catch (error) {
+      console.error("[DEBUG] Error checking auth state:", error);
+      setDebugInfo(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  
   const examples = [
     {
       prompt:
@@ -113,6 +170,21 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen w-full">
+      {/* Debug button */}
+      <div className="fixed bottom-4 left-4 z-50">
+        <button
+          onClick={checkAuthState}
+          className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm"
+        >
+          Debug Auth
+        </button>
+        {debugInfo && (
+          <pre className="mt-2 p-4 bg-black/80 text-green-400 rounded-lg text-xs max-w-lg max-h-96 overflow-auto">
+            {debugInfo}
+          </pre>
+        )}
+      </div>
+      
       {showSignupModal && (
         <SignupModal
           isOpen={showSignupModal}

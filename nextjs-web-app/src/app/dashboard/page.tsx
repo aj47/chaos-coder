@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/client";
 import { SUBSCRIPTION_PLANS } from "@/services/stripe";
 import { loadStripe } from "@stripe/stripe-js";
 import { SubscriptionTier } from "@/types/supabase";
-import { User } from "@supabase/supabase-js";
 
 // Initialize Stripe (we need this for the Stripe checkout to work)
 loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
@@ -26,8 +25,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // We store the current user for potential future use (e.g., displaying user info)
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [credits, setCredits] = useState(0);
   const [subscription, setSubscription] = useState<UserSubscription>({
     tier: 'free',
@@ -37,6 +34,7 @@ export default function DashboardPage() {
     creditsPerMonth: 25,
   });
   const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -52,8 +50,6 @@ export default function DashboardPage() {
           router.push("/");
           return;
         }
-        
-        setCurrentUser(data.user);
         
         // Fetch user credits and subscription info
         const response = await fetch('/api/credits');
@@ -107,6 +103,43 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoadingCheckout(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to premium features and your remaining credits will be available until the end of your billing period.')) {
+      return;
+    }
+    
+    try {
+      setCancelingSubscription(true);
+      
+      const response = await fetch('/api/stripe/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to cancel subscription');
+      }
+      
+      // Update local state to reflect the change
+      setSubscription({
+        tier: 'free',
+        name: 'Free',
+        description: 'Basic access with limited features',
+        price: 0,
+        creditsPerMonth: 25,
+      });
+      
+      alert('Your subscription has been canceled. You will be downgraded to the Free plan at the end of your current billing period.');
+    } catch (err) {
+      console.error('Error canceling subscription:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setCancelingSubscription(false);
     }
   };
 
@@ -189,7 +222,7 @@ export default function DashboardPage() {
                             : "bg-indigo-500 hover:bg-indigo-600 text-white"
                         } ${loadingCheckout ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {loadingCheckout ? 'Loading...' : 'Upgrade to Pro'}
+                        {loadingCheckout ? 'Loading...' : 'Upgrade to Pro ($10/mo)'}
                       </button>
                       <button 
                         onClick={() => handleSubscribe('ultra')}
@@ -200,22 +233,50 @@ export default function DashboardPage() {
                             : "bg-purple-500 hover:bg-purple-600 text-white"
                         } ${loadingCheckout ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {loadingCheckout ? 'Loading...' : 'Upgrade to Ultra'}
+                        {loadingCheckout ? 'Loading...' : 'Upgrade to Ultra ($50/mo)'}
                       </button>
                     </div>
                   )}
                   {subscription.tier === 'pro' && (
-                    <button 
-                      onClick={() => handleSubscribe('ultra')}
-                      disabled={loadingCheckout}
-                      className={`px-4 py-2 rounded-lg font-medium ${
-                        theme === "dark"
-                          ? "bg-purple-600 hover:bg-purple-700 text-white"
-                          : "bg-purple-500 hover:bg-purple-600 text-white"
-                      } ${loadingCheckout ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {loadingCheckout ? 'Loading...' : 'Upgrade to Ultra'}
-                    </button>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleSubscribe('ultra')}
+                        disabled={loadingCheckout}
+                        className={`px-4 py-2 rounded-lg font-medium ${
+                          theme === "dark"
+                            ? "bg-purple-600 hover:bg-purple-700 text-white"
+                            : "bg-purple-500 hover:bg-purple-600 text-white"
+                        } ${loadingCheckout ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {loadingCheckout ? 'Loading...' : 'Upgrade to Ultra ($50/mo)'}
+                      </button>
+                      <button 
+                        onClick={handleCancelSubscription}
+                        disabled={cancelingSubscription}
+                        className={`px-4 py-2 rounded-lg font-medium ${
+                          theme === "dark"
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-red-500 hover:bg-red-600 text-white"
+                        } ${cancelingSubscription ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {cancelingSubscription ? 'Canceling...' : 'Cancel Subscription'}
+                      </button>
+                    </div>
+                  )}
+                  {subscription.tier === 'ultra' && (
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={handleCancelSubscription}
+                        disabled={cancelingSubscription}
+                        className={`px-4 py-2 rounded-lg font-medium ${
+                          theme === "dark"
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-red-500 hover:bg-red-600 text-white"
+                        } ${cancelingSubscription ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {cancelingSubscription ? 'Canceling...' : 'Cancel Subscription'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -301,7 +362,7 @@ export default function DashboardPage() {
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    More monthly credits
+                    100 monthly credits
                   </li>
                   <li className="flex items-center">
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
@@ -325,7 +386,7 @@ export default function DashboardPage() {
                     ? 'Current Plan' 
                     : loadingCheckout 
                       ? 'Loading...' 
-                      : 'Upgrade to Pro'}
+                      : 'Subscribe - $10/month'}
                 </button>
               </div>
               
@@ -347,7 +408,7 @@ export default function DashboardPage() {
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    Maximum monthly credits
+                    500 monthly credits
                   </li>
                   <li className="flex items-center">
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
@@ -377,7 +438,7 @@ export default function DashboardPage() {
                     ? 'Current Plan' 
                     : loadingCheckout 
                       ? 'Loading...' 
-                      : 'Upgrade to Ultra'}
+                      : 'Subscribe - $50/month'}
                 </button>
               </div>
             </div>

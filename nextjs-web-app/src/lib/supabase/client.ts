@@ -3,7 +3,7 @@ import type { Database } from '@/types/supabase';
 
 /**
  * Creates and returns a Supabase client for use in client components
- * with proper error handling for environment variables
+ * with proper error handling for environment variables and session persistence
  */
 export const createClient = () => {
   // Explicitly use the environment variables to ensure they're properly loaded
@@ -23,9 +23,26 @@ export const createClient = () => {
     }
   }
   
-  // Return typed client for better type safety
-  return createClientComponentClient<Database>({
+  console.log("[DEBUG] Creating Supabase client with URL:", supabaseUrl?.substring(0, 15) + "...");
+  
+  // Return typed client for better type safety with proper cookie persistence
+  const client = createClientComponentClient<Database>({
     supabaseUrl: supabaseUrl || '',
     supabaseKey: supabaseKey || '',
   });
+  
+  // Debug: Check if we can get the session immediately after creating the client
+  setTimeout(async () => {
+    try {
+      const { data } = await client.auth.getSession();
+      console.log("[DEBUG] Initial session check:", data.session ? `Session exists for user ${data.session.user.id}` : "No session found");
+      
+      // Log all cookies to see if auth cookie exists
+      console.log("[DEBUG] Current cookies:", document.cookie);
+    } catch (error) {
+      console.error("[DEBUG] Error checking initial session:", error);
+    }
+  }, 100);
+  
+  return client;
 }

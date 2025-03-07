@@ -19,14 +19,14 @@ export const SUBSCRIPTION_PLANS = {
   pro: {
     name: 'Pro',
     description: 'Advanced features with more credits',
-    price: 19.99,
+    price: 10.00,
     credits_per_month: 100,
     stripe_price_id: process.env.STRIPE_PRO_PRICE_ID || '',
   },
   ultra: {
     name: 'Ultra',
     description: 'Premium access with unlimited features',
-    price: 49.99,
+    price: 50.00,
     credits_per_month: 500,
     stripe_price_id: process.env.STRIPE_ULTRA_PRICE_ID || '',
   },
@@ -303,25 +303,55 @@ export async function updateUserSubscription(userId: string, subscriptionData: {
   try {
     const supabase = await createServerClient();
     
-    // Update user subscription in the profiles table
-    const { error } = await supabase
+    await supabase
       .from('profiles')
       .update({
         subscription_tier: subscriptionData.tier,
         stripe_customer_id: subscriptionData.customerId,
         stripe_subscription_id: subscriptionData.subscriptionId,
-        updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
-    
-    if (error) {
-      console.error('Error updating user subscription:', error);
-      throw error;
-    }
     
     return { success: true };
   } catch (error) {
     console.error('Error updating user subscription:', error);
+    throw error;
+  }
+}
+
+// Cancel a subscription
+export async function cancelSubscription(userId: string) {
+  try {
+    const supabase = await createServerClient();
+    
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('stripe_subscription_id, stripe_customer_id')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError) throw new Error(profileError.message);
+    
+    if (!profile.stripe_subscription_id) {
+      throw new Error('No active subscription found');
+    }
+    
+    // Cancel the subscription in Stripe
+    await stripe.subscriptions.cancel(profile.stripe_subscription_id);
+    
+    // Update user profile
+    await supabase
+      .from('profiles')
+      .update({
+        subscription_tier: 'free',
+        stripe_subscription_id: null,
+      })
+      .eq('id', userId);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error canceling subscription:', error);
     throw error;
   }
 } 

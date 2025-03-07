@@ -5,48 +5,110 @@ import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
 
 export function AuthButton() {
   const { theme } = useTheme();
-  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
   
   useEffect(() => {
+    console.log("[DEBUG] AuthButton mounted, initializing auth state");
+    
+    // Initialize Supabase client
     const supabase = createClient();
     
-    // Check current session
-    const checkUser = async () => {
+    // Check current session and set up auth state listener
+    const setupAuth = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        console.log("[DEBUG] Checking current session");
+        
+        // Check if auth cookie exists directly
+        const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+        console.log("[DEBUG] Auth cookie exists in document.cookie:", hasAuthCookie);
+        
+        // Get the current session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Set the user from the session if it exists
+        if (session) {
+          console.log("[DEBUG] Session found, user ID:", session.user.id);
+          console.log("[DEBUG] Session expires at:", new Date(session.expires_at! * 1000).toISOString());
+          setUser(session.user);
+        } else if (hasAuthCookie) {
+          // If we have an auth cookie but no session, try to refresh the session
+          console.log("[DEBUG] Auth cookie exists but no session, trying to refresh");
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          
+          if (refreshData.session) {
+            console.log("[DEBUG] Session refreshed successfully, user ID:", refreshData.session.user.id);
+            setUser(refreshData.session.user);
+          } else {
+            console.log("[DEBUG] Failed to refresh session despite having auth cookie");
+            setUser(null);
+          }
+        } else {
+          console.log("[DEBUG] No session found");
+          setUser(null);
+        }
       } catch (error) {
-        console.error("Error fetching user:", error);
+        console.error("[DEBUG] Error fetching session:", error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
     
-    checkUser();
+    // Call the setup function
+    setupAuth();
     
-    // Listen for auth changes
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
+      (event: AuthChangeEvent, session: Session | null) => {
+        console.log("[DEBUG] Auth state changed:", event, session?.user?.id);
+        
+        if (session) {
+          console.log("[DEBUG] New session, expires at:", new Date(session.expires_at! * 1000).toISOString());
+          // Log all cookies to see if auth cookie exists
+          console.log("[DEBUG] Current cookies:", document.cookie);
+        }
+        
         setUser(session?.user || null);
       }
     );
     
+    // Clean up subscription on unmount
     return () => {
+      console.log("[DEBUG] AuthButton unmounting, cleaning up subscription");
       subscription.unsubscribe();
     };
   }, []);
   
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      console.log("[DEBUG] Logging out user");
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("[DEBUG] Error signing out:", error);
+      } else {
+        console.log("[DEBUG] User signed out successfully");
+        // Force a page reload to ensure all auth state is cleared
+        window.location.reload();
+      }
+      // The auth state listener will update the user state
+    } catch (error) {
+      console.error("[DEBUG] Error signing out:", error);
+    }
+  };
+
+  const handleSettingsClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("[DEBUG] Settings button clicked, navigating to dashboard");
+    // Use direct navigation instead of router.push to ensure a full page navigation
+    window.location.href = "/dashboard";
   };
   
   if (loading) {
@@ -58,6 +120,7 @@ export function AuthButton() {
   }
   
   if (user) {
+    console.log("[DEBUG] Rendering logged-in state for user:", user.id);
     return (
       <div className="flex items-center gap-3">
         <button
@@ -71,7 +134,7 @@ export function AuthButton() {
           Log Out
         </button>
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={handleSettingsClick}
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
             theme === 'dark'
               ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
@@ -84,6 +147,7 @@ export function AuthButton() {
     );
   }
   
+  console.log("[DEBUG] Rendering logged-out state");
   return (
     <>
       <div className="flex gap-2">
