@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
-import { SUBSCRIPTION_PLANS } from "@/services/stripe";
+import { SUBSCRIPTION_PLANS, initiateSubscription, cancelSubscription, getUserCreditsInfo } from "@/services/stripe-client";
 import { loadStripe } from "@stripe/stripe-js";
 import { SubscriptionTier } from "@/types/supabase";
+import { User } from "@supabase/supabase-js";
 
 // Initialize Stripe (we need this for the Stripe checkout to work)
 loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
@@ -31,38 +32,56 @@ export default function DashboardPage() {
     name: 'Free',
     description: 'Basic access with limited features',
     price: 0,
-    creditsPerMonth: 25,
+    creditsPerMonth: 10,
   });
+  
+  // These state variables are used in the full component that's not shown here
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [user, setUser] = useState<User | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [name, setName] = useState<string>('User');
+  
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
       try {
+        setLoading(true);
         const supabase = createClient();
-        const { data, error } = await supabase.auth.getUser();
         
-        if (error) {
-          throw new Error(error.message);
-        }
+        // Check if user is authenticated
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!data?.user) {
-          router.push("/");
+        console.log("[DEBUG] Dashboard - Session check:", session ? `User: ${session.user.id}` : "No session");
+        
+        if (!session) {
+          // If no session, redirect to home page
+          console.log("[DEBUG] Dashboard - No session, redirecting to home");
+          router.push('/');
           return;
         }
         
-        // Fetch user credits and subscription info
-        const response = await fetch('/api/credits');
-        if (!response.ok) {
-          throw new Error('Failed to fetch credits info');
+        // User is authenticated, get user data
+        setUser(session.user);
+        
+        // Get user's first name from metadata
+        if (session.user.user_metadata?.first_name) {
+          setName(session.user.user_metadata.first_name);
         }
         
-        const creditsInfo = await response.json();
-        setCredits(creditsInfo.credits);
-        setSubscription(creditsInfo.subscription);
+        // Get user's credits and subscription info using the client-side function
+        try {
+          const creditsInfo = await getUserCreditsInfo();
+          setCredits(creditsInfo.credits);
+          setSubscription(creditsInfo.subscription);
+        } catch (creditsError) {
+          console.error("[DEBUG] Dashboard - Error fetching credits info:", creditsError);
+          setError("Failed to load your credits information. Please try again later.");
+        }
       } catch (err) {
-        console.error("Error checking user:", err);
-        setError(err instanceof Error ? err.message : "An error occurred");
+        console.error("[DEBUG] Dashboard - Error in checkUser:", err);
+        setError("An unexpected error occurred. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -75,69 +94,55 @@ export default function DashboardPage() {
     if (query.get('session_id')) {
       // Clear the URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);
+      // Refresh user data to get updated subscription
+      checkUser();
     }
   }, [router]);
 
   const handleSubscribe = async (planType: string) => {
     try {
       setLoadingCheckout(true);
+      setError(null);
       
-      const response = await fetch('/api/stripe/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ planType }),
-      });
+      // Use the client-side function to initiate subscription
+      const { url } = await initiateSubscription(planType as SubscriptionTier);
       
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+      // Redirect to Stripe checkout
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error('No checkout URL returned');
       }
-      
-      const { url } = await response.json();
-      
-      // Redirect to Stripe Checkout
-      window.location.href = url;
     } catch (err) {
-      console.error('Error creating checkout session:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error("[DEBUG] Dashboard - Error subscribing:", err);
+      setError("Failed to initiate subscription. Please try again later.");
     } finally {
       setLoadingCheckout(false);
     }
   };
 
   const handleCancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to premium features and your remaining credits will be available until the end of your billing period.')) {
-      return;
-    }
-    
     try {
       setCancelingSubscription(true);
+      setError(null);
       
-      const response = await fetch('/api/stripe/cancel-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Use the client-side function to cancel subscription
+      await cancelSubscription();
       
-      if (!response.ok) {
-        throw new Error('Failed to cancel subscription');
-      }
-      
-      // Update local state to reflect the change
+      // Update subscription to free tier
       setSubscription({
         tier: 'free',
         name: 'Free',
         description: 'Basic access with limited features',
         price: 0,
-        creditsPerMonth: 25,
+        creditsPerMonth: SUBSCRIPTION_PLANS.free.credits_per_month,
       });
       
-      alert('Your subscription has been canceled. You will be downgraded to the Free plan at the end of your current billing period.');
+      // Show success message
+      alert('Your subscription has been canceled successfully.');
     } catch (err) {
-      console.error('Error canceling subscription:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error("[DEBUG] Dashboard - Error canceling subscription:", err);
+      setError("Failed to cancel subscription. Please try again later.");
     } finally {
       setCancelingSubscription(false);
     }

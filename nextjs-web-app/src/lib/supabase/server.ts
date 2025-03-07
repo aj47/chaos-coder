@@ -1,13 +1,17 @@
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import type { Database } from '@/types/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Creates and returns a Supabase client for use in server components and API routes
  * with proper error handling for environment variables and session persistence
+ * 
+ * Note: This function should only be used in App Router server components.
+ * For Pages Router, use the client.ts version instead.
  */
-export const createServerClient = async (): Promise<SupabaseClient<Database>> => {
+export const createServerClient = async (
+  cookieGetter: (name: string) => Promise<string | undefined> | string | undefined
+): Promise<SupabaseClient<Database>> => {
   console.log("[DEBUG] Creating server client");
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,8 +41,7 @@ export const createServerClient = async (): Promise<SupabaseClient<Database>> =>
         get: async (name: string) => {
           try {
             console.log(`[DEBUG] Server client getting cookie: ${name}`);
-            const cookieStore = await cookies();
-            const value = cookieStore.get(name)?.value;
+            const value = await cookieGetter(name);
             console.log(`[DEBUG] Cookie ${name} exists: ${!!value}`);
             return value;
           } catch (error) {

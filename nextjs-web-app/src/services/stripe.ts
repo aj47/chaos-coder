@@ -1,13 +1,21 @@
 import Stripe from 'stripe';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { SubscriptionTier } from '@/types/supabase';
+import { cookies } from 'next/headers';
+import type { Database } from '@/types/supabase';
 
-// Initialize Stripe with the secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24.acacia',
-});
+// This is a server-side only import and initialization
+// It will only be used in server-side functions
+let stripe: Stripe | null = null;
 
-// Subscription plan details
+// Only initialize Stripe on the server side
+if (typeof window === 'undefined') {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+    apiVersion: '2025-02-24.acacia',
+  });
+}
+
+// Subscription plan details - safe to use on client side
 export const SUBSCRIPTION_PLANS = {
   free: {
     name: 'Free',
@@ -32,10 +40,19 @@ export const SUBSCRIPTION_PLANS = {
   },
 };
 
+// The rest of the file contains server-side only functions
+// These should only be called from API routes or server components
+
 // Create a Stripe checkout session
 export async function createCheckoutSession(userId: string, planType: SubscriptionTier) {
+  // Ensure we're on the server side
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server side');
+  }
+  
   try {
-    const supabase = await createServerClient();
+    // Create a Supabase client
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -105,7 +122,7 @@ export async function createCheckoutSession(userId: string, planType: Subscripti
 // Handle Stripe webhook events
 export async function handleStripeWebhook(event: Stripe.Event) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerComponentClient<Database>({ cookies });
     
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -183,7 +200,7 @@ export async function handleStripeWebhook(event: Stripe.Event) {
 // Add credits to a user
 export async function addCreditsToUser(userId: string, amount: number, description: string) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerComponentClient<Database>({ cookies });
     
     // Get current credits
     const { data: profile, error: profileError } = await supabase
@@ -221,7 +238,7 @@ export async function addCreditsToUser(userId: string, amount: number, descripti
 // Use credits (deduct from user)
 export async function deductCredits(userId: string, amount: number, description: string) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerComponentClient<Database>({ cookies });
     
     // Get current credits
     const { data: profile, error: profileError } = await supabase
@@ -265,7 +282,7 @@ export async function deductCredits(userId: string, amount: number, description:
 // Get user credits and subscription info
 export async function getUserCreditsInfo(userId: string) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerComponentClient<Database>({ cookies });
     
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -301,7 +318,7 @@ export async function updateUserSubscription(userId: string, subscriptionData: {
   subscriptionId?: string;
 }) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerComponentClient<Database>({ cookies });
     
     await supabase
       .from('profiles')
@@ -321,10 +338,16 @@ export async function updateUserSubscription(userId: string, subscriptionData: {
 
 // Cancel a subscription
 export async function cancelSubscription(userId: string) {
+  // Ensure we're on the server side
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server side');
+  }
+  
   try {
-    const supabase = await createServerClient();
+    // Create a Supabase client
+    const supabase = createServerComponentClient<Database>({ cookies });
     
-    // Get user profile
+    // Get user profile with subscription ID
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('stripe_subscription_id, stripe_customer_id')
@@ -333,6 +356,7 @@ export async function cancelSubscription(userId: string) {
     
     if (profileError) throw new Error(profileError.message);
     
+    // Check if user has an active subscription
     if (!profile.stripe_subscription_id) {
       throw new Error('No active subscription found');
     }

@@ -18,9 +18,9 @@ export async function middleware(req: NextRequest) {
   
   const res = NextResponse.next();
   
-  // Create a Supabase client for the middleware
-  console.log("[DEBUG] Creating Supabase server client in middleware");
-  const supabase = createServerClient(
+  // Create a Supabase client for the middleware - only for cookie handling
+  console.log("[DEBUG] Setting up cookie handlers for auth persistence");
+  createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     {
@@ -81,12 +81,6 @@ export async function middleware(req: NextRequest) {
       },
     }
   );
-  
-  // Refresh session if expired - required for Server Components
-  console.log("[DEBUG] Checking session in middleware");
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  console.log("[DEBUG] Session in middleware:", session ? `User: ${session.user.id}` : "No session");
   
   // Get the pathname from the URL
   const path = req.nextUrl.pathname;
