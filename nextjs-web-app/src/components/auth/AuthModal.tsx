@@ -16,7 +16,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
+  const [firstName, setFirstName] = useState("User");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -42,18 +42,15 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         setMessage({ type: "success", text: "Login successful!" });
         onClose();
       } else {
-        // Validate form
-        if (!firstName.trim()) {
-          setMessage({ type: "error", text: "Please enter your name" });
-          return;
-        }
+        // No need to validate firstName since it's a hidden field with default value
         
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              first_name: firstName,
+              // Always use "User" as the first name if not provided
+              first_name: firstName.trim() || "User",
             },
           },
         });
