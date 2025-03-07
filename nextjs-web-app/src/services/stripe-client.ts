@@ -29,6 +29,8 @@ export const SUBSCRIPTION_PLANS = {
 // Client-side function to initiate a subscription
 export async function initiateSubscription(planType: SubscriptionTier) {
   try {
+    console.log("[DEBUG] Initiating subscription for plan:", planType);
+    
     // Call the API route to create a checkout session
     const response = await fetch('/api/create-checkout-session', {
       method: 'POST',
@@ -38,15 +40,33 @@ export async function initiateSubscription(planType: SubscriptionTier) {
       body: JSON.stringify({ planType }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to create checkout session');
+    // Get the raw response text first for debugging
+    const responseText = await response.text();
+    console.log("[DEBUG] Raw checkout session response:", responseText);
+    
+    // Try to parse the response as JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("[DEBUG] Error parsing response:", parseError);
+      throw new Error(`Failed to parse response: ${responseText}`);
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      console.error("[DEBUG] Error response from server:", data);
+      throw new Error(data.error || data.message || 'Failed to create checkout session');
+    }
+
+    // Check if we have a URL in the response
+    if (!data.url) {
+      console.error("[DEBUG] No URL in response:", data);
+      throw new Error('No checkout URL returned from server');
+    }
+
     return data;
   } catch (error) {
-    console.error('Error initiating subscription:', error);
+    console.error('[DEBUG] Error initiating subscription:', error);
     throw error;
   }
 }

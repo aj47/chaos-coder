@@ -46,75 +46,210 @@ export const SUBSCRIPTION_PLANS = {
 // Create a Stripe checkout session
 export async function createCheckoutSession(userId: string, planType: SubscriptionTier) {
   // Ensure we're on the server side
-  if (typeof window !== 'undefined' || !stripe) {
+  if (typeof window !== 'undefined') {
     throw new Error('This function can only be called from the server side');
   }
   
+  if (!stripe) {
+    console.error("[DEBUG] Stripe client not initialized. Check STRIPE_SECRET_KEY environment variable.");
+    throw new Error('Stripe client not initialized. Check your environment variables.');
+  }
+  
   try {
+    console.log("[DEBUG] Starting checkout session creation for user:", userId, "plan:", planType);
+    
     // Create a Supabase client
     const supabase = createServerComponentClient<Database>({ cookies });
     
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (profileError) throw new Error(profileError.message);
-    
-    // Get plan details
+    // First, check if we have valid Stripe price IDs
     const plan = SUBSCRIPTION_PLANS[planType];
-    if (!plan || !plan.stripe_price_id) {
-      throw new Error('Invalid plan or missing Stripe price ID');
+    if (!plan) {
+      throw new Error(`Invalid plan type: ${planType}`);
+    }
+    
+    if (!plan.stripe_price_id) {
+      console.error("[DEBUG] Missing Stripe price ID for plan:", planType);
+      throw new Error(`Missing Stripe price ID for plan: ${planType}. Check your environment variables.`);
+    }
+    
+    // Validate that the price ID is in the correct format
+    if (!plan.stripe_price_id.startsWith('price_')) {
+      console.error("[DEBUG] Invalid Stripe price ID format:", plan.stripe_price_id);
+      throw new Error(`Invalid Stripe price ID format for plan ${planType}: ${plan.stripe_price_id}. Price IDs must start with "price_", not "prod_".`);
+    }
+    
+    console.log("[DEBUG] Using Stripe price ID:", plan.stripe_price_id);
+    
+    // Try to get user profile
+    let profile;
+    let profileError;
+    
+    try {
+      const result = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      profile = result.data;
+      profileError = result.error;
+      
+      if (profileError) {
+        console.error("[DEBUG] Error fetching profile:", profileError);
+      } else if (!profile) {
+        console.log("[DEBUG] No profile found for user:", userId);
+      } else {
+        console.log("[DEBUG] Profile found for user:", userId);
+      }
+    } catch (error) {
+      console.error("[DEBUG] Exception fetching profile:", error);
+      profileError = error;
+    }
+    
+    // If there's a profile error or no profile, try to create one
+    if (profileError || !profile) {
+      console.log("[DEBUG] Creating profile for user:", userId);
+      
+      try {
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            credits: 25,
+            subscription_tier: 'free',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (createError) {
+          console.error("[DEBUG] Error creating profile:", createError);
+        } else {
+          console.log("[DEBUG] Profile created successfully");
+          profile = newProfile;
+        }
+      } catch (createError) {
+        console.error("[DEBUG] Exception creating profile:", createError);
+      }
     }
     
     // Create or retrieve Stripe customer
-    let customerId = profile.stripe_customer_id;
+    let customerId = profile?.stripe_customer_id;
     
     if (!customerId) {
+      console.log("[DEBUG] No Stripe customer ID found, creating new customer");
+      
       // Get user email from auth
       const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw new Error(userError.message);
+      if (userError) {
+        console.error("[DEBUG] Error getting user data:", userError);
+        throw new Error(`Failed to get user data: ${userError.message}`);
+      }
       
-      const customer = await stripe.customers.create({
-        email: userData.user.email,
-        metadata: {
-          userId: userId,
-        },
-      });
+      if (!userData.user.email) {
+        throw new Error('User has no email address');
+      }
       
-      customerId = customer.id;
+      console.log("[DEBUG] Creating Stripe customer for email:", userData.user.email);
       
-      // Update user profile with Stripe customer ID
-      await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', userId);
+      try {
+        const customer = await stripe.customers.create({
+          email: userData.user.email,
+          metadata: {
+            userId: userId,
+          },
+        });
+        
+        customerId = customer.id;
+        console.log("[DEBUG] Created Stripe customer:", customerId);
+        
+        // Try to update user profile with Stripe customer ID
+        if (profile) {
+          try {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ stripe_customer_id: customerId })
+              .eq('id', userId);
+            
+            if (updateError) {
+              console.error("[DEBUG] Error updating profile with customer ID:", updateError);
+              // Continue anyway, as we already have the customer ID
+            } else {
+              console.log("[DEBUG] Updated profile with customer ID");
+            }
+          } catch (updateError) {
+            console.error("[DEBUG] Exception updating profile with customer ID:", updateError);
+            // Continue anyway, as we already have the customer ID
+          }
+        }
+      } catch (stripeError) {
+        console.error("[DEBUG] Error creating Stripe customer:", stripeError);
+        throw new Error(`Failed to create Stripe customer: ${stripeError instanceof Error ? stripeError.message : String(stripeError)}`);
+      }
+    } else {
+      console.log("[DEBUG] Using existing Stripe customer ID:", customerId);
     }
     
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: plan.stripe_price_id,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-      metadata: {
-        userId: userId,
-        planType: planType,
-      },
-    });
+    console.log("[DEBUG] Creating Stripe checkout session");
     
-    return { sessionId: session.id, url: session.url };
+    try {
+      // Validate the success and cancel URLs
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+      if (!appUrl) {
+        console.error("[DEBUG] NEXT_PUBLIC_APP_URL is not set");
+        throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set');
+      }
+      
+      const successUrl = `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${appUrl}/dashboard`;
+      
+      console.log("[DEBUG] Success URL:", successUrl);
+      console.log("[DEBUG] Cancel URL:", cancelUrl);
+      
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: plan.stripe_price_id,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: {
+          userId: userId,
+          planType: planType,
+        },
+      });
+      
+      console.log("[DEBUG] Checkout session created:", session.id);
+      console.log("[DEBUG] Checkout URL:", session.url);
+      
+      return { sessionId: session.id, url: session.url };
+    } catch (checkoutError: unknown) {
+      console.error("[DEBUG] Error creating checkout session:", checkoutError);
+      
+      // Check for specific Stripe errors
+      if (
+        typeof checkoutError === 'object' && 
+        checkoutError !== null && 
+        'type' in checkoutError && 
+        'param' in checkoutError &&
+        checkoutError.type === 'StripeInvalidRequestError'
+      ) {
+        if (checkoutError.param === 'line_items[0].price') {
+          throw new Error(`Invalid Stripe price ID: ${plan.stripe_price_id}. Check your environment variables.`);
+        }
+      }
+      
+      throw new Error(`Failed to create checkout session: ${checkoutError instanceof Error ? checkoutError.message : String(checkoutError)}`);
+    }
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error('[DEBUG] Error in createCheckoutSession:', error);
     throw error;
   }
 }
