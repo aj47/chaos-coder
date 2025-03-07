@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface SignupModalProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface SignupModalProps {
 
 export function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const { theme } = useTheme();
-  const router = useRouter();
   
   if (!isOpen) return null;
   
@@ -43,49 +42,36 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
         </button>
         
         <h2 className="text-xl font-bold mb-4">Free Limit Reached</h2>
-        <p className="mb-6">You've reached the limit of 25 free generations. Create an account to continue using our service.</p>
+        <p className="mb-6">You&apos;ve reached the limit of 25 free generations. Create an account to continue using our service.</p>
         
         <div className="flex flex-col gap-4">
-          <a 
-            onClick={async () => {
-              const supabase = createClient()
-              await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  redirectTo: `${location.origin}/auth/callback`
-                }
-              })
-            }}
-            className={`w-full py-2 px-4 rounded-lg font-medium text-center block ${
-              theme === 'dark' 
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
-                : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-            }`}
-          >
-            Continue with Google
-          </button>
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className={`w-full border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className={`px-2 ${theme === 'dark' ? 'bg-gray-900 text-gray-400' : 'bg-white text-gray-500'}`}>
-                Or continue with email
-              </span>
-            </div>
-          </div>
           <form 
             onSubmit={async (e) => {
-              e.preventDefault()
-              const formData = new FormData(e.currentTarget)
-              const email = String(formData.get('email'))
-              const supabase = createClient()
-              await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                  emailRedirectTo: `${location.origin}/auth/callback`
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const email = String(formData.get('email'));
+              const password = String(formData.get('password'));
+              const supabase = createClient();
+              
+              try {
+                const { error } = await supabase.auth.signUp({
+                  email,
+                  password,
+                  options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback`
+                  }
+                });
+                
+                if (error) {
+                  alert(error.message);
+                } else {
+                  alert("Check your email for the confirmation link!");
+                  onClose();
                 }
-              })
+              } catch (error) {
+                console.error("Error signing up:", error);
+                alert("An error occurred during sign up. Please try again.");
+              }
             }}
           >
             <input
@@ -99,15 +85,26 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
               }`}
               required
             />
+            <input
+              name="password"
+              type="password"
+              placeholder="Enter your password"
+              className={`w-full mb-4 p-2 rounded-lg border ${
+                theme === 'dark' 
+                  ? 'bg-gray-800 border-gray-700 text-white' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
+              required
+            />
             <button
               type="submit"
               className={`w-full py-2 px-4 rounded-lg font-medium ${
                 theme === 'dark'
-                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : 'bg-indigo-500 hover:bg-indigo-600 text-white'
               }`}
             >
-              Send Magic Link
+              Sign Up
             </button>
           </form>
           <button 
