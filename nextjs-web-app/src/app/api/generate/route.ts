@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { HfInference } from "@huggingface/inference";
 
 const frameworkPrompts = {
   tailwind: 'Use Tailwind CSS for styling with modern utility classes. Include the Tailwind CDN.',
@@ -10,7 +10,7 @@ const frameworkPrompts = {
   pure: 'Use Pure CSS for minimalist, responsive design. Include the Pure CSS CDN.'
 };
 
-const HF_ENDPOINT = "https://j3xs3xylb0qqk8oj.us-east-1.aws.endpoints.huggingface.cloud/v1/chat/completions";
+const client = new HfInference(process.env.HF_API_TOKEN || "");
 
 export async function POST(req: Request) {
   try {
@@ -52,82 +52,30 @@ Requirements:
 ${prompt}
 ${variation ? `Variation: ${variation}\n` : ''}${frameworkInstructions ? `Framework: ${frameworkInstructions}\n` : ''}`;
 
-    const response = await fetch(HF_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.HF_API_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "tgi",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: userPrompt
-          }
-        ],
-        max_tokens: 4096,
-        stream: true
-      })
+    const chatCompletion = await client.chatCompletion({
+      model: "Qwen/QwQ-32B",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
+      ],
+      provider: "fireworks-ai",
+      max_tokens: 4096
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`API request failed: ${error}`);
-    }
-
-    if (!response.body) {
-      throw new Error('No response body received');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullResponse = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.choices?.[0]?.delta?.content) {
-                fullResponse += parsed.choices[0].delta.content;
-              }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error reading stream:', error);
-      throw new Error('Failed to read stream');
-    } finally {
-      reader.releaseLock();
-    }
-
-    // Clean up the response
-    fullResponse = fullResponse
+    const fullResponse = chatCompletion.choices[0].message.content
       .replace(/```html\n?|\n?```/g, '') // Remove markdown code blocks
       .replace(/^["']|["']$/g, '') // Remove quotes
       .replace(/\\"/g, '"') // Unescape quotes
       .trim();
 
     return NextResponse.json({ 
-      code: fullResponse, // Changed from 'text' to 'code' to match frontend expectations
+      code: fullResponse,
       status: 'success'
     });
 
