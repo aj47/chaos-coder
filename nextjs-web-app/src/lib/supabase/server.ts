@@ -1,13 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Database } from '@/types/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Creates and returns a Supabase client for use in server components and API routes
  * with proper error handling for environment variables
  */
-export const createServerClient = () => {
-  const cookieStore = cookies();
+export const createServerClient = async (): Promise<SupabaseClient<Database>> => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
@@ -24,13 +24,22 @@ export const createServerClient = () => {
     }
   }
   
-  return createRouteHandlerClient<Database>(
-    { 
-      cookies: () => cookieStore 
-    },
+  return createSupabaseServerClient<Database>(
+    supabaseUrl || '',
+    supabaseKey || '',
     {
-      supabaseUrl: supabaseUrl || '',
-      supabaseKey: supabaseKey || '',
+      cookies: {
+        get: async (name: string) => {
+          const cookieStore = await cookies();
+          return cookieStore.get(name)?.value;
+        },
+        set: (_name: string, _value: string, _options: object) => {
+          // This is handled by the middleware
+        },
+        remove: (_name: string, _options: object) => {
+          // This is handled by the middleware
+        },
+      },
     }
   );
 }; 
