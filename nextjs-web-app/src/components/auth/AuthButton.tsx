@@ -60,20 +60,6 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="flex items-center gap-3">
-        <div className="text-sm">
-          <span className="opacity-70">Hello, </span>
-          <span>{user.email?.split('@')[0] || 'User'}</span>
-        </div>
-        <button
-          onClick={() => router.push("/dashboard")}
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === 'dark'
-              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-          }`}
-        >
-          Dashboard
-        </button>
         <button
           onClick={handleLogout}
           className={`py-2 px-4 rounded-lg text-sm font-medium ${
@@ -83,6 +69,16 @@ export function AuthButton() {
           }`}
         >
           Log Out
+        </button>
+        <button
+          onClick={() => router.push("/dashboard")}
+          className={`py-2 px-4 rounded-lg text-sm font-medium ${
+            theme === 'dark'
+              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          }`}
+        >
+          Settings
         </button>
       </div>
     );

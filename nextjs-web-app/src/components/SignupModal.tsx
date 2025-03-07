@@ -10,15 +10,13 @@ import { FcGoogle } from "react-icons/fc";
 interface SignupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
 }
 
-export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
+export function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<{
-    firstName?: string;
     email?: string;
     password?: string;
     general?: string;
@@ -28,14 +26,9 @@ export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
   
   const validateForm = (firstName: string, email: string, password: string) => {
     const errors: {
-      firstName?: string;
       email?: string;
       password?: string;
     } = {};
-    
-    if (!firstName.trim()) {
-      errors.firstName = "First name is required";
-    }
     
     if (!email.trim()) {
       errors.email = "Email is required";
@@ -88,9 +81,7 @@ export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
         localStorage.setItem('firstName', firstName);
         alert("Check your email for the confirmation link!");
         onClose();
-        if (onSuccess) {
-          onSuccess();
-        }
+        // Don't redirect to dashboard after signup
       }
     } catch (error) {
       console.error("Error signing up:", error);
@@ -177,29 +168,12 @@ export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
         
         <div className="flex flex-col gap-4">
           <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label htmlFor="firstName" className="block mb-1 text-sm font-medium">
-                First Name
-              </label>
-              <input
-                id="firstName"
-                name="firstName"
-                type="text"
-                placeholder="Enter your first name"
-                className={`w-full p-2 rounded-lg border ${
-                  theme === 'dark' 
-                    ? 'bg-gray-800 border-gray-700 text-white' 
-                    : 'bg-white border-gray-300 text-gray-900'
-                } ${formErrors.firstName ? 'border-red-500' : ''}`}
-                aria-describedby={formErrors.firstName ? "firstName-error" : undefined}
-                required
-              />
-              {formErrors.firstName && (
-                <p id="firstName-error" className="mt-1 text-sm text-red-500">
-                  {formErrors.firstName}
-                </p>
-              )}
-            </div>
+            <input
+              id="firstName"
+              name="firstName"
+              type="hidden"
+              value="User"
+            />
             
             <div className="mb-4">
               <label htmlFor="email" className="block mb-1 text-sm font-medium">

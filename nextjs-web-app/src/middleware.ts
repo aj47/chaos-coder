@@ -30,10 +30,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
   
-  // If accessing login/signup pages with an active session, redirect to dashboard
-  if ((path === '/signup' || path === '/login') && session) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
+  // Remove automatic redirection to dashboard
+  // Users should stay on the same page after login
   
   return res;
 }

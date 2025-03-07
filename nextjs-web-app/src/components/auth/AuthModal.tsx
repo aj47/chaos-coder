@@ -16,6 +16,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -64,18 +65,30 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
           window.location.reload(); // Refresh to update auth state
         }, 1000);
       } else {
-        console.log("Attempting signup with:", { email });
+        // Validate first name for signup
+        if (!firstName.trim()) {
+          throw new Error("First name is required");
+        }
+        
+        console.log("Attempting signup with:", { email, firstName });
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              first_name: firstName
+            }
           },
         });
         
         console.log("Signup response:", { data, error });
         
         if (error) throw error;
+        
+        // Store first name in localStorage as a backup
+        localStorage.setItem('firstName', firstName);
+        
         setMessage({ 
           type: "success", 
           text: "Check your email for the confirmation link!" 
@@ -179,6 +192,15 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         
         <div className="flex flex-col gap-4">
           <form onSubmit={handleEmailAuth} className="space-y-4">
+            {mode === "signup" && (
+              <input
+                id="firstName"
+                type="hidden"
+                value="User"
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            )}
+            
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">
                 Email
