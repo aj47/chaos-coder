@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
+import { useTokenStore } from "@/store/useTokenStore";
 
 export function AuthButton() {
   const { theme } = useTheme();
@@ -15,6 +16,7 @@ export function AuthButton() {
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const tokens = useTokenStore((state) => state.tokens);
 
   useEffect(() => {
     const supabase = createClient();
@@ -65,6 +67,14 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="flex items-center gap-3">
+        <div className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center ${
+          theme === "dark"
+            ? "bg-gray-800 text-gray-300"
+            : "bg-gray-200 text-gray-700"
+        }`}>
+          <span className="mr-1">🪙</span>
+          <span>{tokens} tokens</span>
+        </div>
         <button
           onClick={handleLogout}
           className={`py-2 px-4 rounded-lg text-sm font-medium ${

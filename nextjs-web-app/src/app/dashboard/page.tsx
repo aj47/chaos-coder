@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
+import { useTokenStore } from "@/store/useTokenStore";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [maxCredits] = useState(100); // Maximum credits for the free plan
+  const setTokens = useTokenStore((state) => state.setTokens);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -40,6 +42,7 @@ export default function DashboardPage() {
           console.error("Error fetching profile:", profileError);
         } else if (profile) {
           setCredits(profile.credits);
+          setTokens(profile.credits); // Update token store with credits from profile
         }
       } catch (err) {
         console.error("Error checking user:", err);

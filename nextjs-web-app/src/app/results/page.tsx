@@ -14,6 +14,7 @@ import VoiceInput from "@/components/DevTools/VoiceInput";
 import MockDeployButton from "@/components/MockDeployButton";
 import { SignupModal } from "@/components/SignupModal";
 import styled from "styled-components";
+import { useTokenStore } from "@/store/useTokenStore";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -75,6 +76,7 @@ function ResultsContent() {
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
   const [showCreditAlert, setShowCreditAlert] = useState(false);
   const { theme } = useTheme();
+  const setTokens = useTokenStore((state) => state.setTokens);
 
   const variations = [
     "",
@@ -177,6 +179,7 @@ function ResultsContent() {
       // Check if credits were returned (user is authenticated)
       if (data.credits !== undefined) {
         setRemainingCredits(data.credits);
+        setTokens(data.credits); // Update token store with credits from API response
         
         // Show credit alert if credits are low (less than 10)
         if (data.credits < 10 && !showCreditAlert) {

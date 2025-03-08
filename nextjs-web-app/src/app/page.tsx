@@ -13,6 +13,7 @@ import {
   FaRobot,
   FaQuestionCircle,
 } from "react-icons/fa";
+import { useTokenStore } from "@/store/useTokenStore";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
@@ -64,6 +65,7 @@ export default function Home() {
   ];
   const [isLoading, setIsLoading] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const setTokens = useTokenStore((state) => state.setTokens);
 
   const handleSubmit = async () => {
     if (!prompt) {
@@ -111,6 +113,11 @@ export default function Home() {
         setErrorMessage("You have no credits remaining. Please visit settings to purchase more credits.");
         setIsLoading(false);
         return;
+      }
+      
+      // Update tokens if available in the response
+      if (data.credits !== undefined) {
+        setTokens(data.credits);
       }
       
       // If no rate limit issues, proceed to results page
