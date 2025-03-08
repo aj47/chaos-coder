@@ -93,9 +93,22 @@ export default function Home() {
         return;
       }
       
+      if (response.status === 402) {
+        // Insufficient credits
+        setErrorMessage("You have no credits remaining. Please visit settings to purchase more credits.");
+        setIsLoading(false);
+        return;
+      }
+      
       const data = await response.json();
       if (data.error === "rate_limit_exceeded") {
         setShowSignupModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      if (data.error === "insufficient_credits") {
+        setErrorMessage("You have no credits remaining. Please visit settings to purchase more credits.");
         setIsLoading(false);
         return;
       }

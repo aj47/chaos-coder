@@ -1,5 +1,8 @@
 import { Portkey } from "portkey-ai";
 import { NextResponse, NextRequest } from "next/server";
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { Database } from "@/types/supabase";
 
 export const runtime = "edge";
 
@@ -20,36 +23,87 @@ const frameworkPrompts = {
 
 export async function POST(req: NextRequest) {
   // Get client IP address
-  const ip = req.ip || req.headers.get("x-forwarded-for") || "127.0.0.1";
-
-  // Check rate limit (5 requests per IP)
-  const count = submissionCounts.get(ip) || 0;
-  // For debugging only
-  console.log(`Rate limit check: IP ${ip} has used ${count} requests`);
-
-  if (count >= 25) {
-    console.log("Rate limit exceeded for IP:", ip);
-    return new Response(
-      JSON.stringify({
-        error: "rate_limit_exceeded",
-        message: "Free limit exceeded. Please create an account to continue.",
-      }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-  }
-
+  const ipAddress = req.headers.get("x-forwarded-for") || "127.0.0.1";
+  
   // Parse the request body
   const body = await req.json();
+  
+  // Initialize Supabase client
+  const cookieStore = cookies();
+  const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+  
+  // Check if user is authenticated
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (user) {
+    // User is authenticated, check their credits
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError);
+      return NextResponse.json(
+        { error: "Failed to fetch user profile" },
+        { status: 500 }
+      );
+    }
+    
+    // Check if user has enough credits
+    if (profile && profile.credits <= 0) {
+      return NextResponse.json(
+        { error: "insufficient_credits", message: "You have no credits remaining. Please purchase more credits to continue." },
+        { status: 402 }
+      );
+    }
+    
+    // Only deduct credits for real generations, not rate limit checks
+    if (body && body.variation !== "rate-limit-check") {
+      // Deduct 1 credit
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ credits: (profile?.credits || 1) - 1 })
+        .eq('id', user.id);
+      
+      if (updateError) {
+        console.error("Error updating user credits:", updateError);
+        return NextResponse.json(
+          { error: "Failed to update credits" },
+          { status: 500 }
+        );
+      }
+    }
+  } else {
+    // User is not authenticated, use IP-based rate limiting
+    // Check rate limit (25 requests per IP)
+    const count = submissionCounts.get(ipAddress) || 0;
+    // For debugging only
+    console.log(`Rate limit check: IP ${ipAddress} has used ${count} requests`);
 
-  // Only increment count for real generations, not rate limit checks
-  if (body && body.variation !== "rate-limit-check") {
-    submissionCounts.set(ip, count + 1);
+    if (count >= 25) {
+      console.log("Rate limit exceeded for IP:", ipAddress);
+      return new Response(
+        JSON.stringify({
+          error: "rate_limit_exceeded",
+          message: "Free limit exceeded. Please create an account to continue.",
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    // Only increment count for real generations, not rate limit checks
+    if (body && body.variation !== "rate-limit-check") {
+      submissionCounts.set(ipAddress, count + 1);
+    }
   }
+  
   try {
     const { prompt, variation, framework } = body;
 
@@ -177,12 +231,28 @@ Format the code with proper indentation and spacing for readability.`;
     });
 
     // Get the response content
-    let code = response.choices[0].message.content || "";
+    let code = response.choices[0]?.message?.content || "";
 
     // Trim out any markdown code blocks (```html, ```, etc.)
-    code = code
-      .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
-      .trim();
+    if (typeof code === 'string') {
+      code = code
+        .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
+        .trim();
+    }
+
+    // If user is authenticated, return remaining credits
+    if (user) {
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', user.id)
+        .single();
+      
+      return NextResponse.json({ 
+        code,
+        credits: updatedProfile?.credits || 0
+      });
+    }
 
     return NextResponse.json({ code });
   } catch (error) {

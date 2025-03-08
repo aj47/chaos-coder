@@ -72,6 +72,8 @@ function ResultsContent() {
   }>({});
   const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
+  const [showCreditAlert, setShowCreditAlert] = useState(false);
   const { theme } = useTheme();
 
   const variations = [
@@ -154,6 +156,10 @@ function ResultsContent() {
         throw new Error("Rate limit exceeded. Please create an account to continue.");
       }
 
+      if (response.status === 402) {
+        throw new Error("You have no credits remaining. Please purchase more credits to continue.");
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to generate app ${index + 1}`);
       }
@@ -162,8 +168,20 @@ function ResultsContent() {
       if (data.error === "rate_limit_exceeded") {
         setShowSignupModal(true);
         throw new Error("Rate limit exceeded. Please create an account to continue.");
+      } else if (data.error === "insufficient_credits") {
+        throw new Error("You have no credits remaining. Please purchase more credits to continue.");
       } else if (data.error) {
         throw new Error(data.error);
+      }
+
+      // Check if credits were returned (user is authenticated)
+      if (data.credits !== undefined) {
+        setRemainingCredits(data.credits);
+        
+        // Show credit alert if credits are low (less than 10)
+        if (data.credits < 10 && !showCreditAlert) {
+          setShowCreditAlert(true);
+        }
       }
 
       setResults((prev) => {
@@ -568,6 +586,28 @@ function ResultsContent() {
       />
       {isVoiceEnabled && (
         <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
+      )}
+      {/* Credit Alert */}
+      {showCreditAlert && remainingCredits !== null && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+          theme === "dark" ? "bg-yellow-900/80 text-yellow-100" : "bg-yellow-100 text-yellow-800"
+        }`}>
+          <div className="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="font-medium">Low Credits Alert</p>
+              <p className="text-sm">You have {remainingCredits} credits remaining. Visit settings to purchase more.</p>
+            </div>
+            <button 
+              onClick={() => setShowCreditAlert(false)}
+              className="ml-auto text-sm hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
       )}
     </AuroraBackground>
   );

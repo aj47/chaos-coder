@@ -15,18 +15,21 @@ export interface Database {
           first_name: string | null
           created_at: string
           updated_at: string
+          credits: number
         }
         Insert: {
           id: string
           first_name?: string | null
           created_at?: string
           updated_at?: string
+          credits?: number
         }
         Update: {
           id?: string
           first_name?: string | null
           created_at?: string
           updated_at?: string
+          credits?: number
         }
         Relationships: [
           {

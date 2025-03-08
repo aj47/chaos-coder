@@ -11,20 +11,35 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [maxCredits] = useState(100); // Maximum credits for the free plan
 
   useEffect(() => {
     const checkUser = async () => {
       try {
         const supabase = createClient();
-        const { data, error } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
         
-        if (error) {
-          throw new Error(error.message);
+        if (userError) {
+          throw new Error(userError.message);
         }
         
-        if (!data?.user) {
+        if (!userData?.user) {
           router.push("/");
           return;
+        }
+        
+        // Fetch user profile to get credits
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', userData.user.id)
+          .single();
+        
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
+        } else if (profile) {
+          setCredits(profile.credits);
         }
       } catch (err) {
         console.error("Error checking user:", err);
@@ -69,6 +84,9 @@ export default function DashboardPage() {
     );
   }
 
+  // Calculate percentage for progress bar
+  const creditPercentage = credits !== null ? (credits / maxCredits) * 100 : 0;
+
   return (
     <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
       <div className="max-w-4xl mx-auto p-6">
@@ -100,7 +118,7 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-bold">Free Plan</p>
-                    <p className="text-sm opacity-75">25 generations per month</p>
+                    <p className="text-sm opacity-75">100 credits on signup</p>
                   </div>
                   <button 
                     className={`px-4 py-2 rounded-lg font-medium ${
@@ -120,15 +138,15 @@ export default function DashboardPage() {
               <div className={`p-4 rounded-lg border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}>
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-bold">15 / 25</p>
-                    <p className="text-sm opacity-75">Credits remaining this month</p>
+                    <p className="font-bold">{credits !== null ? credits : '–'} / {maxCredits}</p>
+                    <p className="text-sm opacity-75">Credits remaining</p>
                   </div>
                   <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-indigo-500 rounded-full" 
-                      style={{ width: "60%" }}
+                      style={{ width: `${creditPercentage}%` }}
                       role="progressbar"
-                      aria-valuenow={60}
+                      aria-valuenow={creditPercentage}
                       aria-valuemin={0}
                       aria-valuemax={100}
                     ></div>
