@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get cookie store and create Supabase client
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     console.log("[DEBUG] Cookie store initialized");
     
     // Create the Supabase client with the cookie store

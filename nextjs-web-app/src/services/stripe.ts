@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { SubscriptionTier } from '@/types/supabase';
-import { cookies } from 'next/headers';
 import type { Database } from '@/types/supabase';
 
 // This is a server-side only import and initialization
@@ -40,6 +39,20 @@ export const SUBSCRIPTION_PLANS = {
   },
 };
 
+// Helper function to create a Supabase client for server-side functions
+const createSupabaseClient = () => {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
+    }
+  );
+};
+
 // The rest of the file contains server-side only functions
 // These should only be called from API routes or server components
 
@@ -59,7 +72,7 @@ export async function createCheckoutSession(userId: string, planType: Subscripti
     console.log("[DEBUG] Starting checkout session creation for user:", userId, "plan:", planType);
     
     // Create a Supabase client
-    const supabase = createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     // First, check if we have valid Stripe price IDs
     const plan = SUBSCRIPTION_PLANS[planType];
@@ -257,7 +270,7 @@ export async function createCheckoutSession(userId: string, planType: Subscripti
 // Handle Stripe webhook events
 export async function handleStripeWebhook(event: Stripe.Event) {
   try {
-    const supabase = await createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -335,7 +348,7 @@ export async function handleStripeWebhook(event: Stripe.Event) {
 // Add credits to a user
 export async function addCreditsToUser(userId: string, amount: number, description: string) {
   try {
-    const supabase = await createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     // Get current credits
     const { data: profile, error: profileError } = await supabase
@@ -373,7 +386,7 @@ export async function addCreditsToUser(userId: string, amount: number, descripti
 // Use credits (deduct from user)
 export async function deductCredits(userId: string, amount: number, description: string) {
   try {
-    const supabase = await createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     // Get current credits
     const { data: profile, error: profileError } = await supabase
@@ -417,7 +430,7 @@ export async function deductCredits(userId: string, amount: number, description:
 // Get user credits and subscription info
 export async function getUserCreditsInfo(userId: string) {
   try {
-    const supabase = await createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -453,7 +466,7 @@ export async function updateUserSubscription(userId: string, subscriptionData: {
   subscriptionId?: string;
 }) {
   try {
-    const supabase = await createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     await supabase
       .from('profiles')
@@ -480,7 +493,7 @@ export async function cancelSubscription(userId: string) {
   
   try {
     // Create a Supabase client
-    const supabase = createServerComponentClient<Database>({ cookies });
+    const supabase = createSupabaseClient();
     
     // Get user profile with subscription ID
     const { data: profile, error: profileError } = await supabase

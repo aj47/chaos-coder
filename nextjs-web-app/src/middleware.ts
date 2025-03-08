@@ -16,6 +16,17 @@ export async function middleware(req: NextRequest) {
   const authCookie = req.cookies.get('sb-xskelhjnymrbogeloxfy-auth-token');
   console.log("[DEBUG] Auth cookie exists:", !!authCookie);
   
+  if (authCookie) {
+    // Check auth cookie format
+    try {
+      const decodedValue = decodeURIComponent(authCookie.value);
+      console.log("[DEBUG] Auth cookie decoded length:", decodedValue.length);
+      console.log("[DEBUG] Auth cookie format valid:", decodedValue.startsWith('[') && decodedValue.endsWith(']'));
+    } catch (error) {
+      console.error("[DEBUG] Error decoding auth cookie:", error);
+    }
+  }
+  
   const res = NextResponse.next();
   
   // Create a Supabase client for the middleware - only for cookie handling
@@ -28,6 +39,21 @@ export async function middleware(req: NextRequest) {
         get: (name) => {
           const cookie = req.cookies.get(name)?.value;
           console.log(`[DEBUG] Middleware getting cookie: ${name}, exists: ${!!cookie}`);
+          
+          // For auth token, try to decode if it's URL-encoded
+          if (name === 'sb-xskelhjnymrbogeloxfy-auth-token' && cookie) {
+            try {
+              // Try to decode the cookie value if it's URL-encoded
+              const decodedValue = decodeURIComponent(cookie);
+              console.log(`[DEBUG] Middleware decoded auth cookie successfully`);
+              return decodedValue;
+            } catch (error) {
+              console.error(`[DEBUG] Middleware error decoding auth cookie:`, error);
+              // Return the raw value if decoding fails
+              return cookie;
+            }
+          }
+          
           return cookie;
         },
         set: (name, value, options) => {
@@ -45,15 +71,35 @@ export async function middleware(req: NextRequest) {
             path: options.path || '/',
           };
           
+          // For auth token, ensure it's properly formatted before setting
+          let cookieValue = value;
+          if (name === 'sb-xskelhjnymrbogeloxfy-auth-token' && typeof value === 'string') {
+            try {
+              // Check if the value is already URL-encoded
+              const decodedValue = decodeURIComponent(value);
+              if (decodedValue.startsWith('[') && decodedValue.endsWith(']')) {
+                console.log(`[DEBUG] Middleware: Auth cookie is already properly formatted`);
+                cookieValue = value; // Keep as is
+              } else if (value.startsWith('[') && value.endsWith(']')) {
+                console.log(`[DEBUG] Middleware: Auth cookie needs encoding`);
+                cookieValue = value; // Keep as is, will be encoded by the browser
+              } else {
+                console.log(`[DEBUG] Middleware: Auth cookie has unexpected format`);
+              }
+            } catch (error) {
+              console.error(`[DEBUG] Middleware error checking auth cookie format:`, error);
+            }
+          }
+          
           req.cookies.set({
             name,
-            value,
+            value: cookieValue,
             ...cookieOptions,
           });
           
           res.cookies.set({
             name,
-            value,
+            value: cookieValue,
             ...cookieOptions,
           });
           

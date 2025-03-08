@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { createCheckoutSession } from '@/services/stripe';
 import { SubscriptionTier } from '@/types/supabase';
-import { cookies } from 'next/headers';
-import type { Database } from '@/types/supabase';
+import { createClient as createServerClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,10 +55,11 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    // Create a Supabase client with cookie access
+    // Create a Supabase client using the server client
     let supabase;
     try {
-      supabase = createServerComponentClient<Database>({ cookies });
+      console.log("[DEBUG] API: Creating Supabase client with server client");
+      supabase = await createServerClient();
     } catch (supabaseError) {
       console.error("[DEBUG] Error creating Supabase client:", supabaseError);
       return NextResponse.json({ 

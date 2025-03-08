@@ -28,32 +28,71 @@ export function AuthButton() {
         const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
         console.log("[DEBUG] Auth cookie exists in document.cookie:", hasAuthCookie);
         
+        // Parse and log auth cookie content for debugging (safely)
+        if (hasAuthCookie) {
+          try {
+            const cookies = document.cookie.split(';');
+            const authCookieStr = cookies.find(c => c.trim().startsWith('sb-xskelhjnymrbogeloxfy-auth-token='));
+            if (authCookieStr) {
+              console.log("[DEBUG] Auth cookie length:", authCookieStr.length);
+              
+              // The cookie value is URL-encoded, so we need to decode it first
+              const cookieValue = authCookieStr.split('=')[1];
+              const decodedValue = decodeURIComponent(cookieValue);
+              
+              console.log("[DEBUG] Auth cookie decoded length:", decodedValue.length);
+              console.log("[DEBUG] Auth cookie format valid:", decodedValue.startsWith('[') && decodedValue.endsWith(']'));
+              console.log("[DEBUG] Auth cookie first 20 chars:", decodedValue.substring(0, 20));
+            }
+          } catch (cookieError) {
+            console.error("[DEBUG] Error parsing auth cookie:", cookieError);
+          }
+        }
+        
         // Get the current session
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log("[DEBUG] Calling supabase.auth.getSession()");
+        const sessionResult = await supabase.auth.getSession();
+        console.log("[DEBUG] getSession result:", sessionResult.data ? "Data received" : "No data", 
+                    "Error:", sessionResult.error ? sessionResult.error.message : "None");
+        
+        const { data: { session } } = sessionResult;
         
         // Set the user from the session if it exists
         if (session) {
           console.log("[DEBUG] Session found, user ID:", session.user.id);
           console.log("[DEBUG] Session expires at:", new Date(session.expires_at! * 1000).toISOString());
+          console.log("[DEBUG] Access token (first 10 chars):", session.access_token.substring(0, 10) + "...");
+          console.log("[DEBUG] Refresh token exists:", !!session.refresh_token);
+          console.log("[DEBUG] User email:", session.user.email);
+          console.log("[DEBUG] User metadata:", JSON.stringify(session.user.user_metadata));
           setUser(session.user);
         } else if (hasAuthCookie) {
           // If we have an auth cookie but no session, try to refresh the session
           console.log("[DEBUG] Auth cookie exists but no session, trying to refresh");
-          const { data: refreshData } = await supabase.auth.refreshSession();
+          console.log("[DEBUG] Calling supabase.auth.refreshSession()");
+          const refreshResult = await supabase.auth.refreshSession();
+          console.log("[DEBUG] refreshSession result:", refreshResult.data ? "Data received" : "No data", 
+                      "Error:", refreshResult.error ? refreshResult.error.message : "None");
+          
+          const { data: refreshData } = refreshResult;
           
           if (refreshData.session) {
             console.log("[DEBUG] Session refreshed successfully, user ID:", refreshData.session.user.id);
+            console.log("[DEBUG] Refreshed session expires at:", new Date(refreshData.session.expires_at! * 1000).toISOString());
             setUser(refreshData.session.user);
           } else {
             console.log("[DEBUG] Failed to refresh session despite having auth cookie");
+            console.log("[DEBUG] This might indicate a cookie format issue or server-side session expiration");
             setUser(null);
           }
         } else {
-          console.log("[DEBUG] No session found");
+          console.log("[DEBUG] No session found and no auth cookie exists");
           setUser(null);
         }
       } catch (error) {
         console.error("[DEBUG] Error fetching session:", error);
+        console.error("[DEBUG] Error details:", error instanceof Error ? error.message : String(error));
+        console.error("[DEBUG] Error stack:", error instanceof Error ? error.stack : "No stack trace");
         setUser(null);
       } finally {
         setLoading(false);
@@ -67,11 +106,18 @@ export function AuthButton() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
         console.log("[DEBUG] Auth state changed:", event, session?.user?.id);
+        console.log("[DEBUG] Auth change timestamp:", new Date().toISOString());
         
         if (session) {
           console.log("[DEBUG] New session, expires at:", new Date(session.expires_at! * 1000).toISOString());
           // Log all cookies to see if auth cookie exists
           console.log("[DEBUG] Current cookies:", document.cookie);
+          
+          // Check if auth cookie exists after auth state change
+          const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+          console.log("[DEBUG] Auth cookie exists after auth state change:", hasAuthCookie);
+        } else {
+          console.log("[DEBUG] Session is null after auth state change event:", event);
         }
         
         setUser(session?.user || null);
@@ -89,12 +135,40 @@ export function AuthButton() {
     try {
       console.log("[DEBUG] Logging out user");
       const supabase = createClient();
+      
+      // Before logout, check if auth cookie exists and log its format
+      const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+      console.log("[DEBUG] Auth cookie exists before logout:", hasAuthCookie);
+      
+      if (hasAuthCookie) {
+        try {
+          const cookies = document.cookie.split(';');
+          const authCookieStr = cookies.find(c => c.trim().startsWith('sb-xskelhjnymrbogeloxfy-auth-token='));
+          if (authCookieStr) {
+            console.log("[DEBUG] Auth cookie length before logout:", authCookieStr.length);
+          }
+        } catch (cookieError) {
+          console.error("[DEBUG] Error parsing auth cookie before logout:", cookieError);
+        }
+      }
+      
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error("[DEBUG] Error signing out:", error);
       } else {
         console.log("[DEBUG] User signed out successfully");
+        
+        // After logout, check if auth cookie still exists
+        const hasAuthCookieAfter = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+        console.log("[DEBUG] Auth cookie exists after logout:", hasAuthCookieAfter);
+        
+        // If cookie still exists, try to manually remove it
+        if (hasAuthCookieAfter) {
+          console.log("[DEBUG] Auth cookie still exists after logout, trying to manually remove it");
+          document.cookie = "sb-xskelhjnymrbogeloxfy-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        }
+        
         // Force a page reload to ensure all auth state is cleared
         window.location.reload();
       }

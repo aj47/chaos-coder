@@ -31,11 +31,20 @@ export async function initiateSubscription(planType: SubscriptionTier) {
   try {
     console.log("[DEBUG] Initiating subscription for plan:", planType);
     
+    // Get the Supabase client to get the session
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error('No authenticated user found');
+    }
+    
     // Call the API route to create a checkout session
     const response = await fetch('/api/create-checkout-session', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ planType }),
     });
@@ -74,9 +83,21 @@ export async function initiateSubscription(planType: SubscriptionTier) {
 // Client-side function to cancel a subscription
 export async function cancelSubscription() {
   try {
+    // Get the Supabase client to get the session
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error('No authenticated user found');
+    }
+    
     // Call the API route to cancel the subscription
     const response = await fetch('/api/cancel-subscription', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
     });
 
     if (!response.ok) {
@@ -112,6 +133,7 @@ export async function getUserCreditsInfo() {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
       

@@ -11,7 +11,7 @@ export const createClient = () => {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
-    console.error("Supabase environment variables are not set correctly!");
+    console.error("[DEBUG] Supabase environment variables are not set correctly!");
     
     // In development, provide more helpful error messages
     if (process.env.NODE_ENV === 'development') {
@@ -34,13 +34,39 @@ export const createClient = () => {
   // Debug: Check if we can get the session immediately after creating the client
   setTimeout(async () => {
     try {
-      const { data } = await client.auth.getSession();
+      console.log("[DEBUG] Checking initial session after client creation");
+      
+      // Check if auth cookie exists directly
+      const hasAuthCookie = document.cookie.includes('sb-xskelhjnymrbogeloxfy-auth-token');
+      console.log("[DEBUG] Auth cookie exists in initial check:", hasAuthCookie);
+      
+      // Get the current session
+      const { data, error } = await client.auth.getSession();
+      
+      if (error) {
+        console.error("[DEBUG] Error in initial session check:", error.message);
+      }
+      
       console.log("[DEBUG] Initial session check:", data.session ? `Session exists for user ${data.session.user.id}` : "No session found");
+      
+      if (data.session) {
+        console.log("[DEBUG] Initial session expires at:", new Date(data.session.expires_at! * 1000).toISOString());
+        console.log("[DEBUG] Initial session access token (first 10 chars):", 
+                   data.session.access_token.substring(0, 10) + "...");
+      }
       
       // Log all cookies to see if auth cookie exists
       console.log("[DEBUG] Current cookies:", document.cookie);
+      
+      // Check for cookie-session mismatch
+      if (hasAuthCookie && !data.session) {
+        console.warn("[DEBUG] Cookie exists but no session - potential auth issue");
+      } else if (!hasAuthCookie && data.session) {
+        console.warn("[DEBUG] Session exists but no cookie - potential persistence issue");
+      }
     } catch (error) {
       console.error("[DEBUG] Error checking initial session:", error);
+      console.error("[DEBUG] Error details:", error instanceof Error ? error.message : String(error));
     }
   }, 100);
   
