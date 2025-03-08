@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   
   // Initialize Supabase client
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
   
   // Check if user is authenticated

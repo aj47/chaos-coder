@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import stripeClient from '@/lib/stripe';
 import { PLANS } from '@/lib/stripe';
+import Stripe from 'stripe';
+
+// Define types for Stripe event objects
+type StripeCheckoutSession = Stripe.Checkout.Session;
+type StripeInvoice = Stripe.Invoice;
+type StripeSubscription = Stripe.Subscription;
 
 // Disable NextJS body parsing for webhooks
 export const dynamic = 'force-dynamic';
@@ -9,23 +15,29 @@ export const skipMiddleware = true;
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  console.log('Webhook received:', new Date().toISOString());
   const payload = await req.text();
   const sig = req.headers.get('stripe-signature') as string;
 
   if (!sig) {
+    console.log('No signature in webhook request');
     return NextResponse.json({ error: 'No signature' }, { status: 400 });
   }
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
+    console.log('Webhook secret not configured');
     return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
   }
 
   try {
     // Verify webhook signature
+    console.log('Verifying webhook signature');
     const event = stripeClient.webhooks.constructEvent(payload, sig, webhookSecret);
+    console.log('Webhook event type:', event.type);
     
     // Initialize Supabase client
+    console.log('Initializing Supabase client');
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
       process.env.SUPABASE_SERVICE_ROLE_KEY || '',
@@ -38,30 +50,49 @@ export async function POST(req: NextRequest) {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as any;
+        console.log('Processing checkout.session.completed event');
+        const session = event.data.object as StripeCheckoutSession;
         const userId = session.metadata?.userId;
         
         if (!userId) {
           console.error('No user ID in checkout session metadata');
           return NextResponse.json({ error: 'No user ID found' }, { status: 400 });
         }
+        console.log('User ID from session metadata:', userId);
 
         // Get subscription
-        const subscription = await stripeClient.subscriptions.retrieve(session.subscription);
+        console.log('Retrieving subscription details');
+        const subscription = await stripeClient.subscriptions.retrieve(session.subscription as string);
+        console.log('Subscription retrieved:', subscription.id);
         
         // Determine subscription tier
         let subscriptionTier = 'free';
         let maxMonthlyCredits = 100;
         
+        console.log('Checking price ID:', subscription.items.data[0].price.id);
+        console.log('Expected PRO price ID:', process.env.STRIPE_PRO_PRICE_ID);
+        console.log('Expected ULTRA price ID:', process.env.STRIPE_ULTRA_PRICE_ID);
+
         if (subscription.items.data[0].price.id === process.env.STRIPE_PRO_PRICE_ID) {
+          console.log('Setting tier to PRO');
           subscriptionTier = 'pro';
           maxMonthlyCredits = PLANS.PRO.credits;
         } else if (subscription.items.data[0].price.id === process.env.STRIPE_ULTRA_PRICE_ID) {
+          console.log('Setting tier to ULTRA');
           subscriptionTier = 'ultra';
           maxMonthlyCredits = PLANS.ULTRA.credits;
+        } else {
+          console.log('Price ID did not match any expected IDs, defaulting to free tier');
         }
         
         // Update the user's profile
+        console.log('Updating user profile with subscription details:', {
+          subscription_tier: subscriptionTier,
+          subscription_status: subscription.status,
+          max_monthly_credits: maxMonthlyCredits,
+          credits: maxMonthlyCredits,
+        });
+
         const { error: updateError } = await supabaseAdmin
           .from('profiles')
           .update({
@@ -78,15 +109,17 @@ export async function POST(req: NextRequest) {
           console.error('Error updating profile:', updateError);
           return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
         }
+        console.log('Profile updated successfully');
         
         // Record subscription history
+        console.log('Recording subscription history');
         const { error: historyError } = await supabaseAdmin
           .from('subscription_history')
           .insert({
             user_id: userId,
             subscription_tier: subscriptionTier,
             status: subscription.status,
-            amount_paid: session.amount_total / 100, // Convert from cents to dollars
+            amount_paid: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents to dollars
             currency: session.currency,
           });
         
@@ -94,17 +127,17 @@ export async function POST(req: NextRequest) {
           console.error('Error recording subscription history:', historyError);
           return NextResponse.json({ error: 'Failed to record subscription history' }, { status: 500 });
         }
+        console.log('Subscription history recorded successfully');
         
         break;
       }
       
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as any;
+        const invoice = event.data.object as StripeInvoice;
         
         // Only process subscription invoices
         if (invoice.subscription) {
-          const subscription = await stripeClient.subscriptions.retrieve(invoice.subscription);
-          const customer = await stripeClient.customers.retrieve(invoice.customer);
+          const subscription = await stripeClient.subscriptions.retrieve(invoice.subscription as string);
           
           // Find the user by Stripe customer ID
           const { data: profiles, error: profilesError } = await supabaseAdmin
@@ -168,7 +201,7 @@ export async function POST(req: NextRequest) {
       }
       
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as any;
+        const subscription = event.data.object as StripeSubscription;
         
         // Find the user by Stripe customer ID
         const { data: profiles, error: profilesError } = await supabaseAdmin
@@ -217,7 +250,7 @@ export async function POST(req: NextRequest) {
       }
       
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as any;
+        const subscription = event.data.object as StripeSubscription;
         
         // Find the user by Stripe customer ID
         const { data: profiles, error: profilesError } = await supabaseAdmin

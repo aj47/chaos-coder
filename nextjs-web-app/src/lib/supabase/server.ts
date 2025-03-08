@@ -7,7 +7,7 @@ import type { Database } from '@/types/supabase';
  * with proper error handling for environment variables
  */
 export const createServerClient = () => {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
