@@ -1,19 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
 import { useTokenStore } from "@/store/useTokenStore";
+import SubscriptionPlans from "@/components/SubscriptionPlans";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
-  const [maxCredits] = useState(100); // Maximum credits for the free plan
+  const [subscriptionTier, setSubscriptionTier] = useState("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [maxCredits, setMaxCredits] = useState(100); // Will be updated based on plan
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const setTokens = useTokenStore((state) => state.setTokens);
 
   useEffect(() => {
@@ -31,18 +37,29 @@ export default function DashboardPage() {
           return;
         }
         
-        // Fetch user profile to get credits
-        const { data: profile, error: profileError } = await supabase
+        // Fetch user profile to get credits and subscription info
+        const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, subscription_tier, subscription_status, max_monthly_credits')
           .eq('id', userData.user.id)
           .single();
         
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-        } else if (profile) {
+        } else if (data) {
+          // First cast to unknown then to the expected type
+          const profile = data as unknown as {
+            credits: number;
+            subscription_tier?: string;
+            subscription_status?: string;
+            max_monthly_credits?: number;
+          };
+          
           setCredits(profile.credits);
           setTokens(profile.credits); // Update token store with credits from profile
+          setSubscriptionTier(profile.subscription_tier || "free");
+          setSubscriptionStatus(profile.subscription_status || null);
+          setMaxCredits(profile.max_monthly_credits || 100);
         }
       } catch (err) {
         console.error("Error checking user:", err);
@@ -53,42 +70,65 @@ export default function DashboardPage() {
     };
     
     checkUser();
-  }, [router]);
+  }, [router, setTokens]);
+
+  // Check for successful Stripe session
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    if (sessionId) {
+      setSuccessMessage("Payment successful! Your subscription has been updated.");
+      
+      // Remove the session_id from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Refresh profile data after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  }, [searchParams]);
+
+  const handleSelectPlan = async (plan: string) => {
+    try {
+      setIsUpgrading(true);
+      
+      // Call the checkout API
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: plan.toUpperCase() }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create checkout session');
+      }
+      
+      const { url } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (err) {
+      console.error("Error upgrading plan:", err);
+      setError(err instanceof Error ? err.message : "An error occurred during checkout");
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-t-indigo-500 border-indigo-200 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}>Loading your dashboard...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+          </div>
+          <p className="mt-3">Loading dashboard...</p>
         </div>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
-        <div className={`w-full max-w-md p-6 rounded-lg ${theme === "dark" ? "bg-gray-800" : "bg-white shadow-md"}`}>
-          <h2 className="text-xl font-bold mb-4">Error</h2>
-          <p className="mb-6">{error}</p>
-          <button
-            onClick={() => router.push("/")}
-            className={`w-full py-2 px-4 rounded-lg font-medium ${
-              theme === "dark"
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate percentage for progress bar
-  const creditPercentage = credits !== null ? (credits / maxCredits) * 100 : 0;
 
   return (
     <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
@@ -102,6 +142,18 @@ export default function DashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-8"
         >
+          {successMessage && (
+            <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-green-900 text-green-100' : 'bg-green-100 text-green-800'}`}>
+              {successMessage}
+            </div>
+          )}
+          
+          {error && (
+            <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800'}`}>
+              {error}
+            </div>
+          )}
+
           {/* Billing & Credits */}
           <div className={`p-6 rounded-lg ${theme === "dark" ? "bg-gray-800" : "bg-white shadow-md"}`}>
             <h2 className="text-xl font-bold mb-4">Billing & Credits</h2>
@@ -110,43 +162,55 @@ export default function DashboardPage() {
               <div className={`p-4 rounded-lg border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}>
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-bold">Free Plan</p>
-                    <p className="text-sm opacity-75">100 credits on signup</p>
+                    <p className="font-bold capitalize">{subscriptionTier} Plan</p>
+                    <p className="text-sm opacity-75">
+                      {subscriptionTier === 'free' 
+                        ? '100 credits on signup' 
+                        : subscriptionTier === 'pro' 
+                          ? '100 credits/month' 
+                          : '500 credits/month'}
+                    </p>
+                    {subscriptionStatus && subscriptionTier !== 'free' && (
+                      <p className="text-sm mt-1 capitalize">
+                        Status: <span className={`font-medium ${
+                          subscriptionStatus === 'active' 
+                            ? theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                            : theme === 'dark' ? 'text-red-400' : 'text-red-600'
+                        }`}>{subscriptionStatus}</span>
+                      </p>
+                    )}
                   </div>
-                  <button 
-                    className={`px-4 py-2 rounded-lg font-medium ${
-                      theme === "dark"
-                        ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                        : "bg-indigo-500 hover:bg-indigo-600 text-white"
-                    }`}
-                  >
-                    Upgrade
-                  </button>
+                  
+                  <div className="text-right">
+                    <p className="text-xl font-bold">{credits} / {maxCredits}</p>
+                    <p className="text-sm opacity-75">Credits Available</p>
+                  </div>
                 </div>
               </div>
             </div>
             
-            <div>
-              <h3 className="text-lg font-medium mb-2">Available Credits</h3>
-              <div className={`p-4 rounded-lg border ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-bold">{credits !== null ? credits : '–'} / {maxCredits}</p>
-                    <p className="text-sm opacity-75">Credits remaining</p>
-                  </div>
-                  <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-indigo-500 rounded-full" 
-                      style={{ width: `${creditPercentage}%` }}
-                      role="progressbar"
-                      aria-valuenow={creditPercentage}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    ></div>
-                  </div>
-                </div>
+            {/* Progress Bar */}
+            <div className="mb-8">
+              <div className="h-2 w-full bg-gray-200 rounded-full">
+                <div 
+                  className={`h-2 rounded-full ${
+                    theme === "dark" 
+                      ? "bg-indigo-500" 
+                      : "bg-indigo-600"
+                  }`}
+                  style={{ width: `${((credits || 0) / maxCredits) * 100}%` }}
+                />
               </div>
             </div>
+            
+            {/* Subscription Plans */}
+            <SubscriptionPlans 
+              currentPlan={subscriptionTier}
+              credits={credits}
+              maxCredits={maxCredits}
+              onSelectPlan={handleSelectPlan}
+              isLoading={isUpgrading}
+            />
           </div>
         </motion.div>
       </div>

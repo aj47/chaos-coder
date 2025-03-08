@@ -4,6 +4,7 @@ import "./globals.css";
 import StyledComponentsRegistry from "@/components/styled-components-registry";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthButtonWrapper } from "@/components/auth/AuthButtonWrapper";
+import { StripeProvider } from "@/components/StripeProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,8 +31,10 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <StyledComponentsRegistry>
           <ThemeProvider>
-            <AuthButtonWrapper />
-            {children}
+            <StripeProvider>
+              <AuthButtonWrapper />
+              {children}
+            </StripeProvider>
           </ThemeProvider>
         </StyledComponentsRegistry>
       </body>
