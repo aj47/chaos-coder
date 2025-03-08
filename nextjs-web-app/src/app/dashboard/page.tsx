@@ -91,17 +91,7 @@ export default function DashboardPage() {
     <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
       <div className="max-w-4xl mx-auto p-6">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Account Settings</h1>
-          <button
-            onClick={() => router.push("/")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              theme === "dark"
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
-          >
-            Return to App
-          </button>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
         </div>
 
         <motion.div
