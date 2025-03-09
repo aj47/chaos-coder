@@ -62,10 +62,11 @@ export default function DashboardPage() {
           }, 5000);
         }
         
-        // Fetch user profile to get subscription info
+        // Fetch user profile to get subscription info - adding logging
+        console.log('Fetching user profile for:', userData.user.id);
         const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('credits, subscription_tier, subscription_status, max_daily_credits')
+          .select('*') // Get all columns for debugging
           .eq('id', userData.user.id)
           .single();
         
@@ -78,6 +79,8 @@ export default function DashboardPage() {
             subscription_tier?: string;
             subscription_status?: string;
             max_daily_credits?: number;
+            stripe_subscription_id?: string;
+            stripe_customer_id?: string;
           };
           
           // Only update credits if they weren't just refreshed
@@ -136,25 +139,107 @@ export default function DashboardPage() {
     try {
       setIsUpgrading(true);
       
-      // Call the checkout API
-      const response = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: plan.toUpperCase() }),
+      // Check if this is a downgrade request
+      const [planType, action] = plan.split(':');
+      const isDowngrade = action === 'downgrade';
+      
+      console.log('Plan selection:', { 
+        planType, 
+        isDowngrade, 
+        subscriptionStatus, 
+        subscriptionTier,
+        currentState: {
+          creditsAvailable: credits,
+          maxCreditsAllowed: maxCredits
+        }
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create checkout session');
+      // First check if the user can make this change
+      if (isDowngrade && subscriptionStatus !== 'active') {
+        console.log('Preventing downgrade - subscription not active:', subscriptionStatus);
+        setError(`You need an active subscription to downgrade. Your current subscription status is "${subscriptionStatus || 'none'}".`);
+        return;
       }
       
-      const { url } = await response.json();
-      
-      // Redirect to Stripe Checkout
-      window.location.href = url;
+      if (isDowngrade) {
+        console.log('Calling downgrade API with plan:', planType.toUpperCase());
+        
+        try {
+          // Call the downgrade API
+          const response = await fetch('/api/stripe/downgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan: planType.toUpperCase() }),
+          });
+          
+          // Log the raw response for debugging
+          console.log('Downgrade API response status:', response.status);
+          const responseText = await response.text();
+          console.log('Downgrade API response text:', responseText);
+          
+          // Parse the JSON response, if it's valid JSON
+          let responseData;
+          try {
+            responseData = JSON.parse(responseText);
+          } catch (e) {
+            console.error('Error parsing API response as JSON:', e);
+            throw new Error('Received invalid response from server');
+          }
+          
+          if (!response.ok) {
+            // Special handling for server errors that might be recoverable
+            if (response.status === 500) {
+              console.log('Server error, but may still have worked. Attempting to refresh...');
+              // Set success message optimistically
+              setSuccessMessage('Plan update initiated. Refreshing to check status...');
+              
+              // Refresh the page after a delay
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+              return;
+            }
+            
+            // Provide a more helpful message for the common error case
+            if (responseData.error === 'No active subscription found') {
+              throw new Error('You need an active paid subscription to downgrade. Please subscribe to a paid plan first.');
+            }
+            throw new Error(responseData.error || 'Failed to downgrade plan');
+          }
+          
+          // Handle success - either redirect or display success message
+          setSuccessMessage(responseData.message || 'Plan downgraded successfully.');
+          
+          // Refresh the page after a delay to show updated status
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (apiError) {
+          console.error('API error:', apiError);
+          throw apiError;
+        }
+      } else {
+        // For upgrades, continue with existing checkout flow
+        // Call the checkout API
+        const response = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: planType.toUpperCase() }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create checkout session');
+        }
+        
+        const { url } = await response.json();
+        
+        // Redirect to Stripe Checkout
+        window.location.href = url;
+      }
     } catch (err) {
-      console.error("Error upgrading plan:", err);
-      setError(err instanceof Error ? err.message : "An error occurred during checkout");
+      console.error("Error updating plan:", err);
+      setError(err instanceof Error ? err.message : "An error occurred while updating your plan");
     } finally {
       setIsUpgrading(false);
     }
@@ -307,6 +392,7 @@ export default function DashboardPage() {
             maxCredits={maxCredits}
             onSelectPlan={handleSelectPlan}
             isLoading={isUpgrading}
+            subscriptionStatus={subscriptionStatus}
           />
         </motion.div>
       </div>

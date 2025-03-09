@@ -100,10 +100,18 @@ export async function createOrRetrieveCustomer(email: string, userId: string) {
 }
 
 // Helper function to cancel a subscription
-export async function cancelSubscription(subscriptionId: string) {
+export async function cancelSubscription(subscriptionId: string, cancelAtPeriodEnd: boolean = false) {
   try {
     const stripe = getStripe();
-    const subscription = await stripe.subscriptions.cancel(subscriptionId);
+    const subscription = await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: cancelAtPeriodEnd
+    });
+    
+    if (!cancelAtPeriodEnd) {
+      // Cancel immediately if not set to cancel at period end
+      return await stripe.subscriptions.cancel(subscriptionId);
+    }
+    
     return subscription;
   } catch (error) {
     console.error('Error cancelling subscription:', error);

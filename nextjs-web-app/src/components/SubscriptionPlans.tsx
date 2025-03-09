@@ -9,30 +9,79 @@ interface SubscriptionPlansProps {
   maxCredits: number;
   onSelectPlan: (plan: string) => void;
   isLoading: boolean;
+  subscriptionStatus?: string | null;
 }
 
 export default function SubscriptionPlans({
   currentPlan,
+  // We still need these props for the component signature even if not directly used in this component
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   credits,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   maxCredits,
   onSelectPlan,
-  isLoading
+  isLoading,
+  subscriptionStatus
 }: SubscriptionPlansProps) {
   const { theme } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  
+  // Check if the user has an active paid subscription
+  const hasActiveSubscription = currentPlan !== 'free' && subscriptionStatus === 'active';
+  
+  // Log for debugging
+  console.log('SubscriptionPlans state:', { 
+    currentPlan, 
+    subscriptionStatus, 
+    hasActiveSubscription 
+  });
 
   const handleSelectPlan = (plan: string) => {
     if (plan === currentPlan.toLowerCase()) {
       return; // Don't allow selecting the current plan
     }
     
+    // Check if this is a downgrade
+    const isDowngrade = (
+      (currentPlan.toLowerCase() === 'ultra' && (plan === 'pro' || plan === 'free')) ||
+      (currentPlan.toLowerCase() === 'pro' && plan === 'free')
+    );
+    
+    // Don't allow downgrades without an active subscription
+    if (isDowngrade && !hasActiveSubscription) {
+      console.log('Attempted downgrade without active subscription:', { 
+        currentPlan, 
+        targetPlan: plan, 
+        subscriptionStatus 
+      });
+      return;
+    }
+    
     setSelectedPlan(plan);
-    onSelectPlan(plan);
+    
+    // Call onSelectPlan with a flag to indicate if this is a downgrade
+    onSelectPlan(plan + (isDowngrade ? ':downgrade' : ''));
   };
 
   return (
     <div className="space-y-8">
       <h2 className="text-xl font-bold mb-4">Subscription Plans</h2>
+      
+      {/* Show notice about downgrade requirements if on paid plan without active status */}
+      {currentPlan !== 'free' && subscriptionStatus !== 'active' && (
+        <div className={`p-4 mb-4 rounded-lg ${
+          theme === 'dark' 
+            ? 'bg-yellow-800/30 text-yellow-200 border border-yellow-700' 
+            : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+        }`}>
+          <p className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Your subscription status is <strong className="mx-1">{subscriptionStatus || 'inactive'}</strong>. You need an active subscription to downgrade plans.
+          </p>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Free Plan */}
@@ -70,9 +119,10 @@ export default function SubscriptionPlans({
             </div>
 
             <button
-              disabled={currentPlan.toLowerCase() === 'free'}
+              disabled={currentPlan.toLowerCase() === 'free' || (currentPlan !== 'free' && !hasActiveSubscription)}
+              title={currentPlan !== 'free' && !hasActiveSubscription ? 'You need an active subscription to downgrade' : ''}
               className={`mt-auto w-full py-2 rounded-lg font-medium ${
-                currentPlan.toLowerCase() === 'free'
+                currentPlan.toLowerCase() === 'free' || (currentPlan !== 'free' && !hasActiveSubscription)
                   ? theme === 'dark'
                     ? 'bg-gray-700 text-gray-300 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
@@ -80,6 +130,7 @@ export default function SubscriptionPlans({
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   : 'bg-indigo-500 hover:bg-indigo-600 text-white'
               }`}
+              onClick={() => currentPlan.toLowerCase() !== 'free' && hasActiveSubscription && handleSelectPlan('free')}
             >
               {currentPlan.toLowerCase() === 'free' ? 'Current Plan' : 'Downgrade'}
             </button>
@@ -125,9 +176,10 @@ export default function SubscriptionPlans({
 
             <button
               onClick={() => handleSelectPlan('pro')}
-              disabled={currentPlan.toLowerCase() === 'pro' || isLoading}
+              disabled={currentPlan.toLowerCase() === 'pro' || isLoading || (currentPlan.toLowerCase() === 'ultra' && !hasActiveSubscription)}
+              title={currentPlan.toLowerCase() === 'ultra' && !hasActiveSubscription ? 'You need an active subscription to downgrade' : ''}
               className={`mt-auto w-full py-2 rounded-lg font-medium ${
-                currentPlan.toLowerCase() === 'pro'
+                currentPlan.toLowerCase() === 'pro' || (currentPlan.toLowerCase() === 'ultra' && !hasActiveSubscription)
                   ? theme === 'dark'
                     ? 'bg-gray-700 text-gray-300 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
