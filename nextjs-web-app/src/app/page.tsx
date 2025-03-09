@@ -5,21 +5,23 @@ import { useRouter } from "next/navigation";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { SignupModal } from "@/components/SignupModal";
-import { FaPlus, FaMinus } from "react-icons/fa";
+import { FaPlus, FaMinus, FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { AlertModal } from "@/components/AlertModal";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
 import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [numGenerations, setNumGenerations] = useState(3);
-  const [selectedModel, setSelectedModel] = useState<"fast" | "pro">("fast");
+  const [modelTypes, setModelTypes] = useState<Array<"fast" | "pro">>(Array(3).fill("fast"));
   const [styles, setStyles] = useState<string[]>(DEFAULT_STYLES);
   const [customStyles, setCustomStyles] = useState<string[]>(
     Array(DEFAULT_STYLES.length).fill("")
   );
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const router = useRouter();
 
   // Use the centralized design styles configuration
@@ -38,36 +40,52 @@ export default function Home() {
     type: "auth",
   });
 
+  // Set all models to the same type (pro or fast)
+  const setAllModels = (modelType: "fast" | "pro") => {
+    setModelTypes(Array(numGenerations).fill(modelType));
+  };
+
+  // Update a specific model type
+  const updateModelType = (index: number, modelType: "fast" | "pro") => {
+    setModelTypes(prev => {
+      const newModelTypes = [...prev];
+      newModelTypes[index] = modelType;
+      return newModelTypes;
+    });
+  };
+
   // Calculate total cost
   const calculateCost = () => {
-    return numGenerations * (selectedModel === "fast" ? 1 : 5);
+    return modelTypes.reduce((total, model) => total + (model === "fast" ? 1 : 5), 0);
   };
 
   // Handle number of generations changes
   const incrementGenerations = () => {
-    if (numGenerations < 9) {
-      setNumGenerations((prev) => {
-        const newNum = prev + 1;
+    setNumGenerations((prev) => {
+      const newNum = prev + 1;
+      
+      // Find the next unused style option
+      setStyles((current) => {
+        // Extract all predefined style values except "custom"
+        const allStyleOptions = DESIGN_STYLES
+          .filter(v => v.value !== "custom")
+          .map(v => v.value);
         
-        // Find the next unused style option
-        setStyles((current) => {
-          // Extract all predefined style values except "custom"
-          const allStyleOptions = DESIGN_STYLES
-            .filter(v => v.value !== "custom")
-            .map(v => v.value);
-          
-          // Find the first unused style option
-          const nextStyle = allStyleOptions.find(v => !current.includes(v)) || 
-                           // If all are used, cycle back to the first option
-                           allStyleOptions[0];
-          
-          return [...current, nextStyle];
-        });
+        // Find the first unused style option
+        const nextStyle = allStyleOptions.find(v => !current.includes(v)) || 
+                         // If all are used, cycle back to the first option
+                         allStyleOptions[0];
         
-        setCustomStyles((current) => [...current, ""]);
-        return newNum;
+        return [...current, nextStyle];
       });
-    }
+      
+      setCustomStyles((current) => [...current, ""]);
+      
+      // Add a new model type (default to "fast")
+      setModelTypes(current => [...current, "fast"]);
+      
+      return newNum;
+    });
   };
 
   const decrementGenerations = () => {
@@ -77,6 +95,8 @@ export default function Home() {
         // Remove style from the last generation
         setStyles((current) => current.slice(0, newNum));
         setCustomStyles((current) => current.slice(0, newNum));
+        // Remove model type from the last generation
+        setModelTypes(current => current.slice(0, newNum));
         return newNum;
       });
     }
@@ -151,7 +171,7 @@ export default function Home() {
       const encodedConfig = encodeURIComponent(
         JSON.stringify({
           numGenerations,
-          model: selectedModel,
+          modelTypes,
           styles: styles.map((style, i) =>
             style === "custom" ? customStyles[i] : style
           ),
@@ -207,122 +227,196 @@ export default function Home() {
 
                 <div className="mb-4 space-y-4">
                   {/* Configuration options */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     {/* Number of generations */}
-                    <div className="p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
-                      <div className="text-sm text-gray-300 mb-2">
-                        Number of Generations
+                    <div className="p-4 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
+                      <div className="text-sm text-gray-300 mb-4">
+                        Number of Websites to Generate
                       </div>
                       <div className="flex items-center justify-center">
-                        <button
+                        <motion.button
                           onClick={decrementGenerations}
-                          className="p-2 rounded-lg bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-400 hover:text-gray-200"
+                          className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
                         >
                           <FaMinus className="w-3 h-3" />
-                        </button>
-                        <div className="mx-3 text-lg text-gray-200 font-medium">
+                        </motion.button>
+                        <motion.div 
+                          className="mx-6 text-2xl text-gray-200 font-medium"
+                          key={numGenerations}
+                          initial={{ scale: 1.2, opacity: 0.7 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                        >
                           {numGenerations}
-                        </div>
-                        <button
+                        </motion.div>
+                        <motion.button
                           onClick={incrementGenerations}
-                          className="p-2 rounded-lg bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-400 hover:text-gray-200"
+                          className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
                         >
                           <FaPlus className="w-3 h-3" />
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
 
-                    {/* Model Selection */}
-                    <div className="p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
-                      <div className="text-sm text-gray-300 mb-2">
-                        Model (cost per generation)
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedModel("fast")}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium ${
-                            selectedModel === "fast"
-                              ? "bg-blue-600 text-white"
-                              : "bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-300 hover:text-gray-100"
-                          }`}
+                    {/* Advanced Settings Toggle */}
+                    <motion.button 
+                      onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                      className="flex items-center justify-between p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg text-sm text-gray-300 hover:bg-[#1a1f2e]/80 transition-colors"
+                      whileHover={{ backgroundColor: 'rgba(26, 31, 46, 0.8)' }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <span>Advanced Settings</span>
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                          key={showAdvancedSettings ? 'up' : 'down'}
+                          initial={{ opacity: 0, y: showAdvancedSettings ? 10 : -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: showAdvancedSettings ? -10 : 10 }}
+                          transition={{ duration: 0.2 }}
                         >
-                          <span className="flex justify-center items-center">
-                            Fast Model <span className="mx-1">•</span> (1
-                            <Image
-                              src="/coin.png"
-                              alt="credits"
-                              width={16}
-                              height={16}
-                            />
-                            )
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => setSelectedModel("pro")}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium ${
-                            selectedModel === "pro"
-                              ? "bg-purple-600 text-white"
-                              : "bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-300 hover:text-gray-100"
-                          }`}
-                        >
-                          <span className="flex justify-center items-center">
-                            Pro Model <span className="mx-1">•</span> (5
-                            <Image
-                              src="/coin.png"
-                              alt="Credits"
-                              width={16}
-                              height={16}
-                            />
-                            )
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                          {showAdvancedSettings ? 
+                            <FaChevronUp className="w-3 h-3" /> : 
+                            <FaChevronDown className="w-3 h-3" />
+                          }
+                        </motion.div>
+                      </AnimatePresence>
+                    </motion.button>
 
-                  {/* Styles configuration for each generation */}
-                  <div className="p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
-                    <div className="text-sm text-gray-300 mb-2">
-                      Style Settings
-                    </div>
-                    <div className="space-y-3">
-                      {Array.from({ length: numGenerations }).map(
-                        (_, index) => (
-                          <div
-                            key={index}
-                            className="flex flex-col sm:flex-row gap-2"
-                          >
-                            <div className="flex-none text-xs text-gray-400 sm:pt-2 mb-1 sm:mb-0 sm:w-24">
-                              Generation {index + 1}:
+                    {/* Advanced Settings Section */}
+                    <AnimatePresence>
+                      {showAdvancedSettings && (
+                        <motion.div 
+                          className="p-4 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg space-y-4"
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{ opacity: 1, height: 'auto', marginTop: -8 }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                        >
+                          {/* Combined Model & Style Settings */}
+                          <div>
+                            <div className="flex justify-between text-sm text-gray-300 mb-3">
+                              <span>Model Settings</span>
+                              <div className="flex gap-2">
+                                <motion.button
+                                  onClick={() => setAllModels("fast")}
+                                  className="px-2 py-1 text-xs rounded-md bg-blue-600/20 border border-blue-600/40 text-blue-400 hover:bg-blue-600/30"
+                                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(37, 99, 235, 0.3)' }}
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  All Fast
+                                </motion.button>
+                                <motion.button
+                                  onClick={() => setAllModels("pro")}
+                                  className="px-2 py-1 text-xs rounded-md bg-purple-600/20 border border-purple-600/40 text-purple-400 hover:bg-purple-600/30"
+                                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(147, 51, 234, 0.3)' }}
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  All Pro
+                                </motion.button>
+                              </div>
                             </div>
-                            <select
-                              value={styles[index]}
-                              onChange={(e) =>
-                                handleStyleChange(index, e.target.value)
-                              }
-                              className="flex-1 py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
-                            >
-                              {predefinedStyles.map((style) => (
-                                <option key={style.value} value={style.value}>
-                                  {style.label}
-                                </option>
+                          
+                            <div className="space-y-3">
+                              {Array.from({ length: numGenerations }).map((_, index) => (
+                                <motion.div 
+                                  key={`settings-${index}`} 
+                                  className="flex flex-col lg:flex-row gap-2 p-2 bg-[#1a1f2e]/50 rounded-lg"
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: index * 0.05, duration: 0.3 }}
+                                >
+                                  <div className="flex-none text-xs text-gray-400 font-semibold sm:pt-2 mb-1 sm:mb-0 sm:w-24">
+                                    Website {index + 1}:
+                                  </div>
+                                  
+                                  {/* Model Selection */}
+                                  <div className="flex flex-1 gap-2 mb-2 lg:mb-0">
+                                    <motion.button
+                                      onClick={() => updateModelType(index, "fast")}
+                                      className={`flex-1 py-1 px-2 rounded-lg text-sm font-medium ${
+                                        modelTypes[index] === "fast"
+                                          ? "bg-blue-600 text-white"
+                                          : "bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-300 hover:text-gray-100"
+                                      }`}
+                                      whileHover={{ scale: 1.03 }}
+                                      whileTap={{ scale: 0.97 }}
+                                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                    >
+                                      <span className="flex justify-center items-center text-xs">
+                                        Fast <span className="mx-1">•</span> (1
+                                        <Image
+                                          src="/coin.png"
+                                          alt="credits"
+                                          width={14}
+                                          height={14}
+                                        />
+                                        )
+                                      </span>
+                                    </motion.button>
+                                    <motion.button
+                                      onClick={() => updateModelType(index, "pro")}
+                                      className={`flex-1 py-1 px-2 rounded-lg text-sm font-medium ${
+                                        modelTypes[index] === "pro"
+                                          ? "bg-purple-600 text-white"
+                                          : "bg-[#1a1f2e]/70 border border-[#2a3040] text-gray-300 hover:text-gray-100"
+                                      }`}
+                                      whileHover={{ scale: 1.03 }}
+                                      whileTap={{ scale: 0.97 }}
+                                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                    >
+                                      <span className="flex justify-center items-center text-xs">
+                                        Pro <span className="mx-1">•</span> (5
+                                        <Image
+                                          src="/coin.png"
+                                          alt="Credits"
+                                          width={14}
+                                          height={14}
+                                        />
+                                        )
+                                      </span>
+                                    </motion.button>
+                                  </div>
+                                  
+                                  {/* Style Selection */}
+                                  <div className="flex flex-1 lg:w-2/5">
+                                    <select
+                                      value={styles[index]}
+                                      onChange={(e) => handleStyleChange(index, e.target.value)}
+                                      className="w-full py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
+                                    >
+                                      {predefinedStyles.map((style) => (
+                                        <option key={style.value} value={style.value}>
+                                          {style.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  
+                                  {/* Custom Style Input */}
+                                  {styles[index] === "custom" && (
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={customStyles[index]}
+                                        onChange={(e) => handleCustomStyleChange(index, e.target.value)}
+                                        placeholder="Enter custom style instructions..."
+                                        className="w-full py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
+                                      />
+                                    </div>
+                                  )}
+                                </motion.div>
                               ))}
-                            </select>
-                            {styles[index] === "custom" && (
-                              <input
-                                type="text"
-                                value={customStyles[index]}
-                                onChange={(e) =>
-                                  handleCustomStyleChange(index, e.target.value)
-                                }
-                                placeholder="Enter custom style instructions..."
-                                className="flex-1 py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
-                              />
-                            )}
+                            </div>
                           </div>
-                        )
+                        </motion.div>
                       )}
-                    </div>
+                    </AnimatePresence>
                   </div>
                 </div>
 
@@ -335,7 +429,7 @@ export default function Home() {
                     <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
                   ) : (
                     <span className="flex items-center">
-                      Generate Web Apps <span className="mx-1">•</span> (
+                      Generate {numGenerations} Website{numGenerations > 1 ? 's' : ''} Now <span className="mx-1">•</span> (
                       <span className="flex items-center">
                         {calculateCost()}
                           <Image
