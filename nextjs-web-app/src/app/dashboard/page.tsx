@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useTokenStore } from "@/store/useTokenStore";
 import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
+import CreditPurchase from "@/components/CreditPurchase";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [maxCredits, setMaxCredits] = useState(5); // Default to 5 daily credits for free plan
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isPurchasingCredits, setIsPurchasingCredits] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const setTokens = useTokenStore((state) => state.setTokens);
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
@@ -102,7 +104,21 @@ export default function DashboardPage() {
   // Check for successful Stripe session
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
-    if (sessionId) {
+    const creditsPurchased = searchParams.get('credits_purchased');
+    const purchasedAmount = searchParams.get('amount');
+
+    if (sessionId && creditsPurchased === 'true' && purchasedAmount) {
+      setSuccessMessage(`Payment successful! ${purchasedAmount} credits have been added to your account.`);
+      
+      // Remove the parameters from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Refresh profile data after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else if (sessionId) {
       setSuccessMessage("Payment successful! Your subscription has been updated.");
       
       // Remove the session_id from the URL
@@ -141,6 +157,34 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : "An error occurred during checkout");
     } finally {
       setIsUpgrading(false);
+    }
+  };
+
+  const handlePurchaseCredits = async (amount: number) => {
+    try {
+      setIsPurchasingCredits(true);
+      
+      // Call the credits purchase API
+      const response = await fetch('/api/stripe/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create checkout session');
+      }
+      
+      const { url } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (err) {
+      console.error("Error purchasing credits:", err);
+      setError(err instanceof Error ? err.message : "An error occurred during checkout");
+    } finally {
+      setIsPurchasingCredits(false);
     }
   };
 
@@ -222,10 +266,10 @@ export default function DashboardPage() {
                     <p className="font-bold capitalize">{subscriptionTier} Plan</p>
                     <p className="text-sm opacity-75">
                       {subscriptionTier === 'free' 
-                        ? '5 credits per day' 
+                        ? '30 credits per day' 
                         : subscriptionTier === 'pro' 
-                          ? '25 credits per day' 
-                          : '200 credits per day'}
+                          ? '100 credits per day' 
+                          : '1000 credits per day'}
                     </p>
                     {subscriptionStatus && subscriptionTier !== 'free' && (
                       <p className="text-sm mt-1 capitalize">
@@ -246,15 +290,24 @@ export default function DashboardPage() {
               </div>
             </div>
             
-            {/* Subscription Plans */}
-            <SubscriptionPlans 
-              currentPlan={subscriptionTier}
-              credits={credits}
-              maxCredits={maxCredits}
-              onSelectPlan={handleSelectPlan}
-              isLoading={isUpgrading}
-            />
+            {/* Credit Purchase for Pro and Ultra subscribers */}
+            {subscriptionTier && subscriptionTier !== 'free' && (
+              <CreditPurchase 
+                subscriptionTier={subscriptionTier}
+                isLoading={isPurchasingCredits}
+                onPurchase={handlePurchaseCredits}
+              />
+            )}
           </div>
+          
+          {/* Subscription Plans */}
+          <SubscriptionPlans 
+            currentPlan={subscriptionTier}
+            credits={credits}
+            maxCredits={maxCredits}
+            onSelectPlan={handleSelectPlan}
+            isLoading={isUpgrading}
+          />
         </motion.div>
       </div>
     </div>

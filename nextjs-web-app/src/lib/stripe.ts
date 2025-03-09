@@ -7,23 +7,25 @@ let stripe: Stripe | null = null;
 export const PLANS = {
   FREE: {
     name: 'Free',
-    credits: 5,
+    credits: 30,
     price: 0,
-    features: ['5 free credits per day', 'Max 3x generations'],
+    features: ['30 free credits per day', 'Max 3x generations'],
   },
   PRO: {
     name: 'Pro',
-    credits: 25,
+    credits: 100,
     price: 10,
     priceId: process.env.STRIPE_PRO_PRICE_ID,
-    features: ['25 free credits per day', 'Ability to use smarter models', 'Ability to configure vibes'],
+    features: ['100 free credits per day', 'Ability to use smarter models', 'Ability to configure vibes', 'Buy additional credits: $1 = 15 credits'],
+    topUpRate: 15, // Credits per $1
   },
   ULTRA: {
     name: 'Ultra',
-    credits: 200,
+    credits: 1000,
     price: 50,
     priceId: process.env.STRIPE_ULTRA_PRICE_ID,
-    features: ['200 free credits per day', 'Everything from other plans', 'Priority support', 'Generations can be saved (coming soon)'],
+    features: ['1000 free credits per day', 'Everything from other plans', 'Priority support', 'Buy additional credits: $1 = 30 credits', 'Generations can be saved (coming soon)'],
+    topUpRate: 30, // Credits per $1
   },
 };
 
@@ -117,6 +119,56 @@ export async function getSubscription(subscriptionId: string) {
     return subscription;
   } catch (error) {
     console.error('Error retrieving subscription:', error);
+    throw error;
+  }
+}
+
+// Helper function to create a checkout session for a one-time purchase of credits
+export async function createCreditsCheckoutSession(customerId: string, userId: string, amount: number, planTier: string) {
+  try {
+    const stripe = getStripe();
+    
+    // Determine the appropriate unit amount based on the plan tier
+    const plan = planTier.toUpperCase() === 'PRO' ? PLANS.PRO : PLANS.ULTRA;
+    const creditsPerDollar = plan.topUpRate || 0;
+    
+    if (!creditsPerDollar) {
+      throw new Error('Invalid plan tier or top-up rate not configured');
+    }
+    
+    // Calculate how many credits they'll receive
+    const creditsToAdd = amount * creditsPerDollar;
+    
+    // Create a Stripe checkout session for a one-time payment
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${creditsToAdd} Additional Credits`,
+              description: `Purchase ${creditsToAdd} additional credits for your ${planTier} plan`,
+            },
+            unit_amount: amount * 100, // amount in cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment', // one-time payment
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?credits_purchased=true&amount=${creditsToAdd}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      metadata: {
+        userId,
+        creditsToAdd,
+        purchaseType: 'credits',
+      },
+    });
+
+    return { sessionId: session.id, url: session.url };
+  } catch (error) {
+    console.error('Error creating credits checkout session:', error);
     throw error;
   }
 }

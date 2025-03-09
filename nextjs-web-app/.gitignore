@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Additional SQL files (keep migrations folder)
+/migration_script.sql
+/add_subscription_columns.sql
+/db/migrations/*.sql
+/src/app/api/setup-db/*.sql
+/supabase/manual_fixes.sql
+/supabase/db/seed.sql
+
+# Temporary and backup files
+*.log
+*.bak
+*.tmp
+*.swp

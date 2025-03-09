@@ -60,74 +60,133 @@ export async function POST(req: NextRequest) {
         }
         console.log('User ID from session metadata:', userId);
 
-        // Get subscription
-        console.log('Retrieving subscription details');
-        const subscription = await stripeClient.subscriptions.retrieve(session.subscription as string);
-        console.log('Subscription retrieved:', subscription.id);
-        
-        // Determine subscription tier
-        let subscriptionTier = 'free';
-        let maxMonthlyCredits = 100;
-        
-        console.log('Checking price ID:', subscription.items.data[0].price.id);
-        console.log('Expected PRO price ID:', process.env.STRIPE_PRO_PRICE_ID);
-        console.log('Expected ULTRA price ID:', process.env.STRIPE_ULTRA_PRICE_ID);
-
-        if (subscription.items.data[0].price.id === process.env.STRIPE_PRO_PRICE_ID) {
-          console.log('Setting tier to PRO');
-          subscriptionTier = 'pro';
-          maxMonthlyCredits = PLANS.PRO.credits;
-        } else if (subscription.items.data[0].price.id === process.env.STRIPE_ULTRA_PRICE_ID) {
-          console.log('Setting tier to ULTRA');
-          subscriptionTier = 'ultra';
-          maxMonthlyCredits = PLANS.ULTRA.credits;
+        // Check if this is a credit purchase (one-time payment) or a subscription
+        if (session.metadata?.purchaseType === 'credits' && session.mode === 'payment') {
+          console.log('Processing credit purchase');
+          const creditsToAdd = parseInt(session.metadata.creditsToAdd || '0', 10);
+          
+          if (!creditsToAdd) {
+            console.error('Invalid credits amount in metadata');
+            return NextResponse.json({ error: 'Invalid credits amount' }, { status: 400 });
+          }
+          
+          // Get the current user profile
+          const { data: profile, error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .select('credits')
+            .eq('id', userId)
+            .single();
+            
+          if (profileError) {
+            console.error('Error fetching profile:', profileError);
+            return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+          }
+            
+          const currentCredits = profile?.credits || 0;
+          
+          // Update the user's credits
+          console.log(`Adding ${creditsToAdd} credits to user ${userId}`);
+          const { error: updateError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+              credits: currentCredits + creditsToAdd,
+            })
+            .eq('id', userId);
+            
+          if (updateError) {
+            console.error('Error updating profile credits:', updateError);
+            return NextResponse.json({ error: 'Failed to update profile credits' }, { status: 500 });
+          }
+          
+          // Record credit purchase history
+          console.log('Recording credit purchase history');
+          const { error: historyError } = await supabaseAdmin
+            .from('credit_purchases')
+            .insert({
+              user_id: userId,
+              amount: creditsToAdd,
+              cost: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents to dollars
+              currency: session.currency,
+            });
+            
+          if (historyError) {
+            console.error('Error recording credit purchase history:', historyError);
+            return NextResponse.json({ error: 'Failed to record credit purchase history' }, { status: 500 });
+          }
+          
+          console.log('Credit purchase processed successfully');
+          break;
         } else {
-          console.log('Price ID did not match any expected IDs, defaulting to free tier');
-        }
-        
-        // Update the user's profile
-        console.log('Updating user profile with subscription details:', {
-          subscription_tier: subscriptionTier,
-          subscription_status: subscription.status,
-          max_monthly_credits: maxMonthlyCredits,
-          credits: maxMonthlyCredits,
-        });
+          // Regular subscription checkout
+          // Get subscription
+          console.log('Retrieving subscription details');
+          const subscription = await stripeClient.subscriptions.retrieve(session.subscription as string);
+          console.log('Subscription retrieved:', subscription.id);
+          
+          // Determine subscription tier
+          let subscriptionTier = 'free';
+          let maxMonthlyCredits = 100;
+          
+          console.log('Checking price ID:', subscription.items.data[0].price.id);
+          console.log('Expected PRO price ID:', process.env.STRIPE_PRO_PRICE_ID);
+          console.log('Expected ULTRA price ID:', process.env.STRIPE_ULTRA_PRICE_ID);
 
-        const { error: updateError } = await supabaseAdmin
-          .from('profiles')
-          .update({
+          if (subscription.items.data[0].price.id === process.env.STRIPE_PRO_PRICE_ID) {
+            console.log('Setting tier to PRO');
+            subscriptionTier = 'pro';
+            maxMonthlyCredits = PLANS.PRO.credits;
+          } else if (subscription.items.data[0].price.id === process.env.STRIPE_ULTRA_PRICE_ID) {
+            console.log('Setting tier to ULTRA');
+            subscriptionTier = 'ultra';
+            maxMonthlyCredits = PLANS.ULTRA.credits;
+          } else {
+            console.log('Price ID did not match any expected IDs, defaulting to free tier');
+          }
+          
+          // Update the user's profile
+          console.log('Updating user profile with subscription details:', {
             subscription_tier: subscriptionTier,
             subscription_status: subscription.status,
             max_monthly_credits: maxMonthlyCredits,
-            credits: maxMonthlyCredits, // Reset credits to max based on plan
-            subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          })
-          .eq('id', userId);
-        
-        if (updateError) {
-          console.error('Error updating profile:', updateError);
-          return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
-        }
-        console.log('Profile updated successfully');
-        
-        // Record subscription history
-        console.log('Recording subscription history');
-        const { error: historyError } = await supabaseAdmin
-          .from('subscription_history')
-          .insert({
-            user_id: userId,
-            subscription_tier: subscriptionTier,
-            status: subscription.status,
-            amount_paid: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents to dollars
-            currency: session.currency,
+            credits: maxMonthlyCredits,
           });
-        
-        if (historyError) {
-          console.error('Error recording subscription history:', historyError);
-          return NextResponse.json({ error: 'Failed to record subscription history' }, { status: 500 });
+
+          const { error: updateError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+              subscription_tier: subscriptionTier,
+              subscription_status: subscription.status,
+              max_monthly_credits: maxMonthlyCredits,
+              credits: maxMonthlyCredits, // Reset credits to max based on plan
+              subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+              subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            })
+            .eq('id', userId);
+          
+          if (updateError) {
+            console.error('Error updating profile:', updateError);
+            return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+          }
+          console.log('Profile updated successfully');
+          
+          // Record subscription history
+          console.log('Recording subscription history');
+          const { error: historyError } = await supabaseAdmin
+            .from('subscription_history')
+            .insert({
+              user_id: userId,
+              subscription_tier: subscriptionTier,
+              status: subscription.status,
+              amount_paid: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents to dollars
+              currency: session.currency,
+            });
+          
+          if (historyError) {
+            console.error('Error recording subscription history:', historyError);
+            return NextResponse.json({ error: 'Failed to record subscription history' }, { status: 500 });
+          }
+          console.log('Subscription history recorded successfully');
         }
-        console.log('Subscription history recorded successfully');
         
         break;
       }

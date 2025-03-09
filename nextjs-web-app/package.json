@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "ts-node deploy.ts"
+    "deploy": "ts-node deploy.ts",
+    "db:migrate": "node scripts/apply-migration.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.758.0",
