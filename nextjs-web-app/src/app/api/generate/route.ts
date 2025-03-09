@@ -16,6 +16,7 @@ const frameworkPrompts = {
   patternfly:
     "Use PatternFly for enterprise-grade UI components. Include the PatternFly CDN.",
   pure: "Use Pure CSS for minimalist, responsive design. Include the Pure CSS CDN.",
+  custom: "", // This will be replaced with the customVibe parameter
 };
 
 export async function POST(req: NextRequest) {
@@ -56,19 +57,23 @@ export async function POST(req: NextRequest) {
   
   // Check if user has enough credits
   const userCredits = profile?.credits ?? 0;
-  if (userCredits <= 0) {
+  
+  // Calculate the cost based on the model
+  const modelCost = body.model === "pro" ? 5 : 1;
+  
+  if (userCredits < modelCost && body.variation !== "rate-limit-check") {
     return NextResponse.json(
-      { error: "insufficient_credits", message: "You have no credits remaining. Please purchase more credits to continue." },
+      { error: "insufficient_credits", message: "You don't have enough credits for this generation. Please purchase more credits to continue." },
       { status: 402 }
     );
   }
   
   // Only deduct credits for real generations, not rate limit checks
   if (body && body.variation !== "rate-limit-check") {
-    // Deduct 1 credit
+    // Deduct credits based on model
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ credits: userCredits - 1 })
+      .update({ credits: userCredits - modelCost })
       .eq('id', user.id);
     
     if (updateError) {
@@ -81,7 +86,7 @@ export async function POST(req: NextRequest) {
   }
   
   try {
-    const { prompt, variation, framework } = body;
+    const { prompt, variation, framework, customVibe, model } = body;
 
     const portkeyApiKey = process.env.PORTKEY_API_KEY;
     if (!portkeyApiKey) {
@@ -102,34 +107,38 @@ export async function POST(req: NextRequest) {
           {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
-              model: "llama-3.2-1b-preview",
+              model: model === "pro" ? "llama-3.2-70b-8192" : "llama-3.2-1b-preview",
             },
           },
           {
             virtual_key: "sambanova-6bc4d0",
             override_params: {
-              model: "Meta-Llama-3.2-1B-Instruct",
+              model: model === "pro" ? "Meta-Llama-3.2-70B-Instruct" : "Meta-Llama-3.2-1B-Instruct",
             },
           },
           {
             virtual_key: "openrouter-07e727",
             override_params: {
-              model: "google/gemini-flash-1.5-8b",
+              model: model === "pro" ? "meta/llama-3.2-70b-instruct" : "google/gemini-flash-1.5-8b",
             },
           },
           {
             virtual_key: "openai-9c929c",
             override_params: {
-              model: "gpt-4o-mini",
+              model: model === "pro" ? "gpt-4o" : "gpt-4o-mini",
             },
           }
         ],
       },
     });
 
-    const frameworkInstructions = framework
-      ? frameworkPrompts[framework as keyof typeof frameworkPrompts]
-      : "";
+    // If using a custom vibe, use the customVibe parameter
+    let vibeInstructions = "";
+    if (framework === "custom" && customVibe) {
+      vibeInstructions = customVibe;
+    } else if (framework) {
+      vibeInstructions = frameworkPrompts[framework as keyof typeof frameworkPrompts] || "";
+    }
 
     // Determine if this is an update request
     const isUpdate = body.isUpdate === true;
@@ -142,7 +151,7 @@ export async function POST(req: NextRequest) {
 
 Instructions:
 1. Update request: ${prompt}
-2. Framework: ${frameworkInstructions}
+2. Framework/Style: ${vibeInstructions}
 
 EXISTING CODE TO MODIFY:
 \`\`\`html
@@ -170,7 +179,7 @@ Format the code with proper indentation and spacing for readability.`;
 Instructions:
 1. Base functionality: ${prompt}
 2. Variation: ${variation}
-3. Framework: ${frameworkInstructions}
+3. Style/Framework: ${vibeInstructions}
 
 Technical Requirements:
 - Create a single HTML file with clean, indented code structure
@@ -226,7 +235,8 @@ Format the code with proper indentation and spacing for readability.`;
       
       return NextResponse.json({ 
         code,
-        credits: updatedProfile?.credits ?? 0
+        credits: updatedProfile?.credits ?? 0,
+        cost: modelCost // Return the cost of the generation
       });
     }
 

@@ -4,23 +4,31 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { FaMicrophone, FaBolt } from "react-icons/fa";
 import { useTheme } from "@/context/ThemeContext";
+import { SignupModal } from "@/components/SignupModal";
 
 interface PromptInputProps {
   isOpen: boolean;
-  onSubmit: (prompt: string, isUpdate?: boolean, chaosMode?: boolean) => void;
+  onSubmit: (prompt: string, isUpdate?: boolean, chaosMode?: boolean) => Promise<Record<string, unknown> | void> | void;
   isUpdateMode?: boolean;
-  currentCode?: string;
+  model?: string;
+  numGenerations?: number;
 }
 
 export default function PromptInput({
   onSubmit,
   isUpdateMode = false,
-  currentCode = "",
+  model = "fast",
+  numGenerations = 1,
 }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [chaosMode, setChaosMode] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const { theme } = useTheme();
+
+  // Calculate cost based on model and number of generations
+  const calculateCost = () => {
+    return numGenerations * (model === "pro" ? 5 : 1);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +44,14 @@ export default function PromptInput({
             return;
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error submitting prompt:", error);
         
         // Check for rate limit error in the caught exception
-        if (error?.error === 'rate_limit_exceeded' || 
-            (error.response && error.response.status === 429) ||
-            (error.message && error.message.includes('rate limit'))) {
+        const err = error as { error?: string, response?: { status: number }, message?: string };
+        if (err?.error === 'rate_limit_exceeded' || 
+            (err.response && err.response.status === 429) ||
+            (err.message && err.message.includes('rate limit'))) {
           setShowSignupModal(true);
           return;
         }
@@ -114,13 +123,14 @@ export default function PromptInput({
           </button>
           <button
             type="submit"
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
               theme === "dark"
                 ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                 : "bg-indigo-500 hover:bg-indigo-600 text-white"
             }`}
           >
-            {isUpdateMode ? "Update" : "Generate"}
+            <span>{isUpdateMode ? "Update" : "Generate"}</span>
+            <span className="ml-2 flex items-center"><span className="mr-1">🪙</span>{calculateCost()}</span>
           </button>
         </form>
       </div>

@@ -56,17 +56,35 @@ const ShortLoadingBar = styled(LoadingBar)`
 
 // Wrapper component that uses searchParams
 function ResultsContent() {
-  const NUM_APPS = 9; // Single variable to control number of apps
-  
   const searchParams = useSearchParams();
+  const promptParam = searchParams.get('prompt') || '';
+  
+  // Parse the configuration
+  const configParam = searchParams.get('config') || '';
+  const defaultConfig = {
+    numGenerations: 3,
+    model: "fast",
+    vibes: ["tailwind", "bootstrap", "materialize"]
+  };
+  
+  let config;
+  try {
+    config = configParam ? JSON.parse(decodeURIComponent(configParam)) : defaultConfig;
+  } catch (e) {
+    console.error("Failed to parse config:", e);
+    config = defaultConfig;
+  }
+  
+  const { numGenerations, model, vibes } = config;
+  
   const [loadingStates, setLoadingStates] = useState<boolean[]>(
-    new Array(NUM_APPS).fill(true)
+    new Array(numGenerations).fill(true)
   );
-  const [results, setResults] = useState<string[]>(new Array(NUM_APPS).fill(""));
+  const [results, setResults] = useState<string[]>(new Array(numGenerations).fill(""));
   const [error, setError] = useState<string | null>(null);
   const [selectedAppIndex, setSelectedAppIndex] = useState(0);
   const [editedResults, setEditedResults] = useState<string[]>(
-    new Array(NUM_APPS).fill("")
+    new Array(numGenerations).fill("")
   );
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isMetricsOpen, setIsMetricsOpen] = useState(false);
@@ -86,6 +104,7 @@ function ResultsContent() {
     type: 'auth'
   });
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
+  const [totalGenerationCost, setTotalGenerationCost] = useState(0);
   const { theme } = useTheme();
   const setTokens = useTokenStore((state) => state.setTokens);
 
@@ -140,26 +159,21 @@ function ResultsContent() {
   const generateApp = async (index: number, promptText: string) => {
     const startTime = performance.now();
     try {
-      const framework =
-        appTitles[index] === "Standard Version"
-          ? "bootstrap"
-          : appTitles[index] === "Visual Focus"
-          ? "materialize"
-          : appTitles[index] === "Minimalist Version"
-          ? "pure"
-          : appTitles[index] === "Creative Approach"
-          ? "tailwind"
-          : appTitles[index] === "Accessible Version"
-          ? "foundation"
-          : "Bulma";
-
+      // Use the vibe from config instead of predefined frameworks
+      const vibe = vibes[index] || "tailwind"; // Default to tailwind if not specified
+      
+      // Determine if this is a custom vibe (not in frameworkPrompts)
+      const isCustomVibe = !["tailwind", "materialize", "bootstrap", "patternfly", "pure"].includes(vibe);
+      
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: promptText,
-          variation: variations[index],
-          framework,
+          variation: variations[index] || "",
+          framework: isCustomVibe ? "custom" : vibe,
+          customVibe: isCustomVibe ? vibe : undefined,
+          model: model, // Pass the selected model
         }),
       });
 
@@ -206,6 +220,11 @@ function ResultsContent() {
       if (data.credits !== undefined) {
         setRemainingCredits(data.credits);
         setTokens(data.credits); // Update token store with credits from API response
+        
+        // Update total generation cost if available
+        if (data.cost) {
+          setTotalGenerationCost(prev => prev + data.cost);
+        }
       }
 
       setResults((prev) => {
@@ -414,9 +433,9 @@ function ResultsContent() {
         }
       }
     } else {
-      setLoadingStates(new Array(NUM_APPS).fill(true));
-      setResults(new Array(NUM_APPS).fill(""));
-      setEditedResults(new Array(NUM_APPS).fill(""));
+      setLoadingStates(new Array(numGenerations).fill(true));
+      setResults(new Array(numGenerations).fill(""));
+      setEditedResults(new Array(numGenerations).fill(""));
       setGenerationTimes({});
       Promise.all(variations.map((_, index) => generateApp(index, prompt)));
     }
@@ -427,16 +446,18 @@ function ResultsContent() {
   };
 
   useEffect(() => {
-    const prompt = searchParams.get("prompt");
-    if (!prompt) {
+    if (!promptParam) {
       setError("No prompt provided");
-      setLoadingStates(new Array(NUM_APPS).fill(false));
+      setLoadingStates(new Array(numGenerations).fill(false));
       return;
     }
 
-    // Generate all apps in parallel
-    Promise.all(variations.map((_, index) => generateApp(index, prompt)));
-  }, [searchParams]);
+    Promise.all(
+      Array.from({ length: numGenerations }).map((_, index) => 
+        generateApp(index, promptParam)
+      )
+    );
+  }, [promptParam, numGenerations]);
 
   const handleCodeChange = (newCode: string) => {
     const newResults = [...editedResults];
@@ -499,7 +520,17 @@ function ResultsContent() {
               </Link>
             </motion.h1>
             <div className="flex items-center gap-4">
-              {/* ThemeToggle and Back to Prompt link removed */}
+              {/* Display total cost */}
+              {totalGenerationCost > 0 && (
+                <div className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center ${
+                  theme === "dark"
+                    ? "bg-gray-800 text-gray-300"
+                    : "bg-gray-200 text-gray-700"
+                }`}>
+                  <span className="mr-1">🪙</span>
+                  <span>{totalGenerationCost} tokens spent</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -657,22 +688,27 @@ function ResultsContent() {
           )}
         </div>
       </motion.div>
+      {/* Tools at bottom */}
+      {isVoiceEnabled && (
+        <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
+      )}
+      
       <PromptInput
         isOpen={isPromptOpen}
         onSubmit={handleNewPrompt}
         isUpdateMode={true}
-        currentCode={editedResults[selectedAppIndex]}
+        model={model}
+        numGenerations={numGenerations}
       />
+      
       <PerformanceMetrics
         isOpen={isMetricsOpen}
         onClose={() => setIsMetricsOpen(false)}
         generationTimes={generationTimes}
       />
-      {isVoiceEnabled && (
-        <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
-      )}
+      
       {/* Credit Alert */}
-      {remainingCredits !== null && (
+      {remainingCredits !== null && remainingCredits < 10 && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
           theme === "dark" ? "bg-yellow-900/80 text-yellow-100" : "bg-yellow-100 text-yellow-800"
         }`}>
