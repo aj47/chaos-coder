@@ -235,7 +235,9 @@ export default function Home() {
 
                     {/* Model Selection */}
                     <div className="p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
-                      <div className="text-sm text-gray-300 mb-2">Model (cost per generation)</div>
+                      <div className="text-sm text-gray-300 mb-2">
+                        Model (cost per generation)
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setSelectedModel("fast")}
@@ -246,7 +248,14 @@ export default function Home() {
                           }`}
                         >
                           <span className="flex justify-center items-center">
-                            Fast Model <span className="mx-1">•</span> (1 <Image src="/coin.png" alt="credits" width={16} height={16} className="ml-1" />)
+                            Fast Model <span className="mx-1">•</span> (1
+                            <Image
+                              src="/coin.png"
+                              alt="credits"
+                              width={16}
+                              height={16}
+                            />
+                            )
                           </span>
                         </button>
                         <button
@@ -258,7 +267,14 @@ export default function Home() {
                           }`}
                         >
                           <span className="flex justify-center items-center">
-                            Pro Model <span className="mx-1">•</span> (5 <Image src="/coin.png" alt="Credits" width={16} height={16} className="ml-1" />)
+                            Pro Model <span className="mx-1">•</span> (5
+                            <Image
+                              src="/coin.png"
+                              alt="Credits"
+                              width={16}
+                              height={16}
+                            />
+                            )
                           </span>
                         </button>
                       </div>
@@ -322,10 +338,13 @@ export default function Home() {
                     <span className="flex items-center">
                       Generate Web Apps <span className="mx-1">•</span> (
                       <span className="flex items-center">
-                        <span className="mr-1">
-                  <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
-                        </span>
                         {calculateCost()}
+                          <Image
+                            src="/coin.png"
+                            alt="Credits"
+                            width={16}
+                            height={16}
+                          />
                       </span>
                       )
                     </span>
