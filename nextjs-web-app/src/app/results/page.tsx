@@ -22,7 +22,6 @@ import {
   isPredefinedStyle, 
   getStyleDisplayNames
 } from "@/config/styles";
-import { FaChevronRight, FaChevronDown, FaEdit } from "react-icons/fa";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -68,9 +67,9 @@ function ResultsContent() {
   // Parse the configuration
   const configParam = searchParams.get('config') || '';
   const defaultConfig = {
-    numGenerations: 3,
-    model: "fast",
-    styles: DEFAULT_STYLES
+    numGenerations: 9,
+    modelTypes: Array(9).fill("fast"),
+    styles: Array(9).fill(DEFAULT_STYLES[0])
   };
   
   let config;
@@ -83,7 +82,7 @@ function ResultsContent() {
   
   // If we still have old config with vibes, convert it to styles
   const styles = config.styles || config.vibes || defaultConfig.styles;
-  const { numGenerations, model } = config;
+  const { numGenerations, modelTypes = defaultConfig.modelTypes } = config;
   
   const [loadingStates, setLoadingStates] = useState<boolean[]>(
     new Array(numGenerations).fill(true)
@@ -156,6 +155,9 @@ function ResultsContent() {
       // Determine if this is a custom style using our central helper
       const isCustomStyle = !isPredefinedStyle(style);
       
+      // Get the model type for this specific generation
+      const modelType = modelTypes[index] || "fast";
+      
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -164,7 +166,7 @@ function ResultsContent() {
           variation: variations[index] || "",
           framework: isCustomStyle ? "custom" : style,
           customStyle: isCustomStyle ? style : undefined,
-          model: model, // Pass the selected model
+          model: modelType, // Use the specific model for this generation
         }),
       });
 
@@ -267,7 +269,7 @@ function ResultsContent() {
                 framework: isCustomStyle ? "custom" : style,
                 customStyle: isCustomStyle ? style : undefined,
                 isUpdate: true,
-                model: model,
+                model: modelTypes[index] || "fast",
               }),
             });
             
@@ -356,7 +358,7 @@ function ResultsContent() {
               framework: isCustomStyle ? "custom" : style,
               customStyle: isCustomStyle ? style : undefined,
               isUpdate: true,
-              model: model,
+              model: modelTypes[selectedAppIndex] || "fast",
             }),
           });
 
@@ -528,12 +530,18 @@ function ResultsContent() {
                         : theme === "dark"
                           ? "border-gray-700"
                           : "border-gray-200"
-                    } transition-all duration-200 cursor-pointer`}
+                    } transition-all duration-200 cursor-pointer relative`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                     onClick={() => handleTileClick(index)}
                   >
+                    {/* Pro model badge */}
+                    {modelTypes[index] === "pro" && (
+                      <div className="absolute top-2 right-2 z-20 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium shadow-lg">
+                        PRO
+                      </div>
+                    )}
                     <div className="h-[300px]">
                       <BrowserContainer theme={theme} title={title}>
                         {loadingStates[index] ? (
@@ -596,6 +604,12 @@ function ResultsContent() {
                   theme === "dark" ? "text-white" : "text-gray-900"
                 }`}>
                   {appTitles[selectedAppIndex]} - Detailed View
+                  {/* Add pro model badge to detailed view title */}
+                  {modelTypes[selectedAppIndex] === "pro" && (
+                    <span className="ml-2 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium">
+                      PRO
+                    </span>
+                  )}
                 </h2>
                 <div className="h-[500px]">
                   <BrowserContainer theme={theme} title={`${appTitles[selectedAppIndex]} - Detailed View`}>
@@ -660,7 +674,7 @@ function ResultsContent() {
         isOpen={isPromptOpen}
         onSubmit={handleNewPrompt}
         isUpdateMode={true}
-        model={model}
+        model={modelTypes[selectedAppIndex] || "fast"}
         numGenerations={numGenerations}
       />
       

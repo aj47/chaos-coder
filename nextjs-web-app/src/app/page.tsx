@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
@@ -11,15 +11,22 @@ import { toast } from "react-hot-toast";
 import Image from "next/image";
 import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
+
+// Define a type for the user profile data
+interface UserProfile {
+  subscription_tier?: string;
+  // Add other profile fields if needed
+}
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [numGenerations, setNumGenerations] = useState(3);
-  const [modelTypes, setModelTypes] = useState<Array<"fast" | "pro">>(Array(3).fill("fast"));
-  const [styles, setStyles] = useState<string[]>(DEFAULT_STYLES);
+  const [numGenerations, setNumGenerations] = useState(9);
+  const [modelTypes, setModelTypes] = useState<Array<"fast" | "pro">>(Array(9).fill("fast"));
+  const [styles, setStyles] = useState<string[]>(Array(9).fill(DEFAULT_STYLES[0]));
   const [customStyles, setCustomStyles] = useState<string[]>(
-    Array(DEFAULT_STYLES.length).fill("")
+    Array(9).fill("")
   );
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const router = useRouter();
@@ -39,14 +46,85 @@ export default function Home() {
     message: "",
     type: "auth",
   });
+  
+  // Add state for user's subscription tier
+  const [subscriptionTier, setSubscriptionTier] = useState<string>("free");
+
+  // Check user's subscription tier on component mount
+  useEffect(() => {
+    const checkUserSubscription = async () => {
+      try {
+        const supabase = createClient();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !userData?.user) {
+          // User is not logged in, treat as free tier
+          setSubscriptionTier("free");
+          return;
+        }
+        
+        // Fetch user profile to get subscription info
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')  // Select all columns to avoid type issues
+          .eq('id', userData.user.id)
+          .single();
+        
+        if (profileError || !data) {
+          // Error fetching profile, treat as free tier
+          setSubscriptionTier("free");
+        } else {
+          // Set the subscription tier from the data object
+          const profile = data as UserProfile;
+          const tier = profile.subscription_tier?.toLowerCase() || "free";
+          setSubscriptionTier(tier);
+          
+          // If free tier, set default model configuration
+          if (tier === "free") {
+            applyDefaultSettingsForFreeTier();
+          }
+        }
+      } catch (err) {
+        console.error("Error checking user subscription:", err);
+        setSubscriptionTier("free");
+      }
+    };
+    
+    checkUserSubscription();
+  }, []);
+  
+  // Function to apply default settings for free tier users
+  const applyDefaultSettingsForFreeTier = () => {
+    const newModelTypes: Array<"fast" | "pro"> = Array(numGenerations).fill("fast");
+    newModelTypes[0] = "pro"; // First model is pro, rest are fast
+    setModelTypes(newModelTypes);
+  };
 
   // Set all models to the same type (pro or fast)
   const setAllModels = (modelType: "fast" | "pro") => {
+    // Only allow paid users to modify all models
+    if (subscriptionTier === "free") {
+      // Show a notification that this feature is for paid users
+      toast.error("Advanced model settings are only available for Pro and Ultra users");
+      // Reset to default for free users
+      applyDefaultSettingsForFreeTier();
+      return;
+    }
+    
     setModelTypes(Array(numGenerations).fill(modelType));
   };
 
   // Update a specific model type
   const updateModelType = (index: number, modelType: "fast" | "pro") => {
+    // Only allow paid users to modify models
+    if (subscriptionTier === "free") {
+      // Show a notification that this feature is for paid users
+      toast.error("Advanced model settings are only available for Pro and Ultra users");
+      // Reset to default for free users
+      applyDefaultSettingsForFreeTier();
+      return;
+    }
+    
     setModelTypes(prev => {
       const newModelTypes = [...prev];
       newModelTypes[index] = modelType;
@@ -81,8 +159,16 @@ export default function Home() {
       
       setCustomStyles((current) => [...current, ""]);
       
-      // Add a new model type (default to "fast")
-      setModelTypes(current => [...current, "fast"]);
+      // Add a new model type
+      // For free users, keep the first as pro and the rest as fast
+      if (subscriptionTier === "free") {
+        const newModelTypes: Array<"fast" | "pro"> = [...modelTypes, "fast"];
+        newModelTypes[0] = "pro"; // Ensure first model is pro
+        setModelTypes(newModelTypes);
+      } else {
+        // For paid users, just add with the default value
+        setModelTypes(current => [...current, "fast"]);
+      }
       
       return newNum;
     });
@@ -95,8 +181,17 @@ export default function Home() {
         // Remove style from the last generation
         setStyles((current) => current.slice(0, newNum));
         setCustomStyles((current) => current.slice(0, newNum));
+        
         // Remove model type from the last generation
-        setModelTypes(current => current.slice(0, newNum));
+        // For free users, maintain the first as pro
+        if (subscriptionTier === "free" && newNum > 0) {
+          const newModelTypes = modelTypes.slice(0, newNum);
+          newModelTypes[0] = "pro"; // Ensure first model is pro
+          setModelTypes(newModelTypes);
+        } else {
+          setModelTypes(current => current.slice(0, newNum));
+        }
+        
         return newNum;
       });
     }
@@ -104,6 +199,12 @@ export default function Home() {
 
   // Handle style selection
   const handleStyleChange = (index: number, value: string) => {
+    // Only allow paid users to change styles
+    if (subscriptionTier === "free") {
+      toast.error("Style customization is only available for Pro and Ultra users");
+      return;
+    }
+    
     setStyles((current) => {
       const newStyles = [...current];
       newStyles[index] = value;
@@ -113,6 +214,12 @@ export default function Home() {
 
   // Handle custom style input
   const handleCustomStyleChange = (index: number, value: string) => {
+    // Only allow paid users to use custom styles
+    if (subscriptionTier === "free") {
+      toast.error("Custom styles are only available for Pro and Ultra users");
+      return;
+    }
+    
     setCustomStyles((current) => {
       const newCustomStyles = [...current];
       newCustomStyles[index] = value;
@@ -186,6 +293,9 @@ export default function Home() {
     }
   };
 
+  // Only show advanced settings button to paid users
+  const canAccessAdvancedSettings = subscriptionTier !== "free";
+
   return (
     <div className="relative min-h-screen w-full">
       {showAlertModal && (
@@ -228,69 +338,55 @@ export default function Home() {
                 <div className="mb-4 space-y-4">
                   {/* Configuration options */}
                   <div className="grid grid-cols-1 gap-4">
-                    {/* Number of generations */}
-                    <div className="p-4 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
-                      <div className="text-sm text-gray-300 mb-4">
-                        Number of Websites to Generate
+                    {/* Advanced Settings Toggle - Only shown for paid users */}
+                    {canAccessAdvancedSettings && (
+                      <motion.button 
+                        onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                        className="flex items-center justify-between p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg text-sm text-gray-300 hover:bg-[#1a1f2e]/80 transition-colors"
+                        whileHover={{ backgroundColor: 'rgba(26, 31, 46, 0.8)' }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <span>Advanced Settings</span>
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.div
+                            key={showAdvancedSettings ? 'up' : 'down'}
+                            initial={{ opacity: 0, y: showAdvancedSettings ? 10 : -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: showAdvancedSettings ? -10 : 10 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {showAdvancedSettings ? 
+                              <FaChevronUp className="w-3 h-3" /> : 
+                              <FaChevronDown className="w-3 h-3" />
+                            }
+                          </motion.div>
+                        </AnimatePresence>
+                      </motion.button>
+                    )}
+                    
+                    {/* For free users, show upgrade message instead of advanced settings toggle */}
+                    {!canAccessAdvancedSettings && (
+                      <div className="flex items-center justify-between p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
+                        <span className="text-sm text-gray-300">Advanced Settings</span>
+                        <span className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer" onClick={() => router.push('/dashboard')}>
+                          Upgrade to Pro for advanced settings
+                        </span>
                       </div>
-                      <div className="flex items-center justify-center">
-                        <motion.button
-                          onClick={decrementGenerations}
-                          className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                        >
-                          <FaMinus className="w-3 h-3" />
-                        </motion.button>
-                        <motion.div 
-                          className="mx-6 text-2xl text-gray-200 font-medium"
-                          key={numGenerations}
-                          initial={{ scale: 1.2, opacity: 0.7 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {numGenerations}
-                        </motion.div>
-                        <motion.button
-                          onClick={incrementGenerations}
-                          className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                        >
-                          <FaPlus className="w-3 h-3" />
-                        </motion.button>
+                    )}
+
+                    {/* Default settings indicator for free users */}
+                    {!canAccessAdvancedSettings && (
+                      <div className="p-3 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg">
+                        <p className="text-sm text-gray-400">
+                          <span className="text-blue-400">Free plan:</span> First website uses Pro model, 
+                          others use Fast model. Upgrade for full customization.
+                        </p>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Advanced Settings Toggle */}
-                    <motion.button 
-                      onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                      className="flex items-center justify-between p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg text-sm text-gray-300 hover:bg-[#1a1f2e]/80 transition-colors"
-                      whileHover={{ backgroundColor: 'rgba(26, 31, 46, 0.8)' }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <span>Advanced Settings</span>
-                      <AnimatePresence mode="wait" initial={false}>
-                        <motion.div
-                          key={showAdvancedSettings ? 'up' : 'down'}
-                          initial={{ opacity: 0, y: showAdvancedSettings ? 10 : -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: showAdvancedSettings ? -10 : 10 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          {showAdvancedSettings ? 
-                            <FaChevronUp className="w-3 h-3" /> : 
-                            <FaChevronDown className="w-3 h-3" />
-                          }
-                        </motion.div>
-                      </AnimatePresence>
-                    </motion.button>
-
-                    {/* Advanced Settings Section */}
+                    {/* Advanced Settings Section - Only for paid users */}
                     <AnimatePresence>
-                      {showAdvancedSettings && (
+                      {showAdvancedSettings && canAccessAdvancedSettings && (
                         <motion.div 
                           className="p-4 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg space-y-4"
                           initial={{ opacity: 0, height: 0, marginTop: 0 }}
@@ -298,6 +394,42 @@ export default function Home() {
                           exit={{ opacity: 0, height: 0, marginTop: 0 }}
                           transition={{ duration: 0.3, ease: "easeInOut" }}
                         >
+                          {/* Number of generations - moved to advanced settings */}
+                          <div className="mb-4">
+                            <div className="text-sm text-gray-300 mb-3">
+                              Number of Websites to Generate
+                            </div>
+                            <div className="flex items-center justify-center">
+                              <motion.button
+                                onClick={decrementGenerations}
+                                className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                              >
+                                <FaMinus className="w-3 h-3" />
+                              </motion.button>
+                              <motion.div 
+                                className="mx-6 text-2xl text-gray-200 font-medium"
+                                key={numGenerations}
+                                initial={{ scale: 1.2, opacity: 0.7 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                {numGenerations}
+                              </motion.div>
+                              <motion.button
+                                onClick={incrementGenerations}
+                                className="p-3 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] text-gray-400 hover:text-gray-200 shadow-md"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                              >
+                                <FaPlus className="w-3 h-3" />
+                              </motion.button>
+                            </div>
+                          </div>
+                          
                           {/* Combined Model & Style Settings */}
                           <div>
                             <div className="flex justify-between text-sm text-gray-300 mb-3">
@@ -446,14 +578,14 @@ export default function Home() {
 
                 <div className="mt-4 text-center text-sm text-gray-400">
                   <p>
-                    This is an early preview. Open source at{" "}
+                    ❤️ 👨🏻‍💻 {" "}
                     <a
-                      href="https://github.com/aj47/chaos-coder"
+                      href="https://techfren.net"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300 underline"
                     >
-                      github.com/aj47/chaos-coder
+@techfren
                     </a>
                   </p>
                 </div>
