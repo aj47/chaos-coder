@@ -9,33 +9,21 @@ import { FaPlus, FaMinus } from "react-icons/fa";
 import { AlertModal } from "@/components/AlertModal";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
+import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [numGenerations, setNumGenerations] = useState(3);
   const [selectedModel, setSelectedModel] = useState<"fast" | "pro">("fast");
-  const [vibes, setVibes] = useState<string[]>([
-    "modern-saas",
-    "glassmorphism",
-    "material",
-  ]);
-  const [customVibes, setCustomVibes] = useState<string[]>(["", "", ""]);
+  const [styles, setStyles] = useState<string[]>(DEFAULT_STYLES);
+  const [customStyles, setCustomStyles] = useState<string[]>(
+    Array(DEFAULT_STYLES.length).fill("")
+  );
   const router = useRouter();
 
-  // Predefined vibes from frameworkPrompts
-  const predefinedVibes = [
-    { value: "modern-saas", label: "Modern SaaS" },
-    { value: "glassmorphism", label: "Aeroglass/Glassmorphism" },
-    { value: "neumorphism", label: "Neumorphism" },
-    { value: "material", label: "Material Design" },
-    { value: "dark-mode", label: "Dark Mode" },
-    { value: "flat", label: "Flat Design" },
-    { value: "corporate", label: "Corporate Professional" },
-    { value: "ecommerce", label: "E-commerce Marketplace" },
-    { value: "portfolio", label: "Portfolio/Creative" },
-    { value: "blog", label: "Blog/Editorial" },
-    { value: "custom", label: "Custom" },
-  ];
+  // Use the centralized design styles configuration
+  const predefinedStyles = DESIGN_STYLES;
 
   const [isLoading, setIsLoading] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -60,9 +48,23 @@ export default function Home() {
     if (numGenerations < 9) {
       setNumGenerations((prev) => {
         const newNum = prev + 1;
-        // Add a default vibe for the new generation
-        setVibes((current) => [...current, "tailwind"]);
-        setCustomVibes((current) => [...current, ""]);
+        
+        // Find the next unused style option
+        setStyles((current) => {
+          // Extract all predefined style values except "custom"
+          const allStyleOptions = DESIGN_STYLES
+            .filter(v => v.value !== "custom")
+            .map(v => v.value);
+          
+          // Find the first unused style option
+          const nextStyle = allStyleOptions.find(v => !current.includes(v)) || 
+                           // If all are used, cycle back to the first option
+                           allStyleOptions[0];
+          
+          return [...current, nextStyle];
+        });
+        
+        setCustomStyles((current) => [...current, ""]);
         return newNum;
       });
     }
@@ -72,29 +74,29 @@ export default function Home() {
     if (numGenerations > 1) {
       setNumGenerations((prev) => {
         const newNum = prev - 1;
-        // Remove vibe from the last generation
-        setVibes((current) => current.slice(0, newNum));
-        setCustomVibes((current) => current.slice(0, newNum));
+        // Remove style from the last generation
+        setStyles((current) => current.slice(0, newNum));
+        setCustomStyles((current) => current.slice(0, newNum));
         return newNum;
       });
     }
   };
 
-  // Handle vibe selection
-  const handleVibeChange = (index: number, value: string) => {
-    setVibes((current) => {
-      const newVibes = [...current];
-      newVibes[index] = value;
-      return newVibes;
+  // Handle style selection
+  const handleStyleChange = (index: number, value: string) => {
+    setStyles((current) => {
+      const newStyles = [...current];
+      newStyles[index] = value;
+      return newStyles;
     });
   };
 
-  // Handle custom vibe input
-  const handleCustomVibeChange = (index: number, value: string) => {
-    setCustomVibes((current) => {
-      const newCustomVibes = [...current];
-      newCustomVibes[index] = value;
-      return newCustomVibes;
+  // Handle custom style input
+  const handleCustomStyleChange = (index: number, value: string) => {
+    setCustomStyles((current) => {
+      const newCustomStyles = [...current];
+      newCustomStyles[index] = value;
+      return newCustomStyles;
     });
   };
 
@@ -135,9 +137,9 @@ export default function Home() {
       if (response.status === 402) {
         // Insufficient credits error
         setAlertInfo({
-          title: "No Credits Remaining",
+          title: "Insufficient Credits",
           message:
-            "You have used all your available credits. Subscribe to a plan to get more credits.",
+            "You don't have enough credits to generate these applications. Purchase more credits to continue.",
           type: "credits",
         });
         setShowAlertModal(true);
@@ -145,21 +147,13 @@ export default function Home() {
         return;
       }
 
-      if (response.status === 429) {
-        setShowSignupModal(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // If we get here, the user is authenticated and has credits
-      // Proceed with the redirect and pass the config
       const encodedPrompt = encodeURIComponent(prompt);
       const encodedConfig = encodeURIComponent(
         JSON.stringify({
           numGenerations,
           model: selectedModel,
-          vibes: vibes.map((vibe, i) =>
-            vibe === "custom" ? customVibes[i] : vibe
+          styles: styles.map((style, i) =>
+            style === "custom" ? customStyles[i] : style
           ),
         })
       );
@@ -286,10 +280,10 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Vibes configuration for each generation */}
+                  {/* Styles configuration for each generation */}
                   <div className="p-3 bg-[#1a1f2e]/50 border border-[#2a3040] rounded-lg">
                     <div className="text-sm text-gray-300 mb-2">
-                      Vibe Settings
+                      Style Settings
                     </div>
                     <div className="space-y-3">
                       {Array.from({ length: numGenerations }).map(
@@ -302,26 +296,26 @@ export default function Home() {
                               Generation {index + 1}:
                             </div>
                             <select
-                              value={vibes[index]}
+                              value={styles[index]}
                               onChange={(e) =>
-                                handleVibeChange(index, e.target.value)
+                                handleStyleChange(index, e.target.value)
                               }
                               className="flex-1 py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
                             >
-                              {predefinedVibes.map((vibe) => (
-                                <option key={vibe.value} value={vibe.value}>
-                                  {vibe.label}
+                              {predefinedStyles.map((style) => (
+                                <option key={style.value} value={style.value}>
+                                  {style.label}
                                 </option>
                               ))}
                             </select>
-                            {vibes[index] === "custom" && (
+                            {styles[index] === "custom" && (
                               <input
                                 type="text"
-                                value={customVibes[index]}
+                                value={customStyles[index]}
                                 onChange={(e) =>
-                                  handleCustomVibeChange(index, e.target.value)
+                                  handleCustomStyleChange(index, e.target.value)
                                 }
-                                placeholder="Enter custom vibe instructions..."
+                                placeholder="Enter custom style instructions..."
                                 className="flex-1 py-1 px-3 bg-[#1a1f2e]/70 border border-[#2a3040] rounded-lg text-sm text-gray-300"
                               />
                             )}

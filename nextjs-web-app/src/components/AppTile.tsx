@@ -3,18 +3,36 @@
 import { motion } from "framer-motion";
 import {
   FaCode,
-  FaLaptop,
   FaGlasses,
   FaLayerGroup,
   FaMoon,
   FaSquare,
-  FaBuilding,
-  FaShoppingCart,
   FaPaintBrush,
-  FaNewspaper,
+  FaCube,
+  FaThLarge,
+  FaTabletAlt,
+  FaBold,
+  FaMinusSquare
 } from "react-icons/fa";
 import { MdOutlineDesignServices } from "react-icons/md";
 import { IconType } from "react-icons";
+import { getStyleByValue, getStyleByLabel } from "@/config/styles";
+
+// Icon mapping to dynamically select icons based on their keys
+const iconMap: Record<string, IconType> = {
+  FaCode,
+  FaGlasses,
+  FaLayerGroup,
+  FaMoon,
+  FaSquare,
+  FaPaintBrush,
+  FaCube,
+  FaThLarge,
+  FaTabletAlt,
+  FaBold,
+  FaMinusSquare,
+  MdOutlineDesignServices
+};
 
 interface AppTileProps {
   title: string;
@@ -24,87 +42,6 @@ interface AppTileProps {
   theme: "light" | "dark";
 }
 
-interface VibeInfo {
-  icon: IconType;
-  description: string;
-  rightIcon: IconType;
-  framework: string;
-  iconColor: string;
-}
-
-const vibeMap: Record<string, VibeInfo> = {
-  "Modern SaaS": {
-    icon: FaLaptop,
-    description: "Clean, professional UI with SaaS-focused components",
-    rightIcon: FaCode,
-    framework: "modern-saas",
-    iconColor: "#3B82F6",
-  },
-  "Aeroglass/Glassmorphism": {
-    icon: FaGlasses,
-    description: "Sleek glass-like UI with blur effects and transparency",
-    rightIcon: FaCode,
-    framework: "glassmorphism",
-    iconColor: "#8B5CF6",
-  },
-  "Neumorphism": {
-    icon: MdOutlineDesignServices,
-    description: "Soft UI with subtle shadows and dimensional effects",
-    rightIcon: FaCode,
-    framework: "neumorphism",
-    iconColor: "#9CA3AF",
-  },
-  "Material Design": {
-    icon: FaLayerGroup,
-    description: "Google's material design principles with depth and motion",
-    rightIcon: FaCode,
-    framework: "material",
-    iconColor: "#EF4444",
-  },
-  "Dark Mode": {
-    icon: FaMoon,
-    description: "Sleek dark-themed UI optimized for night viewing",
-    rightIcon: FaCode,
-    framework: "dark-mode",
-    iconColor: "#1F2937",
-  },
-  "Flat Design": {
-    icon: FaSquare,
-    description: "Minimalist UI with simple elements and bright colors",
-    rightIcon: FaCode,
-    framework: "flat",
-    iconColor: "#10B981",
-  },
-  "Corporate Professional": {
-    icon: FaBuilding,
-    description: "Business-oriented design with formal UI elements",
-    rightIcon: FaCode,
-    framework: "corporate",
-    iconColor: "#2563EB",
-  },
-  "E-commerce Marketplace": {
-    icon: FaShoppingCart,
-    description: "Optimized for product listings and shopping experiences",
-    rightIcon: FaCode,
-    framework: "ecommerce",
-    iconColor: "#F59E0B",
-  },
-  "Portfolio/Creative": {
-    icon: FaPaintBrush,
-    description: "Artistic design for showcasing creative work",
-    rightIcon: FaCode,
-    framework: "portfolio",
-    iconColor: "#EC4899",
-  },
-  "Blog/Editorial": {
-    icon: FaNewspaper,
-    description: "Content-focused design with strong typography",
-    rightIcon: FaCode,
-    framework: "blog",
-    iconColor: "#6366F1",
-  },
-};
-
 export default function AppTile({
   title,
   isSelected,
@@ -112,9 +49,24 @@ export default function AppTile({
   isLoading,
   theme,
 }: AppTileProps) {
-  const vibe = vibeMap[title];
-  const LeftIcon = vibe?.icon || FaCode;
-  const RightIcon = vibe?.rightIcon || FaCode;
+  // Attempt to get the style info from the title using various methods
+  const styleInfo = getStyleByLabel(title) || 
+                    getStyleByValue(title.toLowerCase().replace(/\s+/g, '-')) || 
+                    getStyleByValue(title.toLowerCase().replace(/\s+/g, ''));
+  
+  // Default icon and styling if no match is found
+  let LeftIcon: IconType = FaCode;
+  let RightIcon: IconType = FaCode;
+  let description: string = "Custom design style";
+  let iconColor: string = "#64748B";
+  
+  // If we found a matching style, use its configuration
+  if (styleInfo) {
+    LeftIcon = iconMap[styleInfo.iconKey] || FaCode;
+    RightIcon = FaCode; // We always use FaCode as the right icon
+    description = styleInfo.description;
+    iconColor = styleInfo.iconColor;
+  }
 
   const getBgColor = () => {
     if (isSelected) {
@@ -141,7 +93,7 @@ export default function AppTile({
         <div className="flex-shrink-0">
           <LeftIcon
             className="w-6 h-6"
-            style={{ color: isSelected ? "#ffffff" : vibe?.iconColor }}
+            style={{ color: isSelected ? "#ffffff" : iconColor }}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -165,7 +117,7 @@ export default function AppTile({
                 : "text-gray-600"
             }`}
           >
-            {vibe?.description}
+            {description}
           </p>
           {isLoading && (
             <div className="mt-2">

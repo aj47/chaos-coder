@@ -17,6 +17,12 @@ import styled from "styled-components";
 import { useTokenStore } from "@/store/useTokenStore";
 import { AlertModal } from "@/components/AlertModal";
 import { toast } from "react-hot-toast";
+import { 
+  DEFAULT_STYLES, 
+  isPredefinedStyle, 
+  getStyleDisplayNames
+} from "@/config/styles";
+import { FaChevronRight, FaChevronDown, FaEdit } from "react-icons/fa";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -64,7 +70,7 @@ function ResultsContent() {
   const defaultConfig = {
     numGenerations: 3,
     model: "fast",
-    vibes: ["tailwind", "bootstrap", "materialize"]
+    styles: DEFAULT_STYLES
   };
   
   let config;
@@ -75,7 +81,9 @@ function ResultsContent() {
     config = defaultConfig;
   }
   
-  const { numGenerations, model, vibes } = config;
+  // If we still have old config with vibes, convert it to styles
+  const styles = config.styles || config.vibes || defaultConfig.styles;
+  const { numGenerations, model } = config;
   
   const [loadingStates, setLoadingStates] = useState<boolean[]>(
     new Array(numGenerations).fill(true)
@@ -111,23 +119,11 @@ function ResultsContent() {
     "Build a version with offline functionality and progressive web app features.",
   ];
 
-  // Map vibe values to display names for the UI
-  const vibeDisplayNames: Record<string, string> = {
-    "modern-saas": "Modern SaaS",
-    "glassmorphism": "Aeroglass/Glassmorphism",
-    "neumorphism": "Neumorphism",
-    "material": "Material Design",
-    "dark-mode": "Dark Mode",
-    "flat": "Flat Design",
-    "corporate": "Corporate Professional",
-    "ecommerce": "E-commerce Marketplace",
-    "portfolio": "Portfolio/Creative",
-    "blog": "Blog/Editorial",
-    "custom": "Custom Design"
-  };
-  
-  // Generate app titles based on the vibes from the config
-  const appTitles = vibes.map((vibe: string) => vibeDisplayNames[vibe] || vibe);
+  // Create a mapping from style values to display names using our central configuration
+  const styleDisplayNames = getStyleDisplayNames();
+
+  // Generate app titles based on the styles from the config
+  const appTitles = styles.map((style: string) => styleDisplayNames[style] || style);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -154,15 +150,11 @@ function ResultsContent() {
   const generateApp = async (index: number, promptText: string) => {
     const startTime = performance.now();
     try {
-      // Use the vibe from config instead of predefined frameworks
-      const vibe = vibes[index] || "modern-saas"; // Default to modern SaaS if not specified
+      // Use the style from config instead of predefined frameworks
+      const style = styles[index] || DEFAULT_STYLES[0]; // Default if not specified
       
-      // Determine if this is a custom vibe
-      const predefinedVibes = [
-        "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
-        "flat", "corporate", "ecommerce", "portfolio", "blog"
-      ];
-      const isCustomVibe = !predefinedVibes.includes(vibe);
+      // Determine if this is a custom style using our central helper
+      const isCustomStyle = !isPredefinedStyle(style);
       
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -170,8 +162,8 @@ function ResultsContent() {
         body: JSON.stringify({
           prompt: promptText,
           variation: variations[index] || "",
-          framework: isCustomVibe ? "custom" : vibe,
-          customVibe: isCustomVibe ? vibe : undefined,
+          framework: isCustomStyle ? "custom" : style,
+          customStyle: isCustomStyle ? style : undefined,
           model: model, // Pass the selected model
         }),
       });
@@ -260,15 +252,11 @@ function ResultsContent() {
         try {
           // Create an array of promises for all apps
           const updatePromises = appTitles.map(async (title: string, index: number) => {
-            // Use the vibe directly from the vibes array
-            const vibe = vibes[index];
+            // Use the style directly from the styles array
+            const style = styles[index];
             
-            // Check if this is a custom vibe
-            const predefinedVibes = [
-              "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
-              "flat", "corporate", "ecommerce", "portfolio", "blog"
-            ];
-            const isCustomVibe = !predefinedVibes.includes(vibe);
+            // Check if this is a custom style using our central helper
+            const isCustomStyle = !isPredefinedStyle(style);
             
             const response = await fetch("/api/generate", {
               method: "POST",
@@ -276,8 +264,8 @@ function ResultsContent() {
               body: JSON.stringify({
                 prompt,
                 existingCode: editedResults[index],
-                framework: isCustomVibe ? "custom" : vibe,
-                customVibe: isCustomVibe ? vibe : undefined,
+                framework: isCustomStyle ? "custom" : style,
+                customStyle: isCustomStyle ? style : undefined,
                 isUpdate: true,
                 model: model,
               }),
@@ -353,15 +341,11 @@ function ResultsContent() {
         });
 
         try {
-          // Use the vibe directly from the vibes array for the selected index
-          const vibe = vibes[selectedAppIndex];
+          // Use the style directly from the styles array for the selected index
+          const style = styles[selectedAppIndex];
           
-          // Check if this is a custom vibe
-          const predefinedVibes = [
-            "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
-            "flat", "corporate", "ecommerce", "portfolio", "blog"
-          ];
-          const isCustomVibe = !predefinedVibes.includes(vibe);
+          // Check if this is a custom style using our central helper
+          const isCustomStyle = !isPredefinedStyle(style);
 
           const response = await fetch("/api/generate", {
             method: "POST",
@@ -369,8 +353,8 @@ function ResultsContent() {
             body: JSON.stringify({
               prompt,
               existingCode: editedResults[selectedAppIndex],
-              framework: isCustomVibe ? "custom" : vibe,
-              customVibe: isCustomVibe ? vibe : undefined,
+              framework: isCustomStyle ? "custom" : style,
+              customStyle: isCustomStyle ? style : undefined,
               isUpdate: true,
               model: model,
             }),

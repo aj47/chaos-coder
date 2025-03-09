@@ -3,102 +3,79 @@ import { NextResponse, NextRequest } from "next/server";
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { Database } from "@/types/supabase";
+import { getStylePrompt } from "@/config/styles";
 
 export const runtime = "edge";
 
-const frameworkPrompts = {
-  "modern-saas":
-    "Create a modern SaaS design with clean, professional UI, using soft blues and grays, rounded corners, and subtle shadows. Focus on usability and conversion-oriented UI patterns.",
-  "glassmorphism":
-    "Implement glassmorphism/aeroglass design with frosted glass effects, transparency, blur backgrounds, and subtle borders. Include a gradient background with floating elements.",
-  "neumorphism":
-    "Use neumorphism (soft UI) design with subtle shadows, extruded elements, monochromatic color schemes, and minimalist icons. Elements should look like they're pressed into or extruded from the surface.",
-  "material":
-    "Follow Google's Material Design principles with responsive animations, card-based layouts, intentional white space, and bold typography. Include shadows to create depth and hierarchy.",
-  "dark-mode":
-    "Create a dark mode interface with deep gray/black backgrounds, careful use of accent colors, reduced brightness, and proper contrast for readability. Optimize for reduced eye strain.",
-  "flat":
-    "Use flat design with minimalist 2D elements, bright colors, simple typography, and lack of 3D effects or gradients. Focus on content clarity and usability.",
-  "corporate":
-    "Design a corporate professional interface with conservative color schemes (blues, grays), formal typography, clear hierarchy, and traditional layout structures. Project trust and reliability.",
-  "ecommerce":
-    "Optimize for e-commerce with product-focused layouts, clear call-to-action buttons, efficient navigation, search prominence, and trust indicators. Design should facilitate easy browsing and purchasing.",
-  "portfolio":
-    "Create a portfolio/creative design with striking visuals, unusual layouts, artistic typography, and bold color choices. Focus on showcasing work samples and creative identity.",
-  "blog":
-    "Design a blog/editorial interface with excellent typography, content-focused layout, comfortable reading experience, and clear content hierarchy. Prioritize readability and content discovery.",
-  "custom": "", // This will be replaced with the customVibe parameter
-};
-
 export async function POST(req: NextRequest) {
-  // Parse the request body
-  const body = await req.json();
-  
-  // Initialize Supabase client
-  const supabase = createRouteHandlerClient<Database>({ cookies });
-  
-  // Check if user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  // Require authentication for all users
-  if (!user) {
-    return NextResponse.json(
-      { 
-        error: "authentication_required", 
-        message: "You must be logged in to generate content." 
-      },
-      { status: 401 }
-    );
-  }
-  
-  // User is authenticated, check their credits
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('credits')
-    .eq('id', user.id)
-    .single();
-  
-  if (profileError) {
-    console.error("Error fetching user profile:", profileError);
-    return NextResponse.json(
-      { error: "Failed to fetch user profile" },
-      { status: 500 }
-    );
-  }
-  
-  // Check if user has enough credits
-  const userCredits = profile?.credits ?? 0;
-  
-  // Calculate the cost based on the model
-  const modelCost = body.model === "pro" ? 5 : 1;
-  
-  if (userCredits < modelCost && body.variation !== "rate-limit-check") {
-    return NextResponse.json(
-      { error: "insufficient_credits", message: "You don't have enough credits for this generation. Please purchase more credits to continue." },
-      { status: 402 }
-    );
-  }
-  
-  // Only deduct credits for real generations, not rate limit checks
-  if (body && body.variation !== "rate-limit-check") {
-    // Deduct credits based on model
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ credits: userCredits - modelCost })
-      .eq('id', user.id);
+  try {
+    const supabase = createRouteHandlerClient<Database>({ cookies });
     
-    if (updateError) {
-      console.error("Error updating user credits:", updateError);
+    // Parse the request body
+    const body = await req.json();
+    const { prompt, variation = '', framework, customStyle, model = 'fast' } = body;
+    
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Rate limiting for unauthenticated users (only check, don't block yet)
+    if (!user) {
       return NextResponse.json(
-        { error: "Failed to update credits" },
-        { status: 500 }
+        { error: "Authentication required" },
+        { status: 401 }
       );
     }
-  }
-  
-  try {
-    const { prompt, variation, framework, customVibe, model } = body;
-
+    
+    // User is authenticated, check their credits
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', user.id)
+      .single();
+    
+    if (!userProfile || userProfile.credits < 1) {
+      return NextResponse.json(
+        { error: "Insufficient credits" },
+        { status: 402 }
+      );
+    }
+    
+    // Check if user has enough credits
+    const userCredits = userProfile?.credits ?? 0;
+    
+    // Calculate the cost based on the model
+    const modelCost = body.model === "pro" ? 5 : 1;
+    
+    if (userCredits < modelCost && body.variation !== "rate-limit-check") {
+      return NextResponse.json(
+        { error: "insufficient_credits", message: "You don't have enough credits for this generation. Please purchase more credits to continue." },
+        { status: 402 }
+      );
+    }
+    
+    // Only deduct credits for real generations, not rate limit checks
+    if (body && body.variation !== "rate-limit-check") {
+      // Deduct credits based on model
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ credits: userCredits - modelCost })
+        .eq('id', user.id);
+      
+      if (updateError) {
+        console.error("Error updating user credits:", updateError);
+        return NextResponse.json(
+          { error: "Failed to update credits" },
+          { status: 500 }
+        );
+      }
+    }
+    
+    // Get the style instructions from our central config based on framework
+    // or use the custom style if provided
+    const styleInstructions = customStyle || (framework && framework !== 'custom' 
+      ? getStylePrompt(framework) 
+      : '');
+    
     const portkeyApiKey = process.env.PORTKEY_API_KEY;
     if (!portkeyApiKey) {
       return NextResponse.json(
@@ -143,14 +120,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // If using a custom vibe, use the customVibe parameter
-    let vibeInstructions = "";
-    if (framework === "custom" && customVibe) {
-      vibeInstructions = customVibe;
-    } else if (framework) {
-      vibeInstructions = frameworkPrompts[framework as keyof typeof frameworkPrompts] || "";
-    }
-
     // Determine if this is an update request
     const isUpdate = body.isUpdate === true;
     const existingCode = body.existingCode || "";
@@ -162,7 +131,7 @@ export async function POST(req: NextRequest) {
 
 Instructions:
 1. Update request: ${prompt}
-2. Framework/Style: ${vibeInstructions}
+2. Style: ${styleInstructions}
 
 EXISTING CODE TO MODIFY:
 \`\`\`html
@@ -192,7 +161,7 @@ Format the code with proper indentation and spacing for readability.`;
 Instructions:
 1. Base functionality: ${prompt}
 2. Variation: ${variation}
-3. Style/Framework: ${vibeInstructions}
+3. Style: ${styleInstructions}
 
 Technical Requirements:
 - IMPORTANT: Create a SINGLE HTML file containing ALL HTML, CSS, and JavaScript
@@ -212,7 +181,7 @@ Technical Requirements:
 - Use modern ES6+ JavaScript features
 - Keep the code modular and well-organized
 - Ensure all interactive elements have proper styling states (hover, active, etc.)
-- Implement the design style specified in the Style/Framework instruction
+- Implement the design style specified in the Style instruction
 
 Additional Notes:
 - The code must be complete and immediately runnable in a browser
