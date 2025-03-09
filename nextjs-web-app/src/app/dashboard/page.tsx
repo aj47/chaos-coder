@@ -56,11 +56,7 @@ export default function DashboardPage() {
           <p className="mb-6">{error}</p>
           <button
             onClick={() => router.push("/")}
-            className={`w-full py-2 px-4 rounded-lg font-medium ${
-              theme === "dark"
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
+            className="w-full py-2 px-4 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
           >
             Return to Home
           </button>
@@ -76,11 +72,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Account Settings</h1>
           <button
             onClick={() => router.push("/")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              theme === "dark"
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
+            className="px-4 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
           >
             Return to App
           </button>
@@ -103,11 +95,7 @@ export default function DashboardPage() {
                     <p className="text-sm opacity-75">25 generations per month</p>
                   </div>
                   <button 
-                    className={`px-4 py-2 rounded-lg font-medium ${
-                      theme === "dark"
-                        ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                        : "bg-indigo-500 hover:bg-indigo-600 text-white"
-                    }`}
+                    className="px-4 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
                   >
                     Upgrade
                   </button>
@@ -125,7 +113,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-indigo-500 rounded-full" 
+                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full" 
                       style={{ width: "60%" }}
                       role="progressbar"
                       aria-valuenow={60}

@@ -8,6 +8,7 @@ import { AuroraBackground } from "@/components/ui/aurora-background";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
 import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
@@ -54,12 +55,14 @@ const ShortLoadingBar = styled(LoadingBar)`
 // Wrapper component that uses searchParams
 function ResultsContent() {
   const NUM_APPS = 9; // Single variable to control number of apps
-  
+
   const searchParams = useSearchParams();
   const [loadingStates, setLoadingStates] = useState<boolean[]>(
     new Array(NUM_APPS).fill(true)
   );
-  const [results, setResults] = useState<string[]>(new Array(NUM_APPS).fill(""));
+  const [results, setResults] = useState<string[]>(
+    new Array(NUM_APPS).fill("")
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedAppIndex, setSelectedAppIndex] = useState(0);
   const [editedResults, setEditedResults] = useState<string[]>(
@@ -73,6 +76,7 @@ function ResultsContent() {
   const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   const variations = [
     "",
@@ -84,7 +88,6 @@ function ResultsContent() {
     "Create a version optimized for mobile devices with responsive design.",
     "Build a version with advanced animations and interactive elements.",
     "Create a version with data visualization capabilities.",
-    "Build a version with offline functionality and progressive web app features.",
   ];
 
   const appTitles = [
@@ -97,7 +100,6 @@ function ResultsContent() {
     "Mobile Optimized",
     "Interactive Version",
     "Data Visualization",
-    "Progressive Web App",
   ];
 
   // Handle keyboard shortcuts
@@ -148,10 +150,12 @@ function ResultsContent() {
         }),
       });
 
-      if (response.status === 429) {
-        // Show signup modal for rate limit
+      if (response.status === 429 && !isAuthenticated) {
+        // Show signup modal for rate limit only if user is not logged in
         setShowSignupModal(true);
-        throw new Error("Rate limit exceeded. Please create an account to continue.");
+        throw new Error(
+          "Rate limit exceeded. Please create an account to continue."
+        );
       }
 
       if (!response.ok) {
@@ -159,9 +163,11 @@ function ResultsContent() {
       }
 
       const data = await response.json();
-      if (data.error === "rate_limit_exceeded") {
+      if (data.error === "rate_limit_exceeded" && !isAuthenticated) {
         setShowSignupModal(true);
-        throw new Error("Rate limit exceeded. Please create an account to continue.");
+        throw new Error(
+          "Rate limit exceeded. Please create an account to continue."
+        );
       } else if (data.error) {
         throw new Error(data.error);
       }
@@ -196,12 +202,16 @@ function ResultsContent() {
     }
   };
 
-  const handleNewPrompt = async (prompt: string, isUpdate: boolean = false, chaosMode: boolean = false) => {
+  const handleNewPrompt = async (
+    prompt: string,
+    isUpdate: boolean = false,
+    chaosMode: boolean = false
+  ) => {
     if (isUpdate) {
       if (chaosMode) {
         // Update all apps in chaos mode
         setLoadingStates(new Array(6).fill(true));
-        
+
         try {
           // Create an array of promises for all apps
           const updatePromises = appTitles.map(async (title, index) => {
@@ -243,18 +253,20 @@ function ResultsContent() {
 
           // Wait for all updates to complete
           const results = await Promise.all(updatePromises);
-          
+
           // Update all results at once
           setEditedResults((prev) => {
             const newResults = [...prev];
-            results.forEach(result => {
+            results.forEach((result) => {
               newResults[result.index] = result.code;
             });
             return newResults;
           });
         } catch (err) {
           setError(
-            err instanceof Error ? err.message : "Failed to update applications in chaos mode"
+            err instanceof Error
+              ? err.message
+              : "Failed to update applications in chaos mode"
           );
         } finally {
           setLoadingStates(new Array(6).fill(false));
@@ -354,9 +366,9 @@ function ResultsContent() {
     setSelectedAppIndex(index);
     // Scroll to the detailed view
     setTimeout(() => {
-      document.getElementById('detailed-view')?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
+      document.getElementById("detailed-view")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
       });
     }, 100);
   };
@@ -425,13 +437,13 @@ function ResultsContent() {
                   <motion.div
                     key={title}
                     className={`rounded-lg overflow-hidden border ${
-                      selectedAppIndex === index 
-                        ? theme === "dark" 
-                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30" 
+                      selectedAppIndex === index
+                        ? theme === "dark"
+                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30"
                           : "border-indigo-500 ring-2 ring-indigo-300/50"
                         : theme === "dark"
-                          ? "border-gray-700"
-                          : "border-gray-200"
+                        ? "border-gray-700"
+                        : "border-gray-200"
                     } transition-all duration-200 cursor-pointer`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -487,7 +499,7 @@ function ResultsContent() {
                   </motion.div>
                 ))}
               </div>
-              
+
               {/* Expanded view of selected app */}
               <motion.div
                 id="detailed-view"
@@ -496,13 +508,18 @@ function ResultsContent() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
               >
-                <h2 className={`text-xl font-semibold mb-4 ${
-                  theme === "dark" ? "text-white" : "text-gray-900"
-                }`}>
+                <h2
+                  className={`text-xl font-semibold mb-4 ${
+                    theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}
+                >
                   {appTitles[selectedAppIndex]} - Detailed View
                 </h2>
                 <div className="h-[500px]">
-                  <BrowserContainer theme={theme} title={`${appTitles[selectedAppIndex]} - Detailed View`}>
+                  <BrowserContainer
+                    theme={theme}
+                    title={`${appTitles[selectedAppIndex]} - Detailed View`}
+                  >
                     {loadingStates[selectedAppIndex] ? (
                       <LoadingContainer>
                         <LoadingTitle>Generating</LoadingTitle>
@@ -540,9 +557,9 @@ function ResultsContent() {
                           isLoading={loadingStates[selectedAppIndex]}
                           theme={theme}
                           deployButton={
-                            <MockDeployButton 
-                              code={editedResults[selectedAppIndex] || ""} 
-                              theme={theme} 
+                            <MockDeployButton
+                              code={editedResults[selectedAppIndex] || ""}
+                              theme={theme}
                             />
                           }
                         />
@@ -576,14 +593,16 @@ function ResultsContent() {
 // Main component with Suspense boundary
 export default function Results() {
   return (
-    <Suspense fallback={
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Loading...</h2>
-          <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+    <Suspense
+      fallback={
+        <div className="w-full h-screen flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-4">Loading...</h2>
+            <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <ResultsContent />
     </Suspense>
   );

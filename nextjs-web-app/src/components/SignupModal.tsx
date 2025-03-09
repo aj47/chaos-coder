@@ -225,11 +225,7 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
             
             <button
               type="submit"
-              className={`w-full py-2 px-4 rounded-lg font-medium ${
-                theme === 'dark'
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-              }`}
+              className="w-full py-2 px-4 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
               disabled={isLoading}
             >
               {isLoading ? (

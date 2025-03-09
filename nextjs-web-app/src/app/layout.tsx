@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import StyledComponentsRegistry from "@/components/styled-components-registry";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { AuthButtonWrapper } from "@/components/auth/AuthButtonWrapper";
 
 const inter = Inter({
@@ -30,8 +31,10 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <StyledComponentsRegistry>
           <ThemeProvider>
-            <AuthButtonWrapper />
-            {children}
+            <AuthProvider>
+              <AuthButtonWrapper />
+              {children}
+            </AuthProvider>
           </ThemeProvider>
         </StyledComponentsRegistry>
       </body>
