@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
@@ -105,35 +104,30 @@ function ResultsContent() {
     type: 'auth'
   });
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
-  const [totalGenerationCost, setTotalGenerationCost] = useState(0);
   const { theme } = useTheme();
   const setTokens = useTokenStore((state) => state.setTokens);
 
   const variations = [
-    "",
-    "Make it visually appealing and use a different framework than the other versions.",
-    "Focus on simplicity and performance. Use minimal dependencies.",
-    "Add some creative features that might not be explicitly mentioned in the prompt.",
-    "Create an enhanced version with additional features and modern design patterns.",
-    "Build a version with accessibility and internationalization features in mind.",
-    "Create a version optimized for mobile devices with responsive design.",
-    "Build a version with advanced animations and interactive elements.",
-    "Create a version with data visualization capabilities.",
     "Build a version with offline functionality and progressive web app features.",
   ];
 
-  const appTitles = [
-    "Standard Version",
-    "Visual Focus",
-    "Minimalist Version",
-    "Creative Approach",
-    "Enhanced Version",
-    "Accessible Version",
-    "Mobile Optimized",
-    "Interactive Version",
-    "Data Visualization",
-    "Progressive Web App",
-  ].slice(0, numGenerations);
+  // Map vibe values to display names for the UI
+  const vibeDisplayNames: Record<string, string> = {
+    "modern-saas": "Modern SaaS",
+    "glassmorphism": "Aeroglass/Glassmorphism",
+    "neumorphism": "Neumorphism",
+    "material": "Material Design",
+    "dark-mode": "Dark Mode",
+    "flat": "Flat Design",
+    "corporate": "Corporate Professional",
+    "ecommerce": "E-commerce Marketplace",
+    "portfolio": "Portfolio/Creative",
+    "blog": "Blog/Editorial",
+    "custom": "Custom Design"
+  };
+  
+  // Generate app titles based on the vibes from the config
+  const appTitles = vibes.map((vibe: string) => vibeDisplayNames[vibe] || vibe);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -161,10 +155,14 @@ function ResultsContent() {
     const startTime = performance.now();
     try {
       // Use the vibe from config instead of predefined frameworks
-      const vibe = vibes[index] || "tailwind"; // Default to tailwind if not specified
+      const vibe = vibes[index] || "modern-saas"; // Default to modern SaaS if not specified
       
-      // Determine if this is a custom vibe (not in frameworkPrompts)
-      const isCustomVibe = !["tailwind", "materialize", "bootstrap", "patternfly", "pure"].includes(vibe);
+      // Determine if this is a custom vibe
+      const predefinedVibes = [
+        "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
+        "flat", "corporate", "ecommerce", "portfolio", "blog"
+      ];
+      const isCustomVibe = !predefinedVibes.includes(vibe);
       
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -221,11 +219,6 @@ function ResultsContent() {
       if (data.credits !== undefined) {
         setRemainingCredits(data.credits);
         setTokens(data.credits); // Update token store with credits from API response
-        
-        // Update total generation cost if available
-        if (data.cost) {
-          setTotalGenerationCost(prev => prev + data.cost);
-        }
       }
 
       setResults((prev) => {
@@ -266,28 +259,27 @@ function ResultsContent() {
         
         try {
           // Create an array of promises for all apps
-          const updatePromises = appTitles.map(async (title, index) => {
-            const framework =
-              title === "Standard Version"
-                ? "bootstrap"
-                : title === "Visual Focus"
-                ? "materialize"
-                : title === "Minimalist Version"
-                ? "pure"
-                : title === "Creative Approach"
-                ? "tailwind"
-                : title === "Accessible Version"
-                ? "foundation"
-                : "Bulma";
-
+          const updatePromises = appTitles.map(async (title: string, index: number) => {
+            // Use the vibe directly from the vibes array
+            const vibe = vibes[index];
+            
+            // Check if this is a custom vibe
+            const predefinedVibes = [
+              "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
+              "flat", "corporate", "ecommerce", "portfolio", "blog"
+            ];
+            const isCustomVibe = !predefinedVibes.includes(vibe);
+            
             const response = await fetch("/api/generate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 prompt,
                 existingCode: editedResults[index],
-                framework,
+                framework: isCustomVibe ? "custom" : vibe,
+                customVibe: isCustomVibe ? vibe : undefined,
                 isUpdate: true,
+                model: model,
               }),
             });
             
@@ -361,18 +353,15 @@ function ResultsContent() {
         });
 
         try {
-          const framework =
-            appTitles[selectedAppIndex] === "Standard Version"
-              ? "bootstrap"
-              : appTitles[selectedAppIndex] === "Visual Focus"
-              ? "materialize"
-              : appTitles[selectedAppIndex] === "Minimalist Version"
-              ? "pure"
-              : appTitles[selectedAppIndex] === "Creative Approach"
-              ? "tailwind"
-              : appTitles[selectedAppIndex] === "Accessible Version"
-              ? "foundation"
-              : "Bulma";
+          // Use the vibe directly from the vibes array for the selected index
+          const vibe = vibes[selectedAppIndex];
+          
+          // Check if this is a custom vibe
+          const predefinedVibes = [
+            "modern-saas", "glassmorphism", "neumorphism", "material", "dark-mode", 
+            "flat", "corporate", "ecommerce", "portfolio", "blog"
+          ];
+          const isCustomVibe = !predefinedVibes.includes(vibe);
 
           const response = await fetch("/api/generate", {
             method: "POST",
@@ -380,8 +369,10 @@ function ResultsContent() {
             body: JSON.stringify({
               prompt,
               existingCode: editedResults[selectedAppIndex],
-              framework,
+              framework: isCustomVibe ? "custom" : vibe,
+              customVibe: isCustomVibe ? vibe : undefined,
               isUpdate: true,
+              model: model,
             }),
           });
 
@@ -520,19 +511,6 @@ function ResultsContent() {
                 </span>
               </Link>
             </motion.h1>
-            <div className="flex items-center gap-4">
-              {/* Display total cost */}
-              {totalGenerationCost > 0 && (
-                <div className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center ${
-                  theme === "dark"
-                    ? "bg-gray-800 text-gray-300"
-                    : "bg-gray-200 text-gray-700"
-                }`}>
-                  <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
-                  <span>{totalGenerationCost} tokens spent</span>
-                </div>
-              )}
-            </div>
           </div>
 
           {error && (
@@ -555,9 +533,9 @@ function ResultsContent() {
             <div className="h-[calc(100vh-10rem)] overflow-y-auto">
               {/* Grid of all app previews */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {appTitles.map((title, index) => (
+                {appTitles.map((title: string, index: number) => (
                   <motion.div
-                    key={title}
+                    key={index}
                     className={`rounded-lg overflow-hidden border ${
                       selectedAppIndex === index 
                         ? theme === "dark" 

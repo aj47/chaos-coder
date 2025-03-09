@@ -15,20 +15,25 @@ export default function Home() {
   const [numGenerations, setNumGenerations] = useState(3);
   const [selectedModel, setSelectedModel] = useState<"fast" | "pro">("fast");
   const [vibes, setVibes] = useState<string[]>([
-    "tailwind",
-    "bootstrap",
-    "materialize",
+    "modern-saas",
+    "glassmorphism",
+    "material",
   ]);
   const [customVibes, setCustomVibes] = useState<string[]>(["", "", ""]);
   const router = useRouter();
 
   // Predefined vibes from frameworkPrompts
   const predefinedVibes = [
-    { value: "tailwind", label: "Tailwind CSS" },
-    { value: "materialize", label: "Materialize" },
-    { value: "bootstrap", label: "Bootstrap" },
-    { value: "patternfly", label: "PatternFly" },
-    { value: "pure", label: "Pure CSS" },
+    { value: "modern-saas", label: "Modern SaaS" },
+    { value: "glassmorphism", label: "Aeroglass/Glassmorphism" },
+    { value: "neumorphism", label: "Neumorphism" },
+    { value: "material", label: "Material Design" },
+    { value: "dark-mode", label: "Dark Mode" },
+    { value: "flat", label: "Flat Design" },
+    { value: "corporate", label: "Corporate Professional" },
+    { value: "ecommerce", label: "E-commerce Marketplace" },
+    { value: "portfolio", label: "Portfolio/Creative" },
+    { value: "blog", label: "Blog/Editorial" },
     { value: "custom", label: "Custom" },
   ];
 

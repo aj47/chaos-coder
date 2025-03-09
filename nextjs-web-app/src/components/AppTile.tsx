@@ -2,13 +2,18 @@
 
 import { motion } from "framer-motion";
 import {
-  FaBootstrap,
-  FaWind,
-  FaLeaf,
-  FaPalette,
-  FaShieldAlt,
   FaCode,
+  FaLaptop,
+  FaGlasses,
+  FaLayerGroup,
+  FaMoon,
+  FaSquare,
+  FaBuilding,
+  FaShoppingCart,
+  FaPaintBrush,
+  FaNewspaper,
 } from "react-icons/fa";
+import { MdOutlineDesignServices } from "react-icons/md";
 import { IconType } from "react-icons";
 
 interface AppTileProps {
@@ -19,7 +24,7 @@ interface AppTileProps {
   theme: "light" | "dark";
 }
 
-interface FrameworkInfo {
+interface VibeInfo {
   icon: IconType;
   description: string;
   rightIcon: IconType;
@@ -27,41 +32,76 @@ interface FrameworkInfo {
   iconColor: string;
 }
 
-const frameworkMap: Record<string, FrameworkInfo> = {
-  "Standard Version": {
-    icon: FaBootstrap,
-    description: "Built with Bootstrap for robust, responsive design",
+const vibeMap: Record<string, VibeInfo> = {
+  "Modern SaaS": {
+    icon: FaLaptop,
+    description: "Clean, professional UI with SaaS-focused components",
     rightIcon: FaCode,
-    framework: "bootstrap",
-    iconColor: "#7952b3",
+    framework: "modern-saas",
+    iconColor: "#3B82F6",
   },
-  "Visual Focus": {
-    icon: FaPalette,
-    description: "Using Materialize for beautiful Material Design",
+  "Aeroglass/Glassmorphism": {
+    icon: FaGlasses,
+    description: "Sleek glass-like UI with blur effects and transparency",
     rightIcon: FaCode,
-    framework: "materialize",
-    iconColor: "#eb7077",
+    framework: "glassmorphism",
+    iconColor: "#8B5CF6",
   },
-  "Minimalist Version": {
-    icon: FaLeaf,
-    description: "Pure CSS for lightweight, clean aesthetics",
+  "Neumorphism": {
+    icon: MdOutlineDesignServices,
+    description: "Soft UI with subtle shadows and dimensional effects",
     rightIcon: FaCode,
-    framework: "pure",
-    iconColor: "#3cb371",
+    framework: "neumorphism",
+    iconColor: "#9CA3AF",
   },
-  "Creative Approach": {
-    icon: FaWind,
-    description: "Powered by Tailwind CSS for modern utility-first design",
+  "Material Design": {
+    icon: FaLayerGroup,
+    description: "Google's material design principles with depth and motion",
     rightIcon: FaCode,
-    framework: "tailwind",
-    iconColor: "#38bdf8",
+    framework: "material",
+    iconColor: "#EF4444",
   },
-  "Enhanced Version": {
-    icon: FaShieldAlt,
-    description: "Enterprise-ready with Bulma components",
+  "Dark Mode": {
+    icon: FaMoon,
+    description: "Sleek dark-themed UI optimized for night viewing",
     rightIcon: FaCode,
-    framework: "Bulma",
-    iconColor: "#06c",
+    framework: "dark-mode",
+    iconColor: "#1F2937",
+  },
+  "Flat Design": {
+    icon: FaSquare,
+    description: "Minimalist UI with simple elements and bright colors",
+    rightIcon: FaCode,
+    framework: "flat",
+    iconColor: "#10B981",
+  },
+  "Corporate Professional": {
+    icon: FaBuilding,
+    description: "Business-oriented design with formal UI elements",
+    rightIcon: FaCode,
+    framework: "corporate",
+    iconColor: "#2563EB",
+  },
+  "E-commerce Marketplace": {
+    icon: FaShoppingCart,
+    description: "Optimized for product listings and shopping experiences",
+    rightIcon: FaCode,
+    framework: "ecommerce",
+    iconColor: "#F59E0B",
+  },
+  "Portfolio/Creative": {
+    icon: FaPaintBrush,
+    description: "Artistic design for showcasing creative work",
+    rightIcon: FaCode,
+    framework: "portfolio",
+    iconColor: "#EC4899",
+  },
+  "Blog/Editorial": {
+    icon: FaNewspaper,
+    description: "Content-focused design with strong typography",
+    rightIcon: FaCode,
+    framework: "blog",
+    iconColor: "#6366F1",
   },
 };
 
@@ -72,9 +112,9 @@ export default function AppTile({
   isLoading,
   theme,
 }: AppTileProps) {
-  const framework = frameworkMap[title];
-  const LeftIcon = framework.icon;
-  const RightIcon = framework.rightIcon;
+  const vibe = vibeMap[title];
+  const LeftIcon = vibe?.icon || FaCode;
+  const RightIcon = vibe?.rightIcon || FaCode;
 
   const getBgColor = () => {
     if (isSelected) {
@@ -101,7 +141,7 @@ export default function AppTile({
         <div className="flex-shrink-0">
           <LeftIcon
             className="w-6 h-6"
-            style={{ color: isSelected ? "#ffffff" : framework.iconColor }}
+            style={{ color: isSelected ? "#ffffff" : vibe?.iconColor }}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -125,7 +165,7 @@ export default function AppTile({
                 : "text-gray-600"
             }`}
           >
-            {framework.description}
+            {vibe?.description}
           </p>
           {isLoading && (
             <div className="mt-2">

@@ -23,7 +23,7 @@ export const PLANS = {
     credits: 200,
     price: 50,
     priceId: process.env.STRIPE_ULTRA_PRICE_ID,
-    features: ['200 free credits per day', 'Everything from other plans', 'Priority support', 'Generations can be saved'],
+    features: ['200 free credits per day', 'Everything from other plans', 'Priority support', 'Generations can be saved (coming soon)'],
   },
 };
 

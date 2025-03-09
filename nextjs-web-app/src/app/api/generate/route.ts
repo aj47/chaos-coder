@@ -7,16 +7,27 @@ import { Database } from "@/types/supabase";
 export const runtime = "edge";
 
 const frameworkPrompts = {
-  tailwind:
-    "Use Tailwind CSS for styling with modern utility classes. Include the Tailwind CDN.",
-  materialize:
-    "Use Materialize CSS framework for a Material Design look. Include the Materialize CDN.",
-  bootstrap:
-    "Use Bootstrap 5 for responsive components and layout. Include the Bootstrap CDN.",
-  patternfly:
-    "Use PatternFly for enterprise-grade UI components. Include the PatternFly CDN.",
-  pure: "Use Pure CSS for minimalist, responsive design. Include the Pure CSS CDN.",
-  custom: "", // This will be replaced with the customVibe parameter
+  "modern-saas":
+    "Create a modern SaaS design with clean, professional UI, using soft blues and grays, rounded corners, and subtle shadows. Focus on usability and conversion-oriented UI patterns.",
+  "glassmorphism":
+    "Implement glassmorphism/aeroglass design with frosted glass effects, transparency, blur backgrounds, and subtle borders. Include a gradient background with floating elements.",
+  "neumorphism":
+    "Use neumorphism (soft UI) design with subtle shadows, extruded elements, monochromatic color schemes, and minimalist icons. Elements should look like they're pressed into or extruded from the surface.",
+  "material":
+    "Follow Google's Material Design principles with responsive animations, card-based layouts, intentional white space, and bold typography. Include shadows to create depth and hierarchy.",
+  "dark-mode":
+    "Create a dark mode interface with deep gray/black backgrounds, careful use of accent colors, reduced brightness, and proper contrast for readability. Optimize for reduced eye strain.",
+  "flat":
+    "Use flat design with minimalist 2D elements, bright colors, simple typography, and lack of 3D effects or gradients. Focus on content clarity and usability.",
+  "corporate":
+    "Design a corporate professional interface with conservative color schemes (blues, grays), formal typography, clear hierarchy, and traditional layout structures. Project trust and reliability.",
+  "ecommerce":
+    "Optimize for e-commerce with product-focused layouts, clear call-to-action buttons, efficient navigation, search prominence, and trust indicators. Design should facilitate easy browsing and purchasing.",
+  "portfolio":
+    "Create a portfolio/creative design with striking visuals, unusual layouts, artistic typography, and bold color choices. Focus on showcasing work samples and creative identity.",
+  "blog":
+    "Design a blog/editorial interface with excellent typography, content-focused layout, comfortable reading experience, and clear content hierarchy. Prioritize readability and content discovery.",
+  "custom": "", // This will be replaced with the customVibe parameter
 };
 
 export async function POST(req: NextRequest) {
@@ -159,18 +170,20 @@ ${existingCode}
 \`\`\`
 
 Technical Requirements:
-- Maintain the overall structure of the existing code
+- IMPORTANT: Maintain a SINGLE HTML file structure with all HTML, CSS, and JavaScript
 - Make targeted changes based on the update request
 - Keep all working functionality that isn't explicitly changed
-- Preserve the existing styling approach and framework
+- Preserve the existing styling approach and design style
 - Ensure all interactive elements continue to work
 - Add clear comments for any new or modified sections
+- Keep all CSS and JS inline, exactly as in the original format
 
 Additional Notes:
 - Return the COMPLETE updated HTML file content
 - Do not remove existing functionality unless specifically requested
+- Do NOT split into multiple files - everything must remain in one HTML file
 - Ensure the code remains well-structured and maintainable
-- Return ONLY the HTML file content without any explanations
+- Return ONLY the HTML file content without any explanations or markdown
 
 Format the code with proper indentation and spacing for readability.`;
     } else {
@@ -182,14 +195,16 @@ Instructions:
 3. Style/Framework: ${vibeInstructions}
 
 Technical Requirements:
-- Create a single HTML file with clean, indented code structure
-- Organize the code in this order:
+- IMPORTANT: Create a SINGLE HTML file containing ALL HTML, CSS, and JavaScript
+- Do NOT suggest or imply separate file structures - everything must be in one HTML file
+- Organize the code in this exact order:
   1. <!DOCTYPE html> and meta tags
-  2. <title> and other head elements
-  3. Framework CSS and JS imports
-  4. Custom CSS styles in a <style> tag
+  2. <title> and other head elements 
+  3. Any required CSS framework imports via CDN links
+  4. Custom CSS styles in a <style> tag in the head
   5. HTML body with semantic markup
-  6. JavaScript in a <script> tag at the end of body
+  6. Any required JavaScript libraries via CDN links
+  7. Custom JavaScript in a <script> tag at the end of body
 - Use proper HTML5 semantic elements
 - Include clear spacing between sections
 - Add descriptive comments for each major component
@@ -197,14 +212,15 @@ Technical Requirements:
 - Use modern ES6+ JavaScript features
 - Keep the code modular and well-organized
 - Ensure all interactive elements have proper styling states (hover, active, etc.)
-- Implement the framework-specific best practices and components
+- Implement the design style specified in the Style/Framework instruction
 
 Additional Notes:
-- The code must be complete and immediately runnable
-- All custom CSS and JavaScript should be included inline
+- The code must be complete and immediately runnable in a browser
+- All custom CSS and JavaScript MUST be included inline in the single HTML file
+- NO separate CSS or JS files - include everything in the HTML file
 - Code must work properly when rendered in an iframe
 - Focus on clean, maintainable code structure
-- Return ONLY the HTML file content without any explanations
+- Return ONLY the HTML file content without any explanations or markdown
 
 Format the code with proper indentation and spacing for readability.`;
     }
@@ -226,7 +242,9 @@ Format the code with proper indentation and spacing for readability.`;
     }
     
     // Trim out <think> blocks
-    code = code.replace(/<think>([\s\S]*?)<\/think>/g, "");
+    if (typeof code === 'string') {
+      code = code.replace(/<think>([\s\S]*?)<\/think>/g, "");
+    }
 
     // If user is authenticated, return remaining credits
     if (user) {
