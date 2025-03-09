@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { FaMicrophone, FaBolt } from "react-icons/fa";
 import { useTheme } from "@/context/ThemeContext";
 import { SignupModal } from "@/components/SignupModal";
+import Image from "next/image";
 
 interface PromptInputProps {
   isOpen: boolean;
@@ -130,7 +131,10 @@ export default function PromptInput({
             }`}
           >
             <span>{isUpdateMode ? "Update" : "Generate"}</span>
-            <span className="ml-2 flex items-center"><span className="mr-1">🪙</span>{calculateCost()}</span>
+            <span className="ml-2 flex items-center">
+              <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
+              {calculateCost()}
+            </span>
           </button>
         </form>
       </div>

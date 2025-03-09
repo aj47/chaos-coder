@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
@@ -132,7 +133,7 @@ function ResultsContent() {
     "Interactive Version",
     "Data Visualization",
     "Progressive Web App",
-  ];
+  ].slice(0, numGenerations);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -527,7 +528,7 @@ function ResultsContent() {
                     ? "bg-gray-800 text-gray-300"
                     : "bg-gray-200 text-gray-700"
                 }`}>
-                  <span className="mr-1">🪙</span>
+                  <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
                   <span>{totalGenerationCost} tokens spent</span>
                 </div>
               )}

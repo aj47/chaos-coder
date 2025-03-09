@@ -7,6 +7,7 @@ import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { useTokenStore } from "@/store/useTokenStore";
+import Image from "next/image";
 
 export function AuthButton() {
   const { theme } = useTheme();
@@ -70,8 +71,8 @@ export function AuthButton() {
                 : "bg-gray-200 text-gray-700"
             }`}
           >
-            <span className="mr-1">🪙</span>
-            <span>{tokens} tokens</span>
+            <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
+            <span>{tokens} credits</span>
           </div>
         )}
         <button

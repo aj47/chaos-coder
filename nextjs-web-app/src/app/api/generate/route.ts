@@ -105,21 +105,21 @@ export async function POST(req: NextRequest) {
         },
         targets: [
           {
-            virtual_key: "groq-virtual-ke-9479cd",
-            override_params: {
-              model: model === "pro" ? "llama-3.2-70b-8192" : "llama-3.2-1b-preview",
-            },
-          },
-          {
             virtual_key: "sambanova-6bc4d0",
             override_params: {
-              model: model === "pro" ? "Meta-Llama-3.2-70B-Instruct" : "Meta-Llama-3.2-1B-Instruct",
+              model: model === "pro" ? "DeepSeek-R1" : "Meta-Llama-3.2-1B-Instruct",
             },
           },
           {
             virtual_key: "openrouter-07e727",
             override_params: {
-              model: model === "pro" ? "meta/llama-3.2-70b-instruct" : "google/gemini-flash-1.5-8b",
+              model: model === "pro" ? "deepseek/deepseek-r1" : "google/gemini-flash-1.5-8b",
+            },
+          },
+          {
+            virtual_key: "groq-virtual-ke-9479cd",
+            override_params: {
+              model: model === "pro" ? "llama-3.2-70b-8192" : "llama-3.2-1b-preview",
             },
           },
           {
@@ -224,6 +224,9 @@ Format the code with proper indentation and spacing for readability.`;
         .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
         .trim();
     }
+    
+    // Trim out <think> blocks
+    code = code.replace(/<think>([\s\S]*?)<\/think>/g, "");
 
     // If user is authenticated, return remaining credits
     if (user) {
