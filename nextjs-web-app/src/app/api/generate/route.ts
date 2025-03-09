@@ -6,9 +6,6 @@ import { Database } from "@/types/supabase";
 
 export const runtime = "edge";
 
-// Simple in-memory store for rate limiting (replace with Redis in production)
-const submissionCounts = new Map<string, number>();
-
 const frameworkPrompts = {
   tailwind:
     "Use Tailwind CSS for styling with modern utility classes. Include the Tailwind CDN.",
@@ -22,85 +19,64 @@ const frameworkPrompts = {
 };
 
 export async function POST(req: NextRequest) {
-  // Get client IP address
-  const ipAddress = req.headers.get("x-forwarded-for") || "127.0.0.1";
-  
   // Parse the request body
   const body = await req.json();
   
   // Initialize Supabase client
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+  const supabase = createRouteHandlerClient<Database>({ cookies });
   
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser();
   
-  if (user) {
-    // User is authenticated, check their credits
-    const { data: profile, error: profileError } = await supabase
+  // Require authentication for all users
+  if (!user) {
+    return NextResponse.json(
+      { 
+        error: "authentication_required", 
+        message: "You must be logged in to generate content." 
+      },
+      { status: 401 }
+    );
+  }
+  
+  // User is authenticated, check their credits
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('credits')
+    .eq('id', user.id)
+    .single();
+  
+  if (profileError) {
+    console.error("Error fetching user profile:", profileError);
+    return NextResponse.json(
+      { error: "Failed to fetch user profile" },
+      { status: 500 }
+    );
+  }
+  
+  // Check if user has enough credits
+  const userCredits = profile?.credits ?? 0;
+  if (userCredits <= 0) {
+    return NextResponse.json(
+      { error: "insufficient_credits", message: "You have no credits remaining. Please purchase more credits to continue." },
+      { status: 402 }
+    );
+  }
+  
+  // Only deduct credits for real generations, not rate limit checks
+  if (body && body.variation !== "rate-limit-check") {
+    // Deduct 1 credit
+    const { error: updateError } = await supabase
       .from('profiles')
-      .select('credits')
-      .eq('id', user.id)
-      .single();
+      .update({ credits: userCredits - 1 })
+      .eq('id', user.id);
     
-    if (profileError) {
-      console.error("Error fetching user profile:", profileError);
+    if (updateError) {
+      console.error("Error updating user credits:", updateError);
       return NextResponse.json(
-        { error: "Failed to fetch user profile" },
+        { error: "Failed to update credits" },
         { status: 500 }
       );
-    }
-    
-    // Check if user has enough credits
-    if (profile && profile.credits <= 0) {
-      return NextResponse.json(
-        { error: "insufficient_credits", message: "You have no credits remaining. Please purchase more credits to continue." },
-        { status: 402 }
-      );
-    }
-    
-    // Only deduct credits for real generations, not rate limit checks
-    if (body && body.variation !== "rate-limit-check") {
-      // Deduct 1 credit
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ credits: (profile?.credits || 1) - 1 })
-        .eq('id', user.id);
-      
-      if (updateError) {
-        console.error("Error updating user credits:", updateError);
-        return NextResponse.json(
-          { error: "Failed to update credits" },
-          { status: 500 }
-        );
-      }
-    }
-  } else {
-    // User is not authenticated, use IP-based rate limiting
-    // Check rate limit (25 requests per IP)
-    const count = submissionCounts.get(ipAddress) || 0;
-    // For debugging only
-    console.log(`Rate limit check: IP ${ipAddress} has used ${count} requests`);
-
-    if (count >= 25) {
-      console.log("Rate limit exceeded for IP:", ipAddress);
-      return new Response(
-        JSON.stringify({
-          error: "rate_limit_exceeded",
-          message: "Free limit exceeded. Please create an account to continue.",
-        }),
-        {
-          status: 429,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // Only increment count for real generations, not rate limit checks
-    if (body && body.variation !== "rate-limit-check") {
-      submissionCounts.set(ipAddress, count + 1);
     }
   }
   
@@ -250,7 +226,7 @@ Format the code with proper indentation and spacing for readability.`;
       
       return NextResponse.json({ 
         code,
-        credits: updatedProfile?.credits || 0
+        credits: updatedProfile?.credits ?? 0
       });
     }
 

@@ -35,6 +35,7 @@
     "portkey-ai": "^1.7.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
     "replicate": "^1.0.1",
     "stripe": "^17.7.0",

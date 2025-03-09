@@ -13,7 +13,8 @@ import {
   FaRobot,
   FaQuestionCircle,
 } from "react-icons/fa";
-import { useTokenStore } from "@/store/useTokenStore";
+import { AlertModal } from "@/components/AlertModal";
+import { toast } from "react-hot-toast";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
@@ -65,7 +66,16 @@ export default function Home() {
   ];
   const [isLoading, setIsLoading] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
-  const setTokens = useTokenStore((state) => state.setTokens);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{
+    title: string;
+    message: string;
+    type: 'auth' | 'credits';
+  }>({
+    title: '',
+    message: '',
+    type: 'auth'
+  });
 
   const handleSubmit = async () => {
     if (!prompt) {
@@ -77,7 +87,7 @@ export default function Home() {
     setIsLoading(true);
     
     try {
-      // Make a test request to check rate limit before redirecting
+      // Make a test request to check authentication and credits before redirecting
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,51 +98,59 @@ export default function Home() {
         }),
       });
       
-      if (response.status === 429) {
-        // Rate limit exceeded
-        setShowSignupModal(true);
+      if (response.status === 401) {
+        // Authentication required error
+        setAlertInfo({
+          title: "Authentication Required",
+          message: "You need to sign in to generate web apps. Sign in to continue.",
+          type: 'auth'
+        });
+        setShowAlertModal(true);
         setIsLoading(false);
         return;
       }
       
       if (response.status === 402) {
-        // Insufficient credits
-        setErrorMessage("You have no credits remaining. Please visit settings to purchase more credits.");
+        // Insufficient credits error
+        setAlertInfo({
+          title: "No Credits Remaining",
+          message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+          type: 'credits'
+        });
+        setShowAlertModal(true);
         setIsLoading(false);
         return;
       }
       
-      const data = await response.json();
-      if (data.error === "rate_limit_exceeded") {
+      if (response.status === 429) {
         setShowSignupModal(true);
         setIsLoading(false);
         return;
       }
       
-      if (data.error === "insufficient_credits") {
-        setErrorMessage("You have no credits remaining. Please visit settings to purchase more credits.");
-        setIsLoading(false);
-        return;
-      }
+      // If we get here, the user is authenticated and has credits
+      // Proceed with the redirect
+      const encodedPrompt = encodeURIComponent(prompt);
+      router.push(`/results?prompt=${encodedPrompt}`);
       
-      // Update tokens if available in the response
-      if (data.credits !== undefined) {
-        setTokens(data.credits);
-      }
-      
-      // If no rate limit issues, proceed to results page
-      router.push(`/results?prompt=${encodeURIComponent(prompt)}`);
     } catch (error) {
-      console.error("Error checking rate limit:", error);
-      // Still try to navigate even if there was an error checking rate limit
-      router.push(`/results?prompt=${encodeURIComponent(prompt)}`);
-    } finally {
+      console.error("Error:", error);
+      toast.error("An error occurred. Please try again.");
       setIsLoading(false);
     }
   };
 
   return (
     <div className="relative min-h-screen w-full">
+      {showAlertModal && (
+        <AlertModal
+          isOpen={showAlertModal}
+          onClose={() => setShowAlertModal(false)}
+          title={alertInfo.title}
+          message={alertInfo.message}
+          type={alertInfo.type}
+        />
+      )}
       {showSignupModal && (
         <SignupModal
           isOpen={showSignupModal}

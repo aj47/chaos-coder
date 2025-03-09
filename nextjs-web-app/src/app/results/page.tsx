@@ -15,6 +15,8 @@ import MockDeployButton from "@/components/MockDeployButton";
 import { SignupModal } from "@/components/SignupModal";
 import styled from "styled-components";
 import { useTokenStore } from "@/store/useTokenStore";
+import { AlertModal } from "@/components/AlertModal";
+import { toast } from "react-hot-toast";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -73,8 +75,17 @@ function ResultsContent() {
   }>({});
   const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{
+    title: string;
+    message: string;
+    type: 'auth' | 'credits';
+  }>({
+    title: '',
+    message: '',
+    type: 'auth'
+  });
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
-  const [showCreditAlert, setShowCreditAlert] = useState(false);
   const { theme } = useTheme();
   const setTokens = useTokenStore((state) => state.setTokens);
 
@@ -152,21 +163,36 @@ function ResultsContent() {
         }),
       });
 
+      const data = await response.json();
+
+      if (response.status === 401) {
+        // Authentication required error
+        setAlertInfo({
+          title: "Authentication Required",
+          message: "You need to sign in to generate web apps. Sign in to continue.",
+          type: 'auth'
+        });
+        setShowAlertModal(true);
+        return;
+      }
+      
+      if (response.status === 402) {
+        // Insufficient credits error
+        setAlertInfo({
+          title: "No Credits Remaining",
+          message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+          type: 'credits'
+        });
+        setShowAlertModal(true);
+        return;
+      }
+
       if (response.status === 429) {
         // Show signup modal for rate limit
         setShowSignupModal(true);
         throw new Error("Rate limit exceeded. Please create an account to continue.");
       }
 
-      if (response.status === 402) {
-        throw new Error("You have no credits remaining. Please purchase more credits to continue.");
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate app ${index + 1}`);
-      }
-
-      const data = await response.json();
       if (data.error === "rate_limit_exceeded") {
         setShowSignupModal(true);
         throw new Error("Rate limit exceeded. Please create an account to continue.");
@@ -180,11 +206,6 @@ function ResultsContent() {
       if (data.credits !== undefined) {
         setRemainingCredits(data.credits);
         setTokens(data.credits); // Update token store with credits from API response
-        
-        // Show credit alert if credits are low (less than 10)
-        if (data.credits < 10 && !showCreditAlert) {
-          setShowCreditAlert(true);
-        }
       }
 
       setResults((prev) => {
@@ -249,6 +270,16 @@ function ResultsContent() {
                 isUpdate: true,
               }),
             });
+            
+            if (response.status === 401) {
+              // Authentication required error
+              throw { status: 401, message: "Authentication required" };
+            }
+            
+            if (response.status === 402) {
+              // Insufficient credits error
+              throw { status: 402, message: "Insufficient credits" };
+            }
 
             if (!response.ok) {
               throw new Error(`Failed to update app ${index + 1}`);
@@ -273,12 +304,33 @@ function ResultsContent() {
             });
             return newResults;
           });
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Failed to update applications in chaos mode"
-          );
-        } finally {
+        } catch (error: unknown) {
           setLoadingStates(new Array(6).fill(false));
+          
+          // Check if the error is our custom error object with status
+          if (typeof error === 'object' && error !== null && 'status' in error) {
+            const customError = error as { status: number; message: string };
+            
+            if (customError.status === 401) {
+              setAlertInfo({
+                title: "Authentication Required",
+                message: "You need to sign in to generate web apps. Sign in to continue.",
+                type: 'auth'
+              });
+              setShowAlertModal(true);
+            } else if (customError.status === 402) {
+              setAlertInfo({
+                title: "No Credits Remaining",
+                message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+                type: 'credits'
+              });
+              setShowAlertModal(true);
+            }
+          } else {
+            // Handle other errors
+            console.error("Error updating apps:", error);
+            toast.error("An error occurred while updating the apps.");
+          }
         }
       } else {
         // Update only the selected app (original behavior)
@@ -312,6 +364,28 @@ function ResultsContent() {
               isUpdate: true,
             }),
           });
+
+          if (response.status === 401) {
+            // Authentication required error
+            setAlertInfo({
+              title: "Authentication Required",
+              message: "You need to sign in to generate web apps. Sign in to continue.",
+              type: 'auth'
+            });
+            setShowAlertModal(true);
+            return;
+          }
+          
+          if (response.status === 402) {
+            // Insufficient credits error
+            setAlertInfo({
+              title: "No Credits Remaining",
+              message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+              type: 'credits'
+            });
+            setShowAlertModal(true);
+            return;
+          }
 
           if (!response.ok) {
             throw new Error(`Failed to update app ${selectedAppIndex + 1}`);
@@ -384,6 +458,13 @@ function ResultsContent() {
 
   return (
     <AuroraBackground>
+      <AlertModal
+        isOpen={showAlertModal}
+        onClose={() => setShowAlertModal(false)}
+        title={alertInfo.title}
+        message={alertInfo.message}
+        type={alertInfo.type}
+      />
       {showSignupModal && (
         <SignupModal
           isOpen={showSignupModal}
@@ -591,7 +672,7 @@ function ResultsContent() {
         <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
       )}
       {/* Credit Alert */}
-      {showCreditAlert && remainingCredits !== null && (
+      {remainingCredits !== null && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
           theme === "dark" ? "bg-yellow-900/80 text-yellow-100" : "bg-yellow-100 text-yellow-800"
         }`}>
@@ -604,7 +685,7 @@ function ResultsContent() {
               <p className="text-sm">You have {remainingCredits} credits remaining. Visit settings to purchase more.</p>
             </div>
             <button 
-              onClick={() => setShowCreditAlert(false)}
+              onClick={() => setShowAlertModal(true)}
               className="ml-auto text-sm hover:underline"
             >
               Dismiss
