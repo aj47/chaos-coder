@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { FaMicrophone, FaBolt } from "react-icons/fa";
 import { useTheme } from "@/context/ThemeContext";
@@ -12,7 +12,9 @@ interface PromptInputProps {
   onSubmit: (
     prompt: string,
     isUpdate?: boolean,
-    chaosMode?: boolean
+    chaosMode?: boolean,
+    anthropicApiKey?: string | null,
+    selectedModel?: string | null
   ) => Promise<unknown> | void;
   isUpdateMode?: boolean;
   currentCode?: string;
@@ -25,13 +27,33 @@ export default function PromptInput({
   const [prompt, setPrompt] = useState("");
   const [chaosMode, setChaosMode] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [anthropicApiKey, setAnthropicApiKey] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const { theme } = useTheme();
+
+  // Load API key and model from localStorage on component mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedApiKey = localStorage.getItem("anthropicApiKey");
+      const savedModel = localStorage.getItem("selectedModel");
+
+      setAnthropicApiKey(savedApiKey);
+      setSelectedModel(savedModel);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim()) {
       try {
-        await onSubmit(prompt, isUpdateMode, chaosMode);
+        // Pass API key and model if available
+        await onSubmit(
+          prompt,
+          isUpdateMode,
+          chaosMode,
+          anthropicApiKey,
+          selectedModel
+        );
         setPrompt("");
       } catch (error: unknown) {
         console.error("Error submitting prompt:", error);

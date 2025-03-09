@@ -20,7 +20,7 @@ const frameworkPrompts = {
 
 export async function POST(req: NextRequest) {
   // Get client IP address
-  const ip = req.ip || req.headers.get("x-forwarded-for") || "127.0.0.1";
+  const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
 
   // Check rate limit (5 requests per IP)
   const count = submissionCounts.get(ip) || 0;
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     submissionCounts.set(ip, count + 1);
   }
   try {
-    const { prompt, variation, framework } = body;
+    const { prompt, variation, framework, anthropicApiKey, selectedModel } = body;
 
     const portkeyApiKey = process.env.PORTKEY_API_KEY;
     if (!portkeyApiKey) {
@@ -61,35 +61,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Configure Portkey with main provider (groq) and fallback (openrouter)
-    const portkey = new Portkey({
-      apiKey: portkeyApiKey,
-      config: {
-        strategy: {
-          mode: "fallback",
+    // Check if user provided Anthropic API key and model
+    let portkey;
+    
+    if (anthropicApiKey && selectedModel) {
+      // Use user-provided Anthropic API key and model
+      console.log(`Using user-provided Anthropic model: ${selectedModel}`);
+      
+      portkey = new Portkey({
+        apiKey: portkeyApiKey,
+        config: {
+          strategy: {
+            mode: "single",
+          },
+          targets: [
+            {
+              provider: "anthropic",
+              apiKey: anthropicApiKey,
+              override_params: {
+                model: selectedModel,
+              },
+            }
+          ],
         },
-        targets: [
-          {
-            virtual_key: "groq-virtual-ke-9479cd",
-            override_params: {
-              model: "llama-3.2-1b-preview",
-            },
+      });
+    } else {
+      // Use default configuration with fallback strategy
+      portkey = new Portkey({
+        apiKey: portkeyApiKey,
+        config: {
+          strategy: {
+            mode: "fallback",
           },
-          {
-            virtual_key: "openrouter-07e727",
-            override_params: {
-              model: "google/gemini-flash-1.5-8b",
+          targets: [
+            {
+              virtual_key: "groq-virtual-ke-9479cd",
+              override_params: {
+                model: "llama-3.2-1b-preview",
+              },
             },
-          },
-          {
-            virtual_key: "openai-9c929c",
-            override_params: {
-              model: "gpt-4o-mini",
+            {
+              virtual_key: "openrouter-07e727",
+              override_params: {
+                model: "google/gemini-flash-1.5-8b",
+              },
             },
-          }
-        ],
-      },
-    });
+            {
+              virtual_key: "openai-9c929c",
+              override_params: {
+                model: "gpt-4o-mini",
+              },
+            }
+          ],
+        },
+      });
+    }
 
     const frameworkInstructions = framework
       ? frameworkPrompts[framework as keyof typeof frameworkPrompts]
@@ -171,12 +197,14 @@ Format the code with proper indentation and spacing for readability.`;
     });
 
     // Get the response content
-    let code = response.choices[0].message.content || "";
+    let code = response.choices[0]?.message?.content || "";
 
     // Trim out any markdown code blocks (```html, ```, etc.)
-    code = code
-      .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
-      .trim();
+    if (typeof code === 'string') {
+      code = code
+        .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
+        .trim();
+    }
 
     return NextResponse.json({ code });
   } catch (error) {

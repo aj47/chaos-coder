@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
@@ -75,10 +75,13 @@ function ResultsContent() {
   }>({});
   const [isVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [anthropicApiKey, setAnthropicApiKey] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
 
-  const variations = [
+  // Use useMemo to prevent variations array from changing on every render
+  const variations = useMemo(() => [
     "",
     "Make it visually appealing and use a different framework than the other versions.",
     "Focus on simplicity and performance. Use minimal dependencies.",
@@ -88,9 +91,9 @@ function ResultsContent() {
     "Create a version optimized for mobile devices with responsive design.",
     "Build a version with advanced animations and interactive elements.",
     "Create a version with data visualization capabilities.",
-  ];
+  ], []);
 
-  const appTitles = [
+  const appTitles = useMemo(() => [
     "Standard Version",
     "Visual Focus",
     "Minimalist Version",
@@ -100,7 +103,18 @@ function ResultsContent() {
     "Mobile Optimized",
     "Interactive Version",
     "Data Visualization",
-  ];
+  ], []);
+
+  // Load API key and model from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedApiKey = localStorage.getItem('anthropicApiKey');
+      const savedModel = localStorage.getItem('selectedModel');
+      
+      setAnthropicApiKey(savedApiKey);
+      setSelectedModel(savedModel);
+    }
+  }, []);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -124,7 +138,8 @@ function ResultsContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const generateApp = async (index: number, promptText: string) => {
+  // Use useCallback to prevent function from changing on every render
+  const generateApp = useCallback(async (index: number, promptText: string) => {
     const startTime = performance.now();
     try {
       const framework =
@@ -147,6 +162,8 @@ function ResultsContent() {
           prompt: promptText,
           variation: variations[index],
           framework,
+          anthropicApiKey,
+          selectedModel,
         }),
       });
 
@@ -200,12 +217,14 @@ function ResultsContent() {
         return newStates;
       });
     }
-  };
+  }, [anthropicApiKey, selectedModel, isAuthenticated, appTitles, variations]);
 
   const handleNewPrompt = async (
     prompt: string,
     isUpdate: boolean = false,
-    chaosMode: boolean = false
+    chaosMode: boolean = false,
+    anthropicApiKey: string | null = null,
+    selectedModel: string | null = null
   ) => {
     if (isUpdate) {
       if (chaosMode) {
@@ -236,6 +255,8 @@ function ResultsContent() {
                 existingCode: editedResults[index],
                 framework,
                 isUpdate: true,
+                anthropicApiKey,
+                selectedModel,
               }),
             });
 
@@ -340,7 +361,11 @@ function ResultsContent() {
   };
 
   const handleVoiceInput = (text: string) => {
-    handleNewPrompt(text, true, false); // Default to single mode for voice input
+    // Load API key and model from localStorage for voice input
+    const savedApiKey = typeof window !== 'undefined' ? localStorage.getItem('anthropicApiKey') : null;
+    const savedModel = typeof window !== 'undefined' ? localStorage.getItem('selectedModel') : null;
+    
+    handleNewPrompt(text, true, false, savedApiKey, savedModel); // Default to single mode for voice input
   };
 
   useEffect(() => {
@@ -353,7 +378,7 @@ function ResultsContent() {
 
     // Generate all apps in parallel
     Promise.all(variations.map((_, index) => generateApp(index, prompt)));
-  }, [searchParams]);
+  }, [searchParams, generateApp, variations]);
 
   const handleCodeChange = (newCode: string) => {
     const newResults = [...editedResults];
