@@ -5,11 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { FiLogOut, FiSettings, FiLogIn, FiUserPlus, FiHome } from "react-icons/fi";
 
 export function AuthButton() {
   const { theme } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
+  const isHomePage = pathname === "/";
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -60,25 +63,35 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleLogout}
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === 'dark'
-              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-          }`}
-        >
-          Log Out
-        </button>
+        <div className={`py-2 px-4 rounded-lg text-sm font-medium ${
+          theme === 'dark'
+            ? 'bg-gray-800/80 text-gray-300'
+            : 'bg-gray-200/80 text-gray-700'
+        }`}>
+          {user.email?.split('@')[0] || 'User'}
+        </div>
+        {!isHomePage && (
+          <button
+            onClick={() => router.push("/")}
+            className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
+            title="Home"
+          >
+            <FiHome size={18} />
+          </button>
+        )}
         <button
           onClick={() => router.push("/dashboard")}
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === 'dark'
-              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-          }`}
+          className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
+          title="Settings"
         >
-          Settings
+          <FiSettings size={18} />
+        </button>
+        <button
+          onClick={handleLogout}
+          className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
+          title="Log Out"
+        >
+          <FiLogOut size={18} />
         </button>
       </div>
     );
@@ -90,23 +103,17 @@ export function AuthButton() {
         <button
           onClick={() => setShowLoginModal(true)}
           data-login-button="true"
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === 'dark'
-              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-          }`}
+          className="flex items-center gap-2 py-2 px-5 rounded-full text-sm font-medium bg-gray-800/90 hover:bg-gray-700 text-gray-200"
         >
+          <FiLogIn size={16} />
           Log In
         </button>
         <button
           onClick={() => setShowSignupModal(true)}
           data-signup-button="true"
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === 'dark' 
-              ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
-              : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-          }`}
+          className="flex items-center gap-2 py-2 px-5 rounded-full text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white transition-all"
         >
+          <FiUserPlus size={16} />
           Sign Up
         </button>
       </div>
