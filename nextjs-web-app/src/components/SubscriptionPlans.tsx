@@ -55,18 +55,6 @@ export default function SubscriptionPlans({
               <p className="text-sm opacity-75 mt-1">Forever</p>
             </div>
             
-            <div className="mb-6">
-              <div className="h-2 bg-gray-200 rounded-full mb-2">
-                <div 
-                  className="h-2 bg-indigo-500 rounded-full" 
-                  style={{ width: `${((credits || 0) / maxCredits) * 100}%` }}
-                />
-              </div>
-              <p className="text-sm">
-                <span className="font-medium">{credits || 0}</span> / {maxCredits} credits
-              </p>
-            </div>
-            
             <div className="mb-6 flex-grow">
               <h4 className="font-medium mb-2">Features:</h4>
               <ul className="space-y-1">

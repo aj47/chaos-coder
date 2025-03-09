@@ -51,11 +51,6 @@ export function AuthButton() {
     };
   }, []);
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-  };
-
   if (loading) {
     return (
       <div className="flex gap-2">
@@ -67,24 +62,18 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="flex items-center gap-3">
-        <div className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center ${
-          theme === "dark"
-            ? "bg-gray-800 text-gray-300"
-            : "bg-gray-200 text-gray-700"
-        }`}>
-          <span className="mr-1">🪙</span>
-          <span>{tokens} tokens</span>
-        </div>
-        <button
-          onClick={handleLogout}
-          className={`py-2 px-4 rounded-lg text-sm font-medium ${
-            theme === "dark"
-              ? "bg-gray-800 hover:bg-gray-700 text-gray-300"
-              : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-          }`}
-        >
-          Log Out
-        </button>
+        {pathname !== "/dashboard" && (
+          <div
+            className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center ${
+              theme === "dark"
+                ? "bg-gray-800 text-gray-300"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            <span className="mr-1">🪙</span>
+            <span>{tokens} tokens</span>
+          </div>
+        )}
         <button
           onClick={() =>
             router.push(pathname === "/dashboard" ? "/" : "/dashboard")

@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const setTokens = useTokenStore((state) => state.setTokens);
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -38,6 +39,9 @@ export default function DashboardPage() {
           router.push("/");
           return;
         }
+        
+        // Set user email
+        setUserEmail(userData.user.email || null);
         
         // Check if credits need to be refreshed for the day
         const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
@@ -140,6 +144,12 @@ export default function DashboardPage() {
     }
   };
 
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
@@ -157,7 +167,25 @@ export default function DashboardPage() {
     <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
       <div className="max-w-4xl mx-auto p-6">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          {/* Profile Section */}
+          {userEmail && (
+            <div className={`p-3 rounded-lg flex items-center gap-3 ${theme === "dark" ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+              <div className="flex flex-col">
+                <span className="text-sm opacity-75">Signed in as:</span>
+                <span className="font-medium">{userEmail}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className={`py-2 px-4 rounded-lg text-sm font-medium ${
+                  theme === "dark"
+                    ? "bg-red-800 hover:bg-red-700 text-white"
+                    : "bg-red-500 hover:bg-red-600 text-white"
+                }`}
+              >
+                Log Out
+              </button>
+            </div>
+          )}
         </div>
 
         <motion.div
@@ -215,20 +243,6 @@ export default function DashboardPage() {
                     <p className="text-sm opacity-75">Credits Available</p>
                   </div>
                 </div>
-              </div>
-            </div>
-            
-            {/* Progress Bar */}
-            <div className="mb-8">
-              <div className="h-2 w-full bg-gray-200 rounded-full">
-                <div 
-                  className={`h-2 rounded-full ${
-                    theme === "dark" 
-                      ? "bg-indigo-500" 
-                      : "bg-indigo-600"
-                  }`}
-                  style={{ width: `${((credits || 0) / maxCredits) * 100}%` }}
-                />
               </div>
             </div>
             
