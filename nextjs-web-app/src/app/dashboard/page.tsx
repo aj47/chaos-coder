@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
 import { useTokenStore } from "@/store/useTokenStore";
+import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 
 export default function DashboardPage() {
@@ -17,10 +18,11 @@ export default function DashboardPage() {
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
-  const [maxCredits, setMaxCredits] = useState(100); // Will be updated based on plan
+  const [maxCredits, setMaxCredits] = useState(5); // Default to 5 daily credits for free plan
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const setTokens = useTokenStore((state) => state.setTokens);
+  const [creditsRefreshed, setCreditsRefreshed] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -37,10 +39,27 @@ export default function DashboardPage() {
           return;
         }
         
-        // Fetch user profile to get credits and subscription info
+        // Check if credits need to be refreshed for the day
+        const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
+          supabase,
+          userData.user.id
+        );
+        
+        if (refreshed) {
+          setCredits(refreshedCredits);
+          setTokens(refreshedCredits);
+          setCreditsRefreshed(true);
+          
+          // Hide the refreshed message after 5 seconds
+          setTimeout(() => {
+            setCreditsRefreshed(false);
+          }, 5000);
+        }
+        
+        // Fetch user profile to get subscription info
         const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('credits, subscription_tier, subscription_status, max_monthly_credits')
+          .select('credits, subscription_tier, subscription_status, max_daily_credits')
           .eq('id', userData.user.id)
           .single();
         
@@ -52,14 +71,18 @@ export default function DashboardPage() {
             credits: number;
             subscription_tier?: string;
             subscription_status?: string;
-            max_monthly_credits?: number;
+            max_daily_credits?: number;
           };
           
-          setCredits(profile.credits);
-          setTokens(profile.credits); // Update token store with credits from profile
+          // Only update credits if they weren't just refreshed
+          if (!refreshed) {
+            setCredits(profile.credits);
+            setTokens(profile.credits); // Update token store with credits from profile
+          }
+          
           setSubscriptionTier(profile.subscription_tier || "free");
           setSubscriptionStatus(profile.subscription_status || null);
-          setMaxCredits(profile.max_monthly_credits || 100);
+          setMaxCredits(profile.max_daily_credits || 5); // Default to 5 daily credits for free plan
         }
       } catch (err) {
         console.error("Error checking user:", err);
@@ -148,6 +171,12 @@ export default function DashboardPage() {
             </div>
           )}
           
+          {creditsRefreshed && (
+            <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-blue-900 text-blue-100' : 'bg-blue-100 text-blue-800'}`}>
+              Your daily credits have been refreshed!
+            </div>
+          )}
+          
           {error && (
             <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800'}`}>
               {error}
@@ -165,10 +194,10 @@ export default function DashboardPage() {
                     <p className="font-bold capitalize">{subscriptionTier} Plan</p>
                     <p className="text-sm opacity-75">
                       {subscriptionTier === 'free' 
-                        ? '100 credits on signup' 
+                        ? '5 credits per day' 
                         : subscriptionTier === 'pro' 
-                          ? '100 credits/month' 
-                          : '500 credits/month'}
+                          ? '25 credits per day' 
+                          : '200 credits per day'}
                     </p>
                     {subscriptionStatus && subscriptionTier !== 'free' && (
                       <p className="text-sm mt-1 capitalize">
@@ -216,4 +245,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-} 
+}

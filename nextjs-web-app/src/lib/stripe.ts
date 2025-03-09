@@ -7,23 +7,23 @@ let stripe: Stripe | null = null;
 export const PLANS = {
   FREE: {
     name: 'Free',
-    credits: 100,
+    credits: 5,
     price: 0,
-    features: ['100 credits on signup', 'Access to all basic tools'],
+    features: ['5 free credits per day', 'Max 3x generations'],
   },
   PRO: {
     name: 'Pro',
-    credits: 100,
+    credits: 25,
     price: 10,
     priceId: process.env.STRIPE_PRO_PRICE_ID,
-    features: ['100 credits per month', 'Priority support', 'Access to advanced tools'],
+    features: ['25 free credits per day', 'Ability to use smarter models', 'Ability to configure vibes'],
   },
   ULTRA: {
     name: 'Ultra',
-    credits: 500,
+    credits: 200,
     price: 50,
     priceId: process.env.STRIPE_ULTRA_PRICE_ID,
-    features: ['500 credits per month', 'Priority support', 'Access to all tools', 'Dedicated account manager'],
+    features: ['200 free credits per day', 'Everything from other plans', 'Priority support', 'Generations can be saved'],
   },
 };
 

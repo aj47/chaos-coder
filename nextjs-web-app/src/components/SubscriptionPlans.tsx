@@ -118,7 +118,7 @@ export default function SubscriptionPlans({
                 <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium">Popular</span>
               </div>
               <p className="text-2xl font-bold mt-2">${PLANS.PRO.price}/mo</p>
-              <p className="text-sm opacity-75 mt-1">{PLANS.PRO.credits} credits/month</p>
+              <p className="text-sm opacity-75 mt-1">{PLANS.PRO.credits} credits/day</p>
             </div>
             
             <div className="mb-6 flex-grow">
@@ -187,7 +187,7 @@ export default function SubscriptionPlans({
                 <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium">Best Value</span>
               </div>
               <p className="text-2xl font-bold mt-2">${PLANS.ULTRA.price}/mo</p>
-              <p className="text-sm opacity-75 mt-1">{PLANS.ULTRA.credits} credits/month</p>
+              <p className="text-sm opacity-75 mt-1">{PLANS.ULTRA.credits} credits/day</p>
             </div>
             
             <div className="mb-6 flex-grow">
