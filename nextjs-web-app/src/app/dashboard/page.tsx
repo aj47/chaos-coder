@@ -143,27 +143,13 @@ export default function DashboardPage() {
       const [planType, action] = plan.split(':');
       const isDowngrade = action === 'downgrade';
       
-      console.log('Plan selection:', { 
-        planType, 
-        isDowngrade, 
-        subscriptionStatus, 
-        subscriptionTier,
-        currentState: {
-          creditsAvailable: credits,
-          maxCreditsAllowed: maxCredits
-        }
-      });
-      
       // First check if the user can make this change
       if (isDowngrade && subscriptionStatus !== 'active') {
-        console.log('Preventing downgrade - subscription not active:', subscriptionStatus);
         setError(`You need an active subscription to downgrade. Your current subscription status is "${subscriptionStatus || 'none'}".`);
         return;
       }
       
       if (isDowngrade) {
-        console.log('Calling downgrade API with plan:', planType.toUpperCase());
-        
         try {
           // Call the downgrade API
           const response = await fetch('/api/stripe/downgrade', {
@@ -172,25 +158,19 @@ export default function DashboardPage() {
             body: JSON.stringify({ plan: planType.toUpperCase() }),
           });
           
-          // Log the raw response for debugging
-          console.log('Downgrade API response status:', response.status);
           const responseText = await response.text();
-          console.log('Downgrade API response text:', responseText);
           
           // Parse the JSON response, if it's valid JSON
           let responseData;
           try {
             responseData = JSON.parse(responseText);
-          } catch (e) {
-            console.error('Error parsing API response as JSON:', e);
+          } catch {
             throw new Error('Received invalid response from server');
           }
           
           if (!response.ok) {
             // Special handling for server errors that might be recoverable
             if (response.status === 500) {
-              console.log('Server error, but may still have worked. Attempting to refresh...');
-              // Set success message optimistically
               setSuccessMessage('Plan update initiated. Refreshing to check status...');
               
               // Refresh the page after a delay
@@ -200,46 +180,46 @@ export default function DashboardPage() {
               return;
             }
             
-            // Provide a more helpful message for the common error case
-            if (responseData.error === 'No active subscription found') {
-              throw new Error('You need an active paid subscription to downgrade. Please subscribe to a paid plan first.');
-            }
-            throw new Error(responseData.error || 'Failed to downgrade plan');
+            throw new Error(responseData?.error || 'Unknown error occurred');
           }
           
-          // Handle success - either redirect or display success message
-          setSuccessMessage(responseData.message || 'Plan downgraded successfully.');
+          // Success path
+          setSuccessMessage(responseData?.message || 'Subscription updated successfully');
           
-          // Refresh the page after a delay to show updated status
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } catch (apiError) {
-          console.error('API error:', apiError);
-          throw apiError;
+          // Reset state
+          setIsUpgrading(false);
+          setError(null);
+          
+          // Refresh the profile data
+          await refreshUserProfile();
+        } catch {
+          setError('Failed to update subscription. Please try again later.');
         }
       } else {
-        // For upgrades, continue with existing checkout flow
-        // Call the checkout API
-        const response = await fetch('/api/stripe/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: planType.toUpperCase() }),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create checkout session');
+        // Regular upgrade flow - redirect to Stripe Checkout
+        try {
+          // Create Stripe checkout session
+          const response = await fetch('/api/stripe/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan: planType.toUpperCase() }),
+          });
+          
+          if (!response.ok) {
+            const { error } = await response.json();
+            throw new Error(error || 'Failed to create checkout session');
+          }
+          
+          const { url } = await response.json();
+          
+          // Redirect to checkout
+          if (url) {
+            window.location.href = url;
+          }
+        } catch {
+          setError('Failed to start checkout process. Please try again later.');
         }
-        
-        const { url } = await response.json();
-        
-        // Redirect to Stripe Checkout
-        window.location.href = url;
       }
-    } catch (err) {
-      console.error("Error updating plan:", err);
-      setError(err instanceof Error ? err.message : "An error occurred while updating your plan");
     } finally {
       setIsUpgrading(false);
     }
@@ -249,7 +229,7 @@ export default function DashboardPage() {
     try {
       setIsPurchasingCredits(true);
       
-      // Call the credits purchase API
+      // Create Stripe checkout session for credit purchase
       const response = await fetch('/api/stripe/credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -257,17 +237,20 @@ export default function DashboardPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create checkout session');
+        const { error } = await response.json();
+        throw new Error(error || 'Failed to create checkout session');
       }
       
       const { url } = await response.json();
       
-      // Redirect to Stripe Checkout
-      window.location.href = url;
-    } catch (err) {
-      console.error("Error purchasing credits:", err);
-      setError(err instanceof Error ? err.message : "An error occurred during checkout");
+      // Redirect to checkout
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch {
+      setError('Failed to start checkout process. Please try again later.');
     } finally {
       setIsPurchasingCredits(false);
     }
@@ -277,6 +260,46 @@ export default function DashboardPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/');
+  };
+
+  // Add helper function to update state from profile
+  const updateStateFromProfile = (profile: any) => {
+    if (profile) {
+      setCredits(profile.credits || 0);
+      setSubscriptionTier(profile.subscription_tier || 'free');
+      setSubscriptionStatus(profile.subscription_status || null);
+      setMaxCredits(profile.max_monthly_credits || 5);
+      setUserEmail(profile.email || null);
+    }
+  };
+  
+  // Fix the getUserProfile reference by creating a new local function
+  const refreshUserProfile = async () => {
+    try {
+      const userData = await getUserData();
+      if (!userData) return;
+      
+      // Fetch latest user profile from database
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userData.user.id)
+        .single();
+
+      if (profileError) {
+        setError("Unable to load profile data");
+        return null;
+      }
+      
+      if (profile) {
+        updateStateFromProfile(profile);
+      }
+      
+      return profile;
+    } catch {
+      setError("Unable to check user account");
+      return null;
+    }
   };
 
   if (loading) {

@@ -1,56 +1,65 @@
 'use client';
 
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
-import { loadStripe, Stripe } from '@stripe/stripe-js';
-
-interface StripeContextType {
-  stripe: Stripe | null;
-  isLoading: boolean;
-}
-
-const StripeContext = createContext<StripeContextType>({
-  stripe: null,
-  isLoading: true,
-});
-
-export function useStripe() {
-  return useContext(StripeContext);
-}
+import { ReactNode, useEffect, useState } from 'react';
+import { loadStripe, Stripe as StripeType } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
 
 interface StripeProviderProps {
   children: ReactNode;
 }
 
-export function StripeProvider({ children }: StripeProviderProps) {
-  const [stripe, setStripe] = useState<Stripe | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+// Create the actual component implementation
+function StripeProviderImpl({ children }: StripeProviderProps) {
+  const [stripePromise, setStripePromise] = useState<Promise<StripeType | null> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeStripe = async () => {
-      if (!stripe) {
-        try {
-          const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-          
-          if (stripePublishableKey) {
-            const stripeInstance = await loadStripe(stripePublishableKey);
-            setStripe(stripeInstance);
-          } else {
-            console.error('Stripe publishable key is not configured');
-          }
-        } catch (error) {
-          console.error('Error initializing Stripe:', error);
-        } finally {
-          setIsLoading(false);
+    async function initializeStripe() {
+      try {
+        // Try to load the Stripe instance
+        const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        
+        if (!stripePublishableKey) {
+          // Instead of logging to console, set an error state
+          setError('Stripe is not configured. Payment features are unavailable.');
+          setLoading(false);
+          return;
         }
+        
+        const stripePromise = loadStripe(stripePublishableKey);
+        setStripePromise(stripePromise);
+      } catch {
+        // Instead of logging to console, set an error state without using the error parameter
+        setError('Failed to initialize payment system. Please try again later.');
+      } finally {
+        setLoading(false);
       }
-    };
+    }
 
     initializeStripe();
-  }, [stripe]);
+  }, []);
+
+  if (loading) {
+    return <div>Loading payment system...</div>;
+  }
+
+  if (error) {
+    // Display a user-friendly error or redirect
+    return <div className="text-red-500 p-4">{error}</div>;
+  }
+
+  if (!stripePromise) {
+    return <>{children}</>; // Just render children without Stripe if not available
+  }
 
   return (
-    <StripeContext.Provider value={{ stripe, isLoading }}>
+    <Elements stripe={stripePromise}>
       {children}
-    </StripeContext.Provider>
+    </Elements>
   );
-} 
+}
+
+// Export both the default and named exports
+export default StripeProviderImpl;
+export const StripeProvider = StripeProviderImpl; 

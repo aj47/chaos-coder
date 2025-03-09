@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { plan } = body;
 
-    console.log('Downgrade requested to plan:', plan);
+    // Validate plan
+    if (!plan || !['FREE', 'PRO'].includes(plan)) {
+      return NextResponse.json({ error: 'Invalid plan specified' }, { status: 400 });
+    }
 
     // Initialize Supabase client
     const cookieStore = cookies();
@@ -20,11 +23,8 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      console.error('User authentication error:', userError);
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    console.log('User authenticated:', user.id);
 
     // Get user profile with subscription details
     const { data: profile, error: profileError } = await supabase
@@ -34,17 +34,13 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      console.error('Error fetching profile:', profileError);
-      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
     }
 
-    // Log full profile data for debugging
-    console.log('User profile:', {
-      subscription_tier: profile.subscription_tier,
-      subscription_status: profile.subscription_status,
-      stripe_subscription_id: profile.stripe_subscription_id,
-      stripe_customer_id: profile.stripe_customer_id
-    });
+    // Check if the user has an active Stripe subscription
+    if (!profile.stripe_customer_id || !profile.stripe_subscription_id) {
+      return NextResponse.json({ error: 'No active subscription found' }, { status: 400 });
+    }
 
     // UPDATED LOGIC: Check if the user has a valid subscription to downgrade from
     const validSubscriptionTier = profile.subscription_tier && 
@@ -52,7 +48,6 @@ export async function POST(req: NextRequest) {
     const validSubscriptionStatus = profile.subscription_status === 'active';
     
     if (!validSubscriptionTier || !validSubscriptionStatus) {
-      console.error('No valid subscription to downgrade. Tier:', profile.subscription_tier, 'Status:', profile.subscription_status);
       return NextResponse.json({ error: 'No active subscription found to downgrade' }, { status: 400 });
     }
 
@@ -64,7 +59,6 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id);
       
     if (updateError) {
-      console.error('Error updating profile with downgrade:', updateError);
       return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
     }
     
@@ -74,7 +68,6 @@ export async function POST(req: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Error in downgrade API:', error);
     return NextResponse.json(
       { error: 'Failed to process downgrade request' },
       { status: 500 }

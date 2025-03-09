@@ -21,6 +21,8 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
     password?: string;
     general?: string;
   }>({});
+  const [error, setError] = useState<string | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState(false);
   
   if (!isOpen) return null;
   
@@ -63,31 +65,25 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
     const supabase = createClient();
     
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
-            first_name: firstName
-          } as UserMetadata
-        }
+            first_name: firstName,
+          },
+        },
       });
-      
+
       if (error) {
-        setFormErrors({ general: error.message });
-      } else {
-        // Store first name in local storage for immediate access after email verification
-        localStorage.setItem('firstName', firstName);
-        alert("Check your email for the confirmation link!");
-        onClose();
-        // Don't redirect to dashboard after signup
+        setError(error.message);
+        return;
       }
-    } catch (error) {
-      console.error("Error signing up:", error);
-      setFormErrors({ 
-        general: "An error occurred during sign up. Please try again." 
-      });
+
+      setSignupSuccess(true);
+    } catch (error: any) {
+      setError(error.message || "An error occurred during signup");
     } finally {
       setIsLoading(false);
     }
@@ -100,25 +96,19 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
     const supabase = createClient();
     
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
+          redirectTo: window.location.origin + '/auth/callback',
+        },
       });
       
       if (error) {
-        setFormErrors({ general: error.message });
+        setError(error.message);
       }
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-      setFormErrors({ 
-        general: "An error occurred during Google sign in. Please try again." 
-      });
+    } catch (error: any) {
+      setError(error.message || "An error occurred during Google sign-in");
     } finally {
       setIsGoogleLoading(false);
     }
@@ -158,11 +148,11 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
         <h2 id="signup-modal-title" className="text-xl font-bold mb-4">Free Limit Reached</h2>
         <p className="mb-6">You&apos;ve reached the limit of 25 free generations. Create an account to continue using our service.</p>
         
-        {formErrors.general && (
+        {error && (
           <div className={`p-3 mb-4 rounded-lg ${
             theme === 'dark' ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-800'
           }`}>
-            {formErrors.general}
+            {error}
           </div>
         )}
         

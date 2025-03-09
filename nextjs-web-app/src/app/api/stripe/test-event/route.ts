@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('Test event endpoint called');
+    // Parse the request body but don't use it in production
+    await request.json();
     
-    // Parse the request body
-    const body = await req.json();
-    console.log('Request body:', JSON.stringify(body, null, 2));
-    
-    // Get headers
-    const headers: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      headers[key] = value;
+    // Return a success response
+    return NextResponse.json({ 
+      message: 'Test event received',
+      timestamp: new Date().toISOString(),
     });
-    console.log('Request headers:', JSON.stringify(headers, null, 2));
-    
-    return NextResponse.json({ success: true, message: 'Test event received' });
   } catch (error) {
-    console.error('Error in test event:', error);
-    return NextResponse.json({ error: 'Test event failed' }, { status: 500 });
+    // Handle error without logging to console
+    return NextResponse.json(
+      { error: 'Failed to process test event' },
+      { status: 500 }
+    );
   }
 } 

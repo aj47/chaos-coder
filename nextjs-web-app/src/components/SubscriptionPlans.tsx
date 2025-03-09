@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { PLANS } from '@/lib/stripe';
 import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 interface SubscriptionPlansProps {
   currentPlan: string;
@@ -29,13 +30,6 @@ export default function SubscriptionPlans({
   // Check if the user has an active paid subscription
   const hasActiveSubscription = currentPlan !== 'free' && subscriptionStatus === 'active';
   
-  // Log for debugging
-  console.log('SubscriptionPlans state:', { 
-    currentPlan, 
-    subscriptionStatus, 
-    hasActiveSubscription 
-  });
-
   const handleSelectPlan = (plan: string) => {
     if (plan === currentPlan.toLowerCase()) {
       return; // Don't allow selecting the current plan
@@ -49,11 +43,7 @@ export default function SubscriptionPlans({
     
     // Don't allow downgrades without an active subscription
     if (isDowngrade && !hasActiveSubscription) {
-      console.log('Attempted downgrade without active subscription:', { 
-        currentPlan, 
-        targetPlan: plan, 
-        subscriptionStatus 
-      });
+      toast.error('You don\'t have an active subscription to downgrade');
       return;
     }
     

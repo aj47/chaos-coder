@@ -44,13 +44,11 @@ function getStripe() {
 }
 
 // Helper function to create a checkout session
-export async function createCheckoutSession(customerId: string, priceId: string, userId: string) {
+export async function createCheckoutSession(customerId: string, priceId: string, userId: string): Promise<{ url: string | null }> {
   try {
     const stripe = getStripe();
-    // Create a Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
@@ -58,33 +56,35 @@ export async function createCheckoutSession(customerId: string, priceId: string,
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/dashboard?checkout=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/dashboard?checkout=cancelled`,
       metadata: {
         userId,
       },
     });
 
-    return { sessionId: session.id, url: session.url };
+    return { url: session.url };
   } catch (error) {
-    console.error('Error creating checkout session:', error);
-    throw error;
+    throw new Error(`Failed to create checkout session: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 // Helper function to create or retrieve a Stripe customer
-export async function createOrRetrieveCustomer(email: string, userId: string) {
+export async function getOrCreateCustomer(userId: string, email: string): Promise<string> {
   try {
     const stripe = getStripe();
-    // Search for an existing customer with the given email
-    const customers = await stripe.customers.list({ email });
+    // Search for an existing customer with the user's email
+    const customers = await stripe.customers.list({
+      email,
+      limit: 1,
+    });
 
+    // If a customer exists, return their ID
     if (customers.data.length > 0) {
-      // Return the first customer with the given email
       return customers.data[0].id;
     }
 
-    // Create a new customer if one doesn't exist
+    // Otherwise, create a new customer
     const customer = await stripe.customers.create({
       email,
       metadata: {
@@ -94,92 +94,89 @@ export async function createOrRetrieveCustomer(email: string, userId: string) {
 
     return customer.id;
   } catch (error) {
-    console.error('Error creating or retrieving customer:', error);
-    throw error;
+    throw new Error(`Failed to get or create customer: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 // Helper function to cancel a subscription
-export async function cancelSubscription(subscriptionId: string, cancelAtPeriodEnd: boolean = false) {
+export async function cancelSubscription(subscriptionId: string): Promise<void> {
   try {
     const stripe = getStripe();
-    const subscription = await stripe.subscriptions.update(subscriptionId, {
-      cancel_at_period_end: cancelAtPeriodEnd
-    });
-    
-    if (!cancelAtPeriodEnd) {
-      // Cancel immediately if not set to cancel at period end
-      return await stripe.subscriptions.cancel(subscriptionId);
-    }
-    
-    return subscription;
+    await stripe.subscriptions.cancel(subscriptionId);
   } catch (error) {
-    console.error('Error cancelling subscription:', error);
-    throw error;
+    throw new Error(`Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 // Helper function to get subscription details
-export async function getSubscription(subscriptionId: string) {
+export async function retrieveSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
   try {
     const stripe = getStripe();
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    return subscription;
+    return await stripe.subscriptions.retrieve(subscriptionId);
   } catch (error) {
-    console.error('Error retrieving subscription:', error);
-    throw error;
+    throw new Error(`Failed to retrieve subscription: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
+// Helper function to calculate the price for credit purchases
+function calculateCreditPrice(amount: number): number {
+  // Simple pricing model: $1 per credit with volume discount
+  let price = amount;
+  if (amount >= 100) {
+    // 10% discount for 100+ credits
+    price = amount * 0.9;
+  } else if (amount >= 50) {
+    // 5% discount for 50+ credits
+    price = amount * 0.95;
+  }
+  return price;
+}
+
 // Helper function to create a checkout session for a one-time purchase of credits
-export async function createCreditsCheckoutSession(customerId: string, userId: string, amount: number, planTier: string) {
+export async function createCreditCheckoutSession(
+  customerId: string,
+  amount: number,
+  userId: string
+): Promise<{ url: string | null }> {
   try {
     const stripe = getStripe();
     
-    // Determine the appropriate unit amount based on the plan tier
-    const plan = planTier.toUpperCase() === 'PRO' ? PLANS.PRO : PLANS.ULTRA;
-    const creditsPerDollar = plan.topUpRate || 0;
-    
-    if (!creditsPerDollar) {
-      throw new Error('Invalid plan tier or top-up rate not configured');
-    }
-    
-    // Calculate how many credits they'll receive
-    const creditsToAdd = amount * creditsPerDollar;
-    
-    // Create a Stripe checkout session for a one-time payment
+    // Create a Stripe checkout session for the credit purchase
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `${creditsToAdd} Additional Credits`,
-              description: `Purchase ${creditsToAdd} additional credits for your ${planTier} plan`,
+              name: `${amount} AI Credits`,
+              description: 'AI Credits for generating content',
             },
-            unit_amount: amount * 100, // amount in cents
+            unit_amount: calculateCreditPrice(amount) * 100, // Convert dollars to cents
           },
           quantity: 1,
         },
       ],
-      mode: 'payment', // one-time payment
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?credits_purchased=true&amount=${creditsToAdd}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      mode: 'payment',
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/dashboard?checkout=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/dashboard?checkout=cancelled`,
       metadata: {
         userId,
-        creditsToAdd,
-        purchaseType: 'credits',
+        isCreditPurchase: 'true',
+        credits: amount.toString(),
       },
     });
 
-    return { sessionId: session.id, url: session.url };
+    return { url: session.url };
   } catch (error) {
-    console.error('Error creating credits checkout session:', error);
-    throw error;
+    throw new Error(`Failed to create credits checkout session: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+// Export aliases for backward compatibility
+export const createOrRetrieveCustomer = getOrCreateCustomer;
+export const createCreditsCheckoutSession = createCreditCheckoutSession;
+export const getSubscription = retrieveSubscription;
 
 export default { 
   getStripe,
