@@ -13,6 +13,7 @@ interface PromptInputProps {
   isUpdateMode?: boolean;
   model?: string;
   numGenerations?: number;
+  initialStyle?: string | null;
 }
 
 export default function PromptInput({
@@ -20,11 +21,20 @@ export default function PromptInput({
   isUpdateMode = false,
   model = "fast",
   numGenerations = 1,
+  initialStyle = null,
 }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [chaosMode, setChaosMode] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const { theme } = useTheme();
+
+  // If initialStyle is provided, append it to the prompt placeholder
+  const getPlaceholder = () => {
+    if (initialStyle) {
+      return `Describe your web app idea... (Style: ${initialStyle})`;
+    }
+    return "Describe your web app idea...";
+  };
 
   // Calculate cost based on model and number of generations
   const calculateCost = () => {
@@ -86,11 +96,7 @@ export default function PromptInput({
               type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder={
-                isUpdateMode
-                  ? "Describe how to update the code..."
-                  : "Type your prompt..."
-              }
+              placeholder={getPlaceholder()}
               className={`w-full backdrop-blur-xl border-2 rounded-lg pl-10 pr-4 py-2.5 text-sm shadow-xl transition-all ${
                 theme === "dark"
                   ? "bg-gray-900/40 border-gray-700/50 text-white placeholder-gray-500 focus:border-blue-500/50 focus:ring-blue-500/20"

@@ -1,27 +1,25 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
-import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
 import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
-import MockDeployButton from "@/components/MockDeployButton";
 import { SignupModal } from "@/components/SignupModal";
 import styled from "styled-components";
 import { useTokenStore } from "@/store/useTokenStore";
 import { AlertModal } from "@/components/AlertModal";
-import { toast } from "react-hot-toast";
 import { 
   DEFAULT_STYLES, 
   isPredefinedStyle, 
   getStyleDisplayNames
 } from "@/config/styles";
+import AppTile from "@/components/AppTile";
 
 const LoadingContainer = styled.div`
   display: flex;
@@ -89,7 +87,7 @@ function ResultsContent() {
   );
   const [results, setResults] = useState<string[]>(new Array(numGenerations).fill(""));
   const [error, setError] = useState<string | null>(null);
-  const [selectedAppIndex, setSelectedAppIndex] = useState(0);
+  const [selectedAppIndex, setSelectedAppIndex] = useState<number>(0);
   const [editedResults, setEditedResults] = useState<string[]>(
     new Array(numGenerations).fill("")
   );
@@ -111,8 +109,12 @@ function ResultsContent() {
     type: 'auth'
   });
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const { theme } = useTheme();
   const setTokens = useTokenStore((state) => state.setTokens);
+
+  // Reference for animation
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const variations = [
     "Build a version with offline functionality and progressive web app features.",
@@ -282,73 +284,82 @@ function ResultsContent() {
               // Insufficient credits error
               throw { status: 402, message: "Insufficient credits" };
             }
-
+            
+            if (response.status === 429) {
+              // Rate limit error
+              throw { status: 429, message: "Rate limit exceeded" };
+            }
+            
             if (!response.ok) {
-              throw new Error(`Failed to update app ${index + 1}`);
+              throw new Error(`HTTP error! status: ${response.status}`);
             }
-
+            
             const data = await response.json();
-            if (data.error) {
-              throw new Error(data.error);
-            }
-
-            return { index, code: data.code };
+            return { index, data };
           });
-
-          // Wait for all updates to complete
+          
+          // Wait for all promises to resolve
           const results = await Promise.all(updatePromises);
           
-          // Update all results at once
-          setEditedResults((prev) => {
-            const newResults = [...prev];
-            results.forEach(result => {
-              newResults[result.index] = result.code;
+          // Update the results state with the new data
+          results.forEach(({ index, data }) => {
+            setResults((prev) => {
+              const newResults = [...prev];
+              newResults[index] = data.code;
+              return newResults;
             });
-            return newResults;
+            
+            setEditedResults((prev) => {
+              const newResults = [...prev];
+              newResults[index] = data.code;
+              return newResults;
+            });
           });
         } catch (error: unknown) {
-          setLoadingStates(new Array(6).fill(false));
+          console.error("Error updating apps:", error);
           
-          // Check if the error is our custom error object with status
-          if (typeof error === 'object' && error !== null && 'status' in error) {
-            const customError = error as { status: number; message: string };
+          // Check if error is an object with status property
+          if (error && typeof error === 'object' && 'status' in error) {
+            const statusError = error as { status: number; message?: string };
             
-            if (customError.status === 401) {
+            if (statusError.status === 401) {
               setAlertInfo({
                 title: "Authentication Required",
                 message: "You need to sign in to generate web apps. Sign in to continue.",
                 type: 'auth'
               });
               setShowAlertModal(true);
-            } else if (customError.status === 402) {
+            } else if (statusError.status === 402) {
               setAlertInfo({
                 title: "No Credits Remaining",
                 message: "You have used all your available credits. Subscribe to a plan to get more credits.",
                 type: 'credits'
               });
               setShowAlertModal(true);
+            } else if (statusError.status === 429) {
+              setShowSignupModal(true);
             }
           } else {
-            // Handle other errors
-            console.error("Error updating apps:", error);
-            toast.error("An error occurred while updating the apps.");
+            setError("Failed to update apps. Please try again.");
           }
+        } finally {
+          setLoadingStates(new Array(6).fill(false));
         }
       } else {
-        // Update only the selected app (original behavior)
+        // Update only the selected app
         setLoadingStates((prev) => {
           const newStates = [...prev];
           newStates[selectedAppIndex] = true;
           return newStates;
         });
-
+        
         try {
-          // Use the style directly from the styles array for the selected index
+          // Use the style directly from the styles array
           const style = styles[selectedAppIndex];
           
           // Check if this is a custom style using our central helper
           const isCustomStyle = !isPredefinedStyle(style);
-
+          
           const response = await fetch("/api/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -361,7 +372,7 @@ function ResultsContent() {
               model: modelTypes[selectedAppIndex] || "fast",
             }),
           });
-
+          
           if (response.status === 401) {
             // Authentication required error
             setAlertInfo({
@@ -383,25 +394,33 @@ function ResultsContent() {
             setShowAlertModal(true);
             return;
           }
-
+          
+          if (response.status === 429) {
+            // Show signup modal for rate limit
+            setShowSignupModal(true);
+            throw new Error("Rate limit exceeded. Please create an account to continue.");
+          }
+          
           if (!response.ok) {
-            throw new Error(`Failed to update app ${selectedAppIndex + 1}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
-
+          
           const data = await response.json();
-          if (data.error) {
-            throw new Error(data.error);
-          }
-
+          
+          setResults((prev) => {
+            const newResults = [...prev];
+            newResults[selectedAppIndex] = data.code;
+            return newResults;
+          });
+          
           setEditedResults((prev) => {
             const newResults = [...prev];
             newResults[selectedAppIndex] = data.code;
             return newResults;
           });
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Failed to update application"
-          );
+        } catch (error) {
+          console.error("Error updating app:", error);
+          setError("Failed to update app. Please try again.");
         } finally {
           setLoadingStates((prev) => {
             const newStates = [...prev];
@@ -411,12 +430,100 @@ function ResultsContent() {
         }
       }
     } else {
-      setLoadingStates(new Array(numGenerations).fill(true));
-      setResults(new Array(numGenerations).fill(""));
-      setEditedResults(new Array(numGenerations).fill(""));
-      setGenerationTimes({});
-      Promise.all(variations.map((_, index) => generateApp(index, prompt)));
+      // Generate a new app
+      // For new generation, use the selected style if available
+      const styleToUse = selectedStyle || DEFAULT_STYLES[0];
+      const isCustomStyle = !isPredefinedStyle(styleToUse);
+      
+      // Add a new loading state
+      setLoadingStates((prev) => [...prev, true]);
+      
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            framework: isCustomStyle ? "custom" : styleToUse,
+            customStyle: isCustomStyle ? styleToUse : undefined,
+            model: "fast", // Default to fast model for new generations
+          }),
+        });
+        
+        if (response.status === 401) {
+          // Authentication required error
+          setAlertInfo({
+            title: "Authentication Required",
+            message: "You need to sign in to generate web apps. Sign in to continue.",
+            type: 'auth'
+          });
+          setShowAlertModal(true);
+          
+          // Remove the loading state we just added
+          setLoadingStates((prev) => prev.slice(0, -1));
+          return;
+        }
+        
+        if (response.status === 402) {
+          // Insufficient credits error
+          setAlertInfo({
+            title: "No Credits Remaining",
+            message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+            type: 'credits'
+          });
+          setShowAlertModal(true);
+          
+          // Remove the loading state we just added
+          setLoadingStates((prev) => prev.slice(0, -1));
+          return;
+        }
+        
+        if (response.status === 429) {
+          // Show signup modal for rate limit
+          setShowSignupModal(true);
+          
+          // Remove the loading state we just added
+          setLoadingStates((prev) => prev.slice(0, -1));
+          throw new Error("Rate limit exceeded. Please create an account to continue.");
+        }
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Add the new result
+        setResults((prev) => [...prev, data.code]);
+        setEditedResults((prev) => [...prev, data.code]);
+        
+        // Add the style to the styles array
+        styles.push(styleToUse);
+        
+        // Select the new app
+        setSelectedAppIndex(results.length);
+        
+        // Reset selected style after generation
+        setSelectedStyle(null);
+        
+      } catch (error) {
+        console.error("Error generating new app:", error);
+        setError("Failed to generate new app. Please try again.");
+        
+        // Remove the loading state we just added
+        setLoadingStates((prev) => prev.slice(0, -1));
+      } finally {
+        // Update the loading state for the new app
+        setLoadingStates((prev) => {
+          const newStates = [...prev];
+          newStates[newStates.length - 1] = false;
+          return newStates;
+        });
+      }
     }
+    
+    // Close the prompt input
+    setIsPromptOpen(false);
   };
 
   const handleVoiceInput = (text: string) => {
@@ -446,13 +553,47 @@ function ResultsContent() {
   // Function to handle clicking on a tile
   const handleTileClick = (index: number) => {
     setSelectedAppIndex(index);
-    // Scroll to the detailed view
-    setTimeout(() => {
-      document.getElementById('detailed-view')?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }, 100);
+    // No need to scroll to detailed view since it's now at the top
+  };
+
+  // Handle app deletion
+  const handleDeleteApp = (index: number) => {
+    // Create new arrays without the deleted item
+    const newLoadingStates = [...loadingStates];
+    newLoadingStates.splice(index, 1);
+    setLoadingStates(newLoadingStates);
+    
+    const newResults = [...results];
+    newResults.splice(index, 1);
+    setResults(newResults);
+    
+    const newEditedResults = [...editedResults];
+    newEditedResults.splice(index, 1);
+    setEditedResults(newEditedResults);
+    
+    // Update selected index if needed
+    if (selectedAppIndex >= index && selectedAppIndex > 0) {
+      setSelectedAppIndex(selectedAppIndex - 1);
+    }
+    
+    // Show confirmation toast
+    setAlertInfo({
+      title: "App Deleted",
+      message: "The app has been successfully deleted.",
+      type: 'auth' // Reusing existing alert type
+    });
+    setShowAlertModal(true);
+  };
+
+  // Handle style selection for new generation
+  const handleStyleSelect = (style: string) => {
+    setSelectedStyle(style);
+  };
+
+  // Handle new generation with selected style
+  const handleNewGeneration = () => {
+    // Open the prompt input with the selected style
+    setIsPromptOpen(true);
   };
 
   return (
@@ -516,103 +657,42 @@ function ResultsContent() {
           )}
 
           {results.length > 0 && (
-            <div className="h-[calc(100vh-10rem)] overflow-y-auto">
-              {/* Grid of all app previews */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {appTitles.map((title: string, index: number) => (
-                  <motion.div
-                    key={index}
-                    className={`rounded-lg overflow-hidden border ${
-                      selectedAppIndex === index 
-                        ? theme === "dark" 
-                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30" 
-                          : "border-indigo-500 ring-2 ring-indigo-300/50"
-                        : theme === "dark"
-                          ? "border-gray-700"
-                          : "border-gray-200"
-                    } transition-all duration-200 cursor-pointer relative`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => handleTileClick(index)}
-                  >
-                    {/* Pro model badge */}
-                    {modelTypes[index] === "pro" && (
-                      <div className="absolute top-2 right-2 z-20 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium shadow-lg">
-                        PRO
-                      </div>
-                    )}
-                    <div className="h-[300px]">
-                      <BrowserContainer theme={theme} title={title}>
-                        {loadingStates[index] ? (
-                          <LoadingContainer>
-                            <LoadingTitle>Generating</LoadingTitle>
-                            <LoadingBar>
-                              <LoadingProgress
-                                animate={{
-                                  x: ["-100%", "100%"],
-                                }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 1.5,
-                                  ease: "linear",
-                                }}
-                              />
-                            </LoadingBar>
-                            <ShortLoadingBar>
-                              <LoadingProgress
-                                animate={{
-                                  x: ["-100%", "100%"],
-                                }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 2,
-                                  ease: "linear",
-                                  delay: 0.2,
-                                }}
-                              />
-                            </ShortLoadingBar>
-                          </LoadingContainer>
-                        ) : (
-                          <CodePreviewPanel
-                            code={editedResults[index] || ""}
-                            onChange={(newCode) => {
-                              const newResults = [...editedResults];
-                              newResults[index] = newCode;
-                              setEditedResults(newResults);
-                            }}
-                            isLoading={loadingStates[index]}
-                            theme={theme}
-                            showControls={false}
-                          />
-                        )}
-                      </BrowserContainer>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-              
-              {/* Expanded view of selected app */}
+            <div className="h-[calc(100vh-10rem)] overflow-y-auto" ref={containerRef}>
+              {/* Expanded view of selected app at the TOP */}
               <motion.div
+                layout
                 id="detailed-view"
-                className="mt-8"
+                className="mb-8"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ duration: 0.3 }}
               >
-                <h2 className={`text-xl font-semibold mb-4 ${
-                  theme === "dark" ? "text-white" : "text-gray-900"
-                }`}>
-                  {appTitles[selectedAppIndex]} - Detailed View
-                  {/* Add pro model badge to detailed view title */}
-                  {modelTypes[selectedAppIndex] === "pro" && (
-                    <span className="ml-2 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium">
-                      PRO
-                    </span>
-                  )}
-                </h2>
-                <div className="h-[500px]">
-                  <BrowserContainer theme={theme} title={`${appTitles[selectedAppIndex]} - Detailed View`}>
+                <div className="relative bg-gray-50 dark:bg-gray-800 rounded-lg p-3 shadow-xl border border-gray-200 dark:border-gray-700">
+                  {/* Mac-style header */}
+                  <div className="flex items-center px-3 py-2 bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    </div>
+                    <div className="flex-1 text-center">
+                      <span className={`text-xs font-medium truncate ${
+                        theme === "dark" ? "text-gray-300" : "text-gray-600"
+                      }`}>
+                        {appTitles[selectedAppIndex]} - Detailed View
+                        {/* Add pro model badge to detailed view title */}
+                        {modelTypes[selectedAppIndex] === "pro" && (
+                          <span className="ml-2 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium">
+                            PRO
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="w-12"></div>
+                  </div>
+                  
+                  {/* Main content */}
+                  <div className="h-[500px]">
                     {loadingStates[selectedAppIndex] ? (
                       <LoadingContainer>
                         <LoadingTitle>Generating</LoadingTitle>
@@ -643,24 +723,155 @@ function ResultsContent() {
                         </ShortLoadingBar>
                       </LoadingContainer>
                     ) : (
-                      <div className="relative h-full">
-                        <CodePreviewPanel
-                          code={editedResults[selectedAppIndex] || ""}
-                          onChange={handleCodeChange}
-                          isLoading={loadingStates[selectedAppIndex]}
-                          theme={theme}
-                          deployButton={
-                            <MockDeployButton 
-                              code={editedResults[selectedAppIndex] || ""} 
-                              theme={theme} 
-                            />
-                          }
-                        />
-                      </div>
+                      <CodePreviewPanel
+                        code={editedResults[selectedAppIndex] || ""}
+                        onChange={(newCode) => handleCodeChange(newCode)}
+                        isLoading={loadingStates[selectedAppIndex]}
+                        theme={theme}
+                        showControls={true}
+                      />
                     )}
-                  </BrowserContainer>
+                  </div>
+                  
+                  {/* Control buttons */}
+                  <div className="pt-4 pb-2 px-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+                    <div>
+                      <button
+                        onClick={() => setIsPromptOpen(true)}
+                        className={`px-4 py-2 rounded-md font-medium text-sm mr-2 ${
+                          theme === "dark"
+                            ? "bg-gray-700 text-white hover:bg-gray-600"
+                            : "bg-gray-200 text-gray-800 hover:bg-gray-300"
+                        }`}
+                      >
+                        Edit Prompt
+                      </button>
+                    </div>
+                    <div>
+                      <button
+                        className={`px-4 py-2 rounded-md font-medium text-sm mr-2 ${
+                          theme === "dark"
+                            ? "bg-blue-600 text-white hover:bg-blue-500"
+                            : "bg-blue-500 text-white hover:bg-blue-600"
+                        }`}
+                      >
+                        Deploy
+                      </button>
+                      <button
+                        className={`px-4 py-2 rounded-md font-medium text-sm ${
+                          theme === "dark"
+                            ? "bg-green-600 text-white hover:bg-green-500"
+                            : "bg-green-500 text-white hover:bg-green-600"
+                        }`}
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
+              
+              {/* Grid of all app previews */}
+              <AnimatePresence>
+                <motion.h2
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={`text-xl font-semibold mb-4 ${
+                    theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  All Designs
+                </motion.h2>
+              </AnimatePresence>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <AnimatePresence>
+                  {appTitles.map((title: string, index: number) => (
+                    <motion.div
+                      key={index}
+                      layout
+                      className={`rounded-lg overflow-hidden ${
+                        selectedAppIndex === index 
+                          ? theme === "dark" 
+                            ? "border-indigo-500/50 ring-2 ring-indigo-500/30" 
+                            : "border-indigo-500 ring-2 ring-indigo-300/50"
+                          : theme === "dark"
+                            ? "border-gray-700"
+                            : "border-gray-200"
+                      } transition-all duration-300 relative`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ 
+                        opacity: 1, 
+                        y: 0,
+                        scale: selectedAppIndex === index ? 1.03 : 1
+                      }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ 
+                        type: "spring",
+                        damping: 20,
+                        stiffness: 200,
+                        delay: index * 0.05
+                      }}
+                    >
+                      {/* Pro model badge */}
+                      {modelTypes[index] === "pro" && (
+                        <div className="absolute top-2 right-2 z-20 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium shadow-lg">
+                          PRO
+                        </div>
+                      )}
+                      
+                      {/* Use the AppTile component with Mac-like window style */}
+                      <AppTile
+                        title={title}
+                        isSelected={selectedAppIndex === index}
+                        onClick={() => handleTileClick(index)}
+                        onDelete={() => handleDeleteApp(index)}
+                        isLoading={loadingStates[index]}
+                        theme={theme}
+                        showPreviewButtons={selectedAppIndex === index}
+                      >
+                        {!loadingStates[index] && (
+                          <CodePreviewPanel
+                            code={editedResults[index] || ""}
+                            onChange={(newCode) => {
+                              const newResults = [...editedResults];
+                              newResults[index] = newCode;
+                              setEditedResults(newResults);
+                            }}
+                            isLoading={false}
+                            theme={theme}
+                            showControls={false}
+                          />
+                        )}
+                      </AppTile>
+                    </motion.div>
+                  ))}
+                  
+                  {/* Add the "+" placeholder tile for generating new designs */}
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ 
+                      type: "spring",
+                      damping: 20,
+                      stiffness: 200,
+                      delay: appTitles.length * 0.05
+                    }}
+                  >
+                    <AppTile
+                      title="Add New Design"
+                      isSelected={false}
+                      onClick={handleNewGeneration}
+                      theme={theme}
+                      isPlaceholder={true}
+                      availableStyles={Object.values(getStyleDisplayNames())}
+                      onStyleSelect={handleStyleSelect}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
           )}
         </div>
@@ -676,6 +887,7 @@ function ResultsContent() {
         isUpdateMode={true}
         model={modelTypes[selectedAppIndex] || "fast"}
         numGenerations={numGenerations}
+        initialStyle={selectedStyle}
       />
       
       <PerformanceMetrics
