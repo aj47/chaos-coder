@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // Parse the request body
     const body = await req.json();
     console.log(JSON.stringify(body));
-    const { prompt, variation = '', framework, customStyle, model = 'fast' } = body;
+    const { prompt, variation = '', framework, customStyle } = body;
     
     // Check if user is authenticated
     const { data: { user } } = await supabase.auth.getUser();
@@ -44,31 +44,14 @@ export async function POST(req: NextRequest) {
     // Check if user has enough credits
     const userCredits = userProfile?.credits ?? 0;
     
-    // Calculate the cost based on the model
-    const modelCost = body.model === "pro" ? 5 : 1;
+    // All models now cost exactly 1 credit
+    const modelCost = 1;
     
     if (userCredits < modelCost && body.variation !== "rate-limit-check") {
       return NextResponse.json(
         { error: "insufficient_credits", message: "You don't have enough credits for this generation. Please purchase more credits to continue." },
         { status: 402 }
       );
-    }
-    
-    // Only deduct credits for real generations, not rate limit checks
-    if (body && body.variation !== "rate-limit-check") {
-      // Deduct credits based on model
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ credits: userCredits - modelCost })
-        .eq('id', user.id);
-      
-      if (updateError) {
-        console.error("Error updating user credits:", updateError);
-        return NextResponse.json(
-          { error: "Failed to update credits" },
-          { status: 500 }
-        );
-      }
     }
     
     // Get the style instructions from our central config based on framework
@@ -108,14 +91,13 @@ export async function POST(req: NextRequest) {
           {
             virtual_key: "openrouter-07e727",
             override_params: {
-              // model: model === "pro" ? "anthropic/claude-3.7-sonnet" : "google/gemini-flash-1.5-8b",
               model: "google/gemini-flash-1.5-8b",
             },
           },
           {
             virtual_key: "sambanova-6bc4d0",
             override_params: {
-              model: model === "pro" ? "DeepSeek-R1" : "Meta-Llama-3.2-1B-Instruct",
+              model: "Meta-Llama-3.2-1B-Instruct",
             },
           },
         ],
@@ -196,43 +178,69 @@ Additional Notes:
 Format the code with proper indentation and spacing for readability.`;
     }
 
-    const response = await portkey.chat.completions.create({
-      messages: [{ role: "user", content: fullPrompt }],
-      temperature: 0.7,
-      max_tokens: 4096,
-    });
-
-    // Get the response content
-    let code = response.choices[0]?.message?.content || "";
-
-    // Trim out any markdown code blocks (```html, ```, etc.)
-    if (typeof code === 'string') {
-      code = code
-        .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
-        .trim();
-    }
-    
-    // Trim out <think> blocks
-    if (typeof code === 'string') {
-      code = code.replace(/<think>([\s\S]*?)<\/think>/g, "");
-    }
-
-    // If user is authenticated, return remaining credits
-    if (user) {
-      const { data: updatedProfile } = await supabase
-        .from('profiles')
-        .select('credits')
-        .eq('id', user.id)
-        .single();
-      
-      return NextResponse.json({ 
-        code,
-        credits: updatedProfile?.credits ?? 0,
-        cost: modelCost // Return the cost of the generation
+    try {
+      const response = await portkey.chat.completions.create({
+        messages: [{ role: "user", content: fullPrompt }],
+        temperature: 0.7,
+        max_tokens: 4096,
       });
-    }
 
-    return NextResponse.json({ code });
+      // Get the response content
+      let code = response.choices[0]?.message?.content || "";
+
+      // Trim out any markdown code blocks (```html, ```, etc.)
+      if (typeof code === 'string') {
+        code = code
+          .replace(/^```(?:html|javascript|js)?\n([\s\S]*?)```$/m, "$1")
+          .trim();
+      }
+      
+      // Trim out <think> blocks
+      if (typeof code === 'string') {
+        code = code.replace(/<think>([\s\S]*?)<\/think>/g, "");
+      }
+
+      // Only deduct credits after successful generation and only for real generations
+      if (user && body.variation !== "rate-limit-check") {
+        // Deduct 1 credit (all models now cost 1 credit)
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ credits: userCredits - modelCost })
+          .eq('id', user.id);
+        
+        if (updateError) {
+          console.error("Error updating user credits:", updateError);
+          return NextResponse.json(
+            { error: "Failed to update credits" },
+            { status: 500 }
+          );
+        }
+      }
+
+      // If user is authenticated, return remaining credits after successful deduction
+      if (user) {
+        const { data: updatedProfile } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', user.id)
+          .single();
+        
+        return NextResponse.json({ 
+          code,
+          credits: updatedProfile?.credits ?? 0,
+          cost: modelCost // Return the cost of the generation
+        });
+      }
+
+      return NextResponse.json({ code });
+      
+    } catch (error) {
+      console.error("Error generating code:", error);
+      return NextResponse.json(
+        { error: "Failed to generate code" },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("Error:", error);
     return NextResponse.json(
