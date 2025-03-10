@@ -70,8 +70,13 @@ export async function createCheckoutSession(customerId: string, priceId: string,
 }
 
 // Helper function to create or retrieve a Stripe customer
-export async function getOrCreateCustomer(userId: string, email: string): Promise<string> {
+export async function getOrCreateCustomer(email: string, userId: string): Promise<string> {
   try {
+    // Validate email
+    if (!email || !email.includes('@')) {
+      throw new Error('Invalid email address provided');
+    }
+    
     const stripe = getStripe();
     // Search for an existing customer with the user's email
     const customers = await stripe.customers.list({

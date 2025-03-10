@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stripe_customer_id, subscription_tier')
+      .select('stripe_customer_id, subscription_tier, email')
       .eq('id', user.id)
       .single();
 
@@ -63,7 +63,17 @@ export async function POST(req: NextRequest) {
 
     // If we reach here, either there was no customer ID or the existing one was invalid
     if (!customerId) {
-      customerId = await createOrRetrieveCustomer(user.email || '', user.id);
+      // Get a valid email address - first try profile email, then user email, then error
+      const email = profile?.email || user.email;
+      
+      if (!email || !email.includes('@')) {
+        return NextResponse.json(
+          { error: 'Valid email address required for checkout. Please update your profile.' },
+          { status: 400 }
+        );
+      }
+      
+      customerId = await createOrRetrieveCustomer(email, user.id);
       needsUpdate = true;
     }
 
