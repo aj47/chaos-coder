@@ -5,7 +5,6 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuroraBackground } from "@/components/ui/aurora-background";
-import CodePreviewPanel from "@/components/CodePreviewPanel";
 import { useTheme } from "@/context/ThemeContext";
 import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
@@ -655,21 +654,13 @@ function ResultsContent() {
                         isLoading={loadingStates[index]}
                         theme={theme}
                         isExpanded={expandedAppIndex === index}
-                      >
-                        {!loadingStates[index] && (
-                          <CodePreviewPanel
-                            code={editedResults[index] || ""}
-                            onChange={(newCode) => {
-                              const newResults = [...editedResults];
-                              newResults[index] = newCode;
-                              setEditedResults(newResults);
-                            }}
-                            isLoading={false}
-                            theme={theme}
-                            showControls={expandedAppIndex === index}
-                          />
-                        )}
-                      </AppTile>
+                        code={editedResults[index] || ""}
+                        onChange={(newCode) => {
+                          const newResults = [...editedResults];
+                          newResults[index] = newCode;
+                          setEditedResults(newResults);
+                        }}
+                      />
                     </motion.div>
                   ))}
                   

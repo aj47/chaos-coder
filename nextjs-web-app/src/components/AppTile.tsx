@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Editor from '@monaco-editor/react';
 import {
   FaCode,
   FaTimes,
@@ -23,6 +24,8 @@ interface AppTileProps {
   availableStyles?: string[];
   onStyleSelect?: (style: string) => void;
   isExpanded?: boolean;
+  code?: string;
+  onChange?: (newCode: string) => void;
 }
 
 export default function AppTile({
@@ -36,12 +39,28 @@ export default function AppTile({
   isPlaceholder = false,
   availableStyles = [],
   onStyleSelect,
-  isExpanded = false
+  isExpanded = false,
+  code = '',
+  onChange
 }: AppTileProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStyleDropdown, setShowStyleDropdown] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
+  const [editedCode, setEditedCode] = useState(code);
+  const [previewKey, setPreviewKey] = useState(0);
+  
+  useEffect(() => {
+    setEditedCode(code);
+  }, [code]);
+
+  const handleCodeChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      setEditedCode(value);
+      setPreviewKey(prev => prev + 1);
+      onChange?.(value);
+    }
+  };
   
   const getBgColor = () => {
     if (isPlaceholder) {
@@ -297,40 +316,53 @@ export default function AppTile({
         )}
       </div>
       
-      {/* Content - make the entire area clickable */}
-      <div onClick={onClick} className={`overflow-hidden ${isExpanded ? 'h-[600px]' : 'h-[250px]'}`}>
-        {/* Display content based on viewMode */}
-        <div className="h-full overflow-auto">
-          {!isLoading ? (
-            <>
-              {viewMode === 'preview' && (
-                <div className="h-full">{children}</div>
-              )}
-              {viewMode === 'code' && (
-                <div className="h-full p-4 font-mono text-sm overflow-auto bg-gray-50 dark:bg-gray-900">
-                  <pre className={`${theme === "dark" ? "text-gray-300" : "text-gray-800"}`}>
-                    {/* Display code representation */}
-                    {/* This is a simplified representation - in a real app, you would extract actual code */}
-                    {`<div className="component">
-  <h2>${title}</h2>
-  ${isExpanded ? '  <div className="expanded-content">...</div>' : ''}
-  ${isSelected ? '  <div className="selected-styles">...</div>' : ''}
-</div>`}
-                  </pre>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="h-full w-full flex flex-col items-center justify-center">
-              <div className="p-6 flex flex-col items-center">
-                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
-                  Generating design...
-                </p>
-              </div>
+      {/* Content area with integrated code preview functionality */}
+      <div className={`overflow-hidden ${isExpanded ? 'h-[600px]' : 'h-[250px]'}`}>
+        {isLoading ? (
+          <div className="h-full w-full flex flex-col items-center justify-center">
+            <div className="p-6 flex flex-col items-center">
+              <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
+                Generating design...
+              </p>
             </div>
-          )}
-        </div>
+          </div>
+        ) : code ? (
+          <div className="h-full">
+            {viewMode === 'preview' ? (
+              <div key={previewKey} className="h-full" onClick={onClick}>
+                <iframe
+                  srcDoc={editedCode}
+                  className="w-full h-full border-0 bg-white"
+                  title="Preview"
+                />
+              </div>
+            ) : (
+              <div className="h-full" onClick={(e) => e.stopPropagation()}>
+                <Editor
+                  height="100%"
+                  defaultLanguage="html"
+                  theme={theme === 'dark' ? "vs-dark" : "light"}
+                  value={editedCode}
+                  onChange={handleCodeChange}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    roundedSelection: false,
+                    scrollBeyondLastLine: false,
+                    readOnly: isLoading,
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full overflow-auto" onClick={onClick}>
+            {children}
+          </div>
+        )}
       </div>
       
       {/* Delete confirmation modal */}
