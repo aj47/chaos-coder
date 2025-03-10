@@ -27,11 +27,48 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  await supabase.auth.getUser();
+    // Don't treat missing session as an error
+    if (userError && userError.name !== 'AuthSessionMissingError') {
+      console.error('Error in auth middleware:', userError);
+      // Clear auth cookies on actual errors
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        console.error('Error signing out:', signOutError);
+      }
+      return supabaseResponse;
+    }
+
+    if (user) {
+      // Verify the user exists in the database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('User profile not found:', profileError);
+        // Clear auth cookies if profile doesn't exist
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) {
+          console.error('Error signing out:', signOutError);
+        }
+      }
+    }
+  } catch (error) {
+    // Only log and handle actual errors, not missing sessions
+    if (error instanceof Error && error.name !== 'AuthSessionMissingError') {
+      console.error('Error in middleware:', error);
+      // Clear auth cookies on error
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        console.error('Error signing out:', signOutError);
+      }
+    }
+  }
 
   return supabaseResponse;
 } 
