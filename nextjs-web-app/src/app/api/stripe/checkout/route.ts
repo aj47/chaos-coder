@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Initialize Supabase client
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     // Check if user is authenticated
@@ -40,12 +40,35 @@ export async function POST(req: NextRequest) {
     }
 
     let customerId = profile?.stripe_customer_id;
+    let needsUpdate = false;
 
-    // If no Stripe customer ID exists, create one
+    // If no Stripe customer ID exists or if we encounter an error with the existing customer ID,
+    // create a new customer
+    try {
+      // Create a checkout session to test if the customer ID is valid
+      if (customerId) {
+        const { url } = await createCheckoutSession(
+          customerId,
+          planDetails.priceId as string,
+          user.id
+        );
+        
+        return NextResponse.json({ url });
+      }
+    } catch (error) {
+      console.error('Error with existing customer ID, creating a new one:', error);
+      customerId = null;
+      needsUpdate = true;
+    }
+
+    // If we reach here, either there was no customer ID or the existing one was invalid
     if (!customerId) {
       customerId = await createOrRetrieveCustomer(user.email || '', user.id);
+      needsUpdate = true;
+    }
 
-      // Update the user's profile with the Stripe customer ID
+    // Update the user's profile with the new Stripe customer ID if needed
+    if (needsUpdate) {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ stripe_customer_id: customerId })
@@ -60,18 +83,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create a checkout session
-    const { sessionId, url } = await createCheckoutSession(
+    // Create a checkout session with the valid customer ID
+    const { url } = await createCheckoutSession(
       customerId,
       planDetails.priceId as string,
       user.id
     );
 
-    return NextResponse.json({ sessionId, url });
+    return NextResponse.json({ url });
   } catch (error) {
     console.error('Error in checkout API:', error);
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: `Failed to create checkout session: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

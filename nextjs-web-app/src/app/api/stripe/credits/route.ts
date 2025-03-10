@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { createCreditsCheckoutSession } from '@/lib/stripe';
+import { createCreditsCheckoutSession, createOrRetrieveCustomer } from '@/lib/stripe';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,28 +45,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const customerId = profile.stripe_customer_id;
+    let customerId = profile.stripe_customer_id;
+    let needsUpdate = false;
 
-    if (!customerId) {
-      return NextResponse.json(
-        { error: 'No Stripe customer ID found. Please contact support.' },
-        { status: 400 }
-      );
+    // If no Stripe customer ID exists or if we encounter an error with the existing customer ID,
+    // create a new customer
+    try {
+      // Create a checkout session to test if the customer ID is valid
+      if (customerId) {
+        const { url } = await createCreditsCheckoutSession(
+          customerId,
+          amount,
+          user.id
+        );
+        
+        return NextResponse.json({ url });
+      }
+    } catch (error) {
+      console.error('Error with existing customer ID, creating a new one:', error);
+      customerId = null;
+      needsUpdate = true;
     }
 
-    // Create a checkout session for credit purchase
-    const { sessionId, url } = await createCreditsCheckoutSession(
+    // If we reach here, either there was no customer ID or the existing one was invalid
+    if (!customerId) {
+      customerId = await createOrRetrieveCustomer(user.email || '', user.id);
+      needsUpdate = true;
+    }
+
+    // Update the user's profile with the new Stripe customer ID if needed
+    if (needsUpdate) {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('Error updating profile with Stripe customer ID:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to update profile with Stripe customer ID' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Create a checkout session for credit purchase with the valid customer ID
+    const { url } = await createCreditsCheckoutSession(
       customerId,
-      user.id,
       amount,
-      profile.subscription_tier
+      user.id
     );
 
-    return NextResponse.json({ sessionId, url });
+    return NextResponse.json({ url });
   } catch (error) {
     console.error('Error in credits purchase API:', error);
     return NextResponse.json(
-      { error: 'Failed to create checkout session for credits' },
+      { error: `Failed to create checkout session for credits: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
