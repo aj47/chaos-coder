@@ -123,3 +123,5 @@ dmypy.json
 .DS_Store
 
 .aider*
+
+nextjs-web-app/nextjs-web-app/supabase/.temp

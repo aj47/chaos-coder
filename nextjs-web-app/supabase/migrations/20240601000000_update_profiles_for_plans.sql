@@ -9,10 +9,10 @@ BEGIN
     SELECT FROM information_schema.columns 
     WHERE table_name = 'profiles' AND column_name = 'credits'
   ) THEN
-    ALTER TABLE public.profiles ADD COLUMN credits INTEGER DEFAULT 5 NOT NULL;
+    ALTER TABLE public.profiles ADD COLUMN credits INTEGER DEFAULT 30 NOT NULL;
   ELSE
     -- If the column exists, we might want to update the default value
-    ALTER TABLE public.profiles ALTER COLUMN credits SET DEFAULT 5;
+    ALTER TABLE public.profiles ALTER COLUMN credits SET DEFAULT 30;
   END IF;
 
   -- Add subscription_tier column if it doesn't exist
@@ -85,9 +85,9 @@ BEGIN
   VALUES (
     new.id, 
     new.raw_user_meta_data->>'first_name',
-    5, -- Default free credits
+    30, -- Default free credits
     'free', -- Default plan
-    5, -- Default daily credit limit
+    30, -- Default daily credit limit
     now() -- Set initial refresh timestamp to now
   );
   RETURN new;

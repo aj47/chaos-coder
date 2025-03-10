@@ -67,15 +67,11 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         
         if (error) throw error;
         
-        
         // Store first name in localStorage as a backup
         localStorage.setItem('firstName', firstName);
         
-        // Set default token value for new users (typically 100 as per the DB schema)
-        if (data && data.user) {
-          console.log("Setting initial tokens for new user:", 100);
-          setTokens(100); // Set default token value for new accounts
-        }
+        // Let the database handle token initialization through the trigger
+        // The token store will be updated when auth state changes
         
         setMessage({ 
           type: "success", 

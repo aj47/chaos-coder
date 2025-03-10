@@ -4,8 +4,8 @@ RETURNS void AS $$
 BEGIN
   -- Update credits for free tier users
   UPDATE public.profiles
-  SET credits = 5
-  WHERE subscription_tier = 'free' AND credits < 5;
+  SET credits = 30
+  WHERE subscription_tier = 'free' AND credits < 30;
   
   -- Update credits for pro tier users
   UPDATE public.profiles
