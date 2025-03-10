@@ -56,7 +56,7 @@ export async function createCheckoutSession(customerId: string, priceId: string,
         },
       ],
       discounts: [{
-        coupon: 'freeaj47',
+        coupon: 'jYKdD3MY',
       }],
       mode: 'subscription',
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : 'http://localhost:3000')}/dashboard?checkout=success`,
