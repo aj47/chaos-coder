@@ -46,6 +46,21 @@ export default function DashboardPage() {
         // Set user email
         setUserEmail(userData.user.email || null);
         
+        // Check if this is a new login (using sessionStorage to track login state)
+        const isNewLogin = !sessionStorage.getItem('dashboard_visited');
+        if (isNewLogin) {
+          // Set a welcome message for new logins
+          setSuccessMessage(`Welcome back, ${userData.user.email}!`);
+          
+          // Mark as visited
+          sessionStorage.setItem('dashboard_visited', 'true');
+          
+          // Hide the welcome message after 5 seconds
+          setTimeout(() => {
+            setSuccessMessage(null);
+          }, 5000);
+        }
+        
         // Check if credits need to be refreshed for the day
         const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
           supabase,
@@ -103,6 +118,14 @@ export default function DashboardPage() {
     };
     
     checkUser();
+    
+    // Clear the dashboard_visited flag when the component is unmounted
+    return () => {
+      // Only clear if the user is navigating away from the dashboard
+      if (window.location.pathname !== '/dashboard') {
+        sessionStorage.removeItem('dashboard_visited');
+      }
+    };
   }, [router, setTokens]);
 
   // Check for successful Stripe session
@@ -110,6 +133,7 @@ export default function DashboardPage() {
     const sessionId = searchParams.get('session_id');
     const creditsPurchased = searchParams.get('credits_purchased');
     const purchasedAmount = searchParams.get('amount');
+    const planType = searchParams.get('plan');
 
     if (sessionId && creditsPurchased === 'true' && purchasedAmount) {
       setSuccessMessage(`Payment successful! ${purchasedAmount} credits have been added to your account.`);
@@ -118,10 +142,40 @@ export default function DashboardPage() {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
       
-      // Refresh profile data after a short delay
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Refresh profile data immediately instead of reloading the page
+      refreshUserProfile().then(() => {
+        // Hide success message after 5 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 5000);
+      });
+    } else if (sessionId && planType) {
+      // Handle plan upgrade success
+      const planName = planType.toLowerCase();
+      setSuccessMessage(`Payment successful! Your subscription has been upgraded to ${planName.toUpperCase()}.`);
+      
+      // Update the UI immediately to reflect the upgrade
+      setSubscriptionTier(planName);
+      setSubscriptionStatus('active');
+      
+      // Update max credits based on the new plan
+      if (planName === 'pro') {
+        setMaxCredits(PLANS.PRO.credits);
+      } else if (planName === 'ultra') {
+        setMaxCredits(PLANS.ULTRA.credits);
+      }
+      
+      // Remove the session_id from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Refresh profile data immediately instead of reloading the page
+      refreshUserProfile().then(() => {
+        // Hide success message after 5 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 5000);
+      });
     } else if (sessionId) {
       setSuccessMessage("Payment successful! Your subscription has been updated.");
       
@@ -129,10 +183,13 @@ export default function DashboardPage() {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
       
-      // Refresh profile data after a short delay
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Refresh profile data immediately instead of reloading the page
+      refreshUserProfile().then(() => {
+        // Hide success message after 5 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 5000);
+      });
     }
   }, [searchParams]);
 
@@ -272,13 +329,22 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
+    // Clear the dashboard_visited flag
+    sessionStorage.removeItem('dashboard_visited');
+    
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/');
   };
 
   // Add helper function to update state from profile
-  const updateStateFromProfile = (profile: any) => {
+  const updateStateFromProfile = (profile: {
+    credits?: number;
+    subscription_tier?: string;
+    subscription_status?: string;
+    max_monthly_credits?: number;
+    email?: string;
+  }) => {
     if (profile) {
       setCredits(profile.credits || 0);
       setSubscriptionTier(profile.subscription_tier || 'free');
@@ -288,12 +354,31 @@ export default function DashboardPage() {
     }
   };
   
+  // Helper function to get user data
+  const getUserData = async () => {
+    const supabase = createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      setError(userError.message);
+      return null;
+    }
+    
+    if (!userData?.user) {
+      router.push("/");
+      return null;
+    }
+    
+    return userData;
+  };
+  
   // Fix the getUserProfile reference by creating a new local function
   const refreshUserProfile = async () => {
     try {
       const userData = await getUserData();
-      if (!userData) return;
+      if (!userData) return null;
       
+      const supabase = createClient();
       // Fetch latest user profile from database
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
