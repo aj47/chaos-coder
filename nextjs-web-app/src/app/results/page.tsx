@@ -68,8 +68,8 @@ function ResultsContent() {
   const configParam = searchParams.get('config') || '';
   const defaultConfig = {
     numGenerations: 9,
-    modelTypes: Array(9).fill("fast"),
-    styles: Array(9).fill(DEFAULT_STYLES[0])
+    modelTypes: Array(9).fill(0).map((_, index) => index % 2 === 0 ? "pro" : "fast"),
+    styles: DEFAULT_STYLES.slice(0, 9)
   };
   
   let config;
@@ -150,7 +150,7 @@ function ResultsContent() {
     const startTime = performance.now();
     try {
       // Use the style from config instead of predefined frameworks
-      const style = styles[index] || DEFAULT_STYLES[0]; // Default if not specified
+      const style = styles[index] || DEFAULT_STYLES[index % DEFAULT_STYLES.length] || DEFAULT_STYLES[0]; // Use corresponding default style or first as fallback
       
       // Determine if this is a custom style using our central helper
       const isCustomStyle = !isPredefinedStyle(style);

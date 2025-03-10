@@ -118,7 +118,13 @@ export const DESIGN_STYLES: StyleOption[] = [
 export const DEFAULT_STYLES = [
   "glassmorphism", 
   "neumorphism", 
-  "material"
+  "material",
+  "flat",
+  "skeuomorphism",
+  "grid",
+  "brutalism",
+  "minimalism",
+  "dark-mode"
 ];
 
 // Get all predefined style values (excluding custom)

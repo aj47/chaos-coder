@@ -23,8 +23,10 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [numGenerations, setNumGenerations] = useState(9);
-  const [modelTypes, setModelTypes] = useState<Array<"fast" | "pro">>(Array(9).fill("fast"));
-  const [styles, setStyles] = useState<string[]>(Array(9).fill(DEFAULT_STYLES[0]));
+  const [modelTypes, setModelTypes] = useState<Array<"fast" | "pro">>(
+    Array(9).fill(0).map((_, index) => index % 2 === 0 ? "pro" : "fast")
+  );
+  const [styles, setStyles] = useState<string[]>(DEFAULT_STYLES.slice(0, 9));
   const [customStyles, setCustomStyles] = useState<string[]>(
     Array(9).fill("")
   );
@@ -95,8 +97,9 @@ export default function Home() {
   
   // Function to apply default settings for free tier users
   const applyDefaultSettingsForFreeTier = () => {
-    const newModelTypes: Array<"fast" | "pro"> = Array(numGenerations).fill("fast");
-    newModelTypes[0] = "pro"; // First model is pro, rest are fast
+    const newModelTypes: Array<"fast" | "pro"> = Array(numGenerations)
+      .fill(0)
+      .map((_, index) => index % 2 === 0 ? "pro" : "fast");
     setModelTypes(newModelTypes);
   };
 
@@ -144,31 +147,24 @@ export default function Home() {
       
       // Find the next unused style option
       setStyles((current) => {
-        // Extract all predefined style values except "custom"
-        const allStyleOptions = DESIGN_STYLES
-          .filter(v => v.value !== "custom")
-          .map(v => v.value);
-        
-        // Find the first unused style option
-        const nextStyle = allStyleOptions.find(v => !current.includes(v)) || 
-                         // If all are used, cycle back to the first option
-                         allStyleOptions[0];
-        
-        return [...current, nextStyle];
+        // If we've used all styles in DEFAULT_STYLES, start cycling through them
+        if (newNum <= DEFAULT_STYLES.length) {
+          // We still have unused default styles
+          return DEFAULT_STYLES.slice(0, newNum);
+        } else {
+          // We need to cycle through the styles
+          return [...current, DEFAULT_STYLES[(newNum - 1) % DEFAULT_STYLES.length]];
+        }
       });
       
       setCustomStyles((current) => [...current, ""]);
       
       // Add a new model type
-      // For free users, keep the first as pro and the rest as fast
-      if (subscriptionTier === "free") {
-        const newModelTypes: Array<"fast" | "pro"> = [...modelTypes, "fast"];
-        newModelTypes[0] = "pro"; // Ensure first model is pro
-        setModelTypes(newModelTypes);
-      } else {
-        // For paid users, just add with the default value
-        setModelTypes(current => [...current, "fast"]);
-      }
+      // For all users, maintain the alternating pattern
+      setModelTypes(current => {
+        const newModelType = (newNum - 1) % 2 === 0 ? "pro" : "fast";
+        return [...current, newModelType];
+      });
       
       return newNum;
     });
@@ -183,14 +179,7 @@ export default function Home() {
         setCustomStyles((current) => current.slice(0, newNum));
         
         // Remove model type from the last generation
-        // For free users, maintain the first as pro
-        if (subscriptionTier === "free" && newNum > 0) {
-          const newModelTypes = modelTypes.slice(0, newNum);
-          newModelTypes[0] = "pro"; // Ensure first model is pro
-          setModelTypes(newModelTypes);
-        } else {
-          setModelTypes(current => current.slice(0, newNum));
-        }
+        setModelTypes(current => current.slice(0, newNum));
         
         return newNum;
       });
