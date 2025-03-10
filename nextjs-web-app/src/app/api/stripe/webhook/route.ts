@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import stripeClient from '@/lib/stripe';
-import { PLANS } from '@/lib/stripe';
 import Stripe from 'stripe';
 
 // Define types for Stripe event objects
 type StripeCheckoutSession = Stripe.Checkout.Session;
-type StripeInvoice = Stripe.Invoice;
-type StripeSubscription = Stripe.Subscription;
 
 // Disable NextJS body parsing for webhooks
 export const dynamic = 'force-dynamic';
@@ -30,11 +27,19 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event;
   try {
     event = await stripeClient.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+  } catch (err: unknown) {
+    const error = err as Error;
+    return NextResponse.json({ error: `Webhook Error: ${error.message}` }, { status: 400 });
   }
 
-  const supabase = createClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ error: 'Supabase credentials not configured' }, { status: 500 });
+  }
+  
+  const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
   try {
     if (event.type === 'checkout.session.completed') {
@@ -139,7 +144,8 @@ export async function POST(req: NextRequest) {
     }
     
     return NextResponse.json({ message: 'Webhook processed successfully' }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ error: `Webhook error: ${error.message}` }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 500 });
   }
 } 
