@@ -152,7 +152,7 @@ function ResultsContent() {
         // Insufficient credits error
         setAlertInfo({
           title: "No Credits Remaining",
-          message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+          message: "You have used all your available credits. Please check your dashboard to manage your credits.",
           type: 'credits'
         });
         setShowAlertModal(true);
@@ -351,7 +351,7 @@ function ResultsContent() {
             // Insufficient credits error
             setAlertInfo({
               title: "No Credits Remaining",
-              message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+              message: "You have used all your available credits. Please check your dashboard to manage your credits.",
               type: 'credits'
             });
             setShowAlertModal(true);
@@ -431,7 +431,7 @@ function ResultsContent() {
           // Insufficient credits error
           setAlertInfo({
             title: "No Credits Remaining",
-            message: "You have used all your available credits. Subscribe to a plan to get more credits.",
+            message: "You have used all your available credits. Please check your dashboard to manage your credits.",
             type: 'credits'
           });
           setShowAlertModal(true);
@@ -555,18 +555,50 @@ function ResultsContent() {
     newEditedResults.splice(index, 1);
     setEditedResults(newEditedResults);
     
+    // Update styles array to keep appTitles in sync
+    const newStyles = [...styles];
+    newStyles.splice(index, 1);
+    // We need to update the styles variable directly since it's derived from config
+    // This ensures appTitles will be regenerated correctly
+    styles.splice(index, 1);
+    
+    // Update model types if they exist
+    if (modelTypes) {
+      const newModelTypes = [...modelTypes];
+      newModelTypes.splice(index, 1);
+      // Update modelTypes in a similar way to styles
+      modelTypes.splice(index, 1);
+    }
+    
+    // Update generation times if they exist for this index
+    if (generationTimes[index]) {
+      const newGenerationTimes = { ...generationTimes };
+      delete newGenerationTimes[index];
+      // Reindex the keys for remaining items
+      const reindexedTimes: {[key: number]: number} = {};
+      Object.keys(newGenerationTimes).forEach((key) => {
+        const numKey = parseInt(key);
+        if (numKey > index) {
+          reindexedTimes[numKey - 1] = newGenerationTimes[numKey];
+        } else {
+          reindexedTimes[numKey] = newGenerationTimes[numKey];
+        }
+      });
+      setGenerationTimes(reindexedTimes);
+    }
+    
     // Update selected index if needed
     if (selectedAppIndex >= index && selectedAppIndex > 0) {
       setSelectedAppIndex(selectedAppIndex - 1);
     }
     
-    // Show confirmation toast
-    setAlertInfo({
-      title: "App Deleted",
-      message: "The app has been successfully deleted.",
-      type: 'auth' // Reusing existing alert type
-    });
-    setShowAlertModal(true);
+    // If the expanded app is being deleted, collapse it
+    if (expandedAppIndex === index) {
+      setExpandedAppIndex(null);
+    } else if (expandedAppIndex !== null && expandedAppIndex > index) {
+      // Adjust the expanded index if it's after the deleted item
+      setExpandedAppIndex(expandedAppIndex - 1);
+    }
   };
 
   // Handle style selection for new generation

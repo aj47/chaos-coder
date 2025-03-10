@@ -145,7 +145,7 @@ export default function Home() {
         setAlertInfo({
           title: "Insufficient Credits",
           message:
-            "You don't have enough credits to generate these applications. Purchase more credits to continue.",
+            "You don't have enough credits to generate these applications. Please check your dashboard to manage your credits.",
           type: "credits",
         });
         setShowAlertModal(true);

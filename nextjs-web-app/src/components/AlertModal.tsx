@@ -28,7 +28,7 @@ export function AlertModal({ isOpen, onClose, title, message, type, onConfirm }:
   };
   
   const handleSubscribe = () => {
-    router.push('/pricing');
+    router.push('/dashboard');
     onClose();
   };
 
@@ -116,7 +116,7 @@ export function AlertModal({ isOpen, onClose, title, message, type, onConfirm }:
                     : 'bg-indigo-500 hover:bg-indigo-600 text-white'
               }`}
             >
-              {type === 'auth' ? 'Sign In' : type === 'credits' ? 'Subscribe' : 'Confirm Downgrade'}
+              {type === 'auth' ? 'Sign In' : type === 'credits' ? 'Go to Dashboard' : 'Confirm Downgrade'}
             </button>
             
             <button
