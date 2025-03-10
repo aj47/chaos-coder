@@ -27,55 +27,95 @@ export const DESIGN_STYLES: StyleOption[] = [
   {
     value: "glassmorphism",
     label: "Glassmorphism",
-    description: "Sleek glass-like UI with blur effects and transparency",
+    description: "Frosted glass effect with transparency, blur, and subtle borders",
     prompt: "Implement glassmorphism design with frosted glass effects, transparency, blur backgrounds, and subtle borders. Include a gradient background with floating elements.",
     iconKey: "FaGlasses",
     iconColor: "#8B5CF6"
   },
   {
+    value: "animated-illustrations",
+    label: "Animated Illustrations",
+    description: "Custom, moving graphics that enhance storytelling",
+    prompt: "Create a design with custom animated illustrations that enhance storytelling. Include smooth transitions, meaningful animations, and graphics that support the narrative flow.",
+    iconKey: "FaDrawPolygon",
+    iconColor: "#EC4899"
+  },
+  {
+    value: "abstract-geometry",
+    label: "Abstract Geometry",
+    description: "Bold, geometric shapes and patterns",
+    prompt: "Design with bold geometric shapes and abstract patterns. Use strong lines, angles, and mathematical precision to create visual interest and modern aesthetics.",
+    iconKey: "FaShapes",
+    iconColor: "#F59E0B"
+  },
+  {
+    value: "3d-elements",
+    label: "3D Elements",
+    description: "Depth and realism through three-dimensional design objects",
+    prompt: "Incorporate 3D design elements that create depth and realism. Use lighting, shadows, and perspective to make objects appear to exist in three-dimensional space.",
+    iconKey: "FaCube",
+    iconColor: "#3B82F6"
+  },
+  {
     value: "neumorphism",
     label: "Neumorphism",
-    description: "Soft UI with subtle shadows and dimensional effects",
+    description: "Soft, extruded elements that appear to push out from the background",
     prompt: "Use neumorphism (soft UI) design with subtle shadows, extruded elements, monochromatic color schemes, and minimalist icons. Elements should look like they're pressed into or extruded from the surface.",
     iconKey: "MdOutlineDesignServices",
     iconColor: "#9CA3AF"
   },
   {
-    value: "material",
+    value: "modern-saas",
+    label: "Modern SaaS",
+    description: "Clean, functional interfaces for software-as-a-service products",
+    prompt: "Design a clean, functional interface typical of modern SaaS products. Focus on usability, clear information hierarchy, and intuitive navigation patterns optimized for productivity.",
+    iconKey: "FaCloudDownloadAlt",
+    iconColor: "#0EA5E9"
+  },
+  {
+    value: "material-design",
     label: "Material Design",
-    description: "Google's material design principles with depth and motion",
+    description: "Google's design language with paper-like elements and subtle animations",
     prompt: "Follow Google's Material Design principles with responsive animations, card-based layouts, intentional white space, and bold typography. Include shadows to create depth and hierarchy.",
     iconKey: "FaLayerGroup",
     iconColor: "#EF4444"
   },
   {
-    value: "flat",
-    label: "Flat Design",
-    description: "Minimalist UI with simple elements and bright colors",
-    prompt: "Use flat design with minimalist 2D elements, bright colors, simple typography, and lack of 3D effects or gradients. Focus on content clarity and usability.",
-    iconKey: "FaSquare",
+    value: "retro-wave",
+    label: "Retro Wave/Synthwave",
+    description: "80s-inspired design with neon grids and sunset gradients",
+    prompt: "Create a retro wave/synthwave aesthetic with 80s-inspired elements, neon colors, grid landscapes, sunset gradients, and retro typography. Evoke nostalgia while maintaining modern usability.",
+    iconKey: "FaSun",
+    iconColor: "#D946EF"
+  },
+  {
+    value: "isometric-design",
+    label: "Isometric Design",
+    description: "Three-dimensional illustrations viewed from a specific angle",
+    prompt: "Use isometric design principles to create three-dimensional illustrations viewed from a specific angle (30 degrees). Maintain consistent perspective and scale across all elements.",
+    iconKey: "FaCubes",
     iconColor: "#10B981"
   },
   {
-    value: "skeuomorphism",
-    label: "Skeuomorphism",
-    description: "Realistic interface elements that mimic real-world objects",
-    prompt: "Design with skeuomorphism principles, creating realistic UI elements that mimic their real-world counterparts with detailed textures, shadows, and 3D effects. Emphasize familiar visual cues and intuitive interactions.",
-    iconKey: "FaCube",
-    iconColor: "#F97316"
+    value: "dark-mode",
+    label: "Dark Mode",
+    description: "Low-light interfaces with dark backgrounds and light text",
+    prompt: "Create a dark mode interface with deep gray/black backgrounds, careful use of accent colors, reduced brightness, and proper contrast for readability. Optimize for reduced eye strain.",
+    iconKey: "FaMoon",
+    iconColor: "#1F2937"
   },
   {
-    value: "grid",
-    label: "Grid Layout",
-    description: "Strong grid-based layouts with geometric precision",
-    prompt: "Create a design using a strong grid system with precise geometric layouts, clear alignment, and consistent spacing. Emphasize clean lines, structured content organization, and modular components.",
-    iconKey: "FaThLarge",
-    iconColor: "#3B82F6"
+    value: "pastel-palette",
+    label: "Pastel Palette",
+    description: "Soft, light color schemes with desaturated hues",
+    prompt: "Design using a pastel color palette with soft, light, desaturated hues. Create a gentle, calming aesthetic with balanced color distribution and subtle contrasts.",
+    iconKey: "FaPalette",
+    iconColor: "#FBCFE8"
   },
   {
     value: "brutalism",
     label: "Brutalism",
-    description: "Bold, raw and unpolished design with high contrast",
+    description: "Raw, unpolished design with stark typography and harsh contrasts",
     prompt: "Implement brutalist web design featuring raw, unpolished aesthetics with bold typography, high contrast, unconventional layouts, and purposefully unrefined elements. Use stark color combinations and embrace visual honesty.",
     iconKey: "FaBold",
     iconColor: "#000000"
@@ -83,26 +123,74 @@ export const DESIGN_STYLES: StyleOption[] = [
   {
     value: "minimalism",
     label: "Minimalism",
-    description: "Ultra-clean design with maximum whitespace and simplicity",
+    description: "Clean, sparse interfaces with significant whitespace",
     prompt: "Create a minimalist design with extreme simplicity, generous whitespace, limited color palette, refined typography, and only essential elements. Focus on content breathing room and eliminating all decorative elements.",
     iconKey: "FaMinusSquare",
     iconColor: "#94A3B8"
   },
   {
-    value: "dark-mode",
-    label: "Dark Mode",
-    description: "Sleek dark-themed UI optimized for night viewing",
-    prompt: "Create a dark mode interface with deep gray/black backgrounds, careful use of accent colors, reduced brightness, and proper contrast for readability. Optimize for reduced eye strain.",
-    iconKey: "FaMoon",
-    iconColor: "#1F2937"
+    value: "kinetic-typography",
+    label: "Kinetic Typography",
+    description: "Text that moves or changes to convey meaning",
+    prompt: "Design with kinetic typography where text moves or changes to convey meaning and emotion. Use animated text elements that enhance readability while adding visual interest and emphasis.",
+    iconKey: "FaFont",
+    iconColor: "#F43F5E"
   },
   {
-    value: "responsive",
-    label: "Responsive/Mobile-First",
-    description: "Adapts perfectly to any device with mobile optimization",
-    prompt: "Design with mobile-first, responsive principles ensuring perfect adaptation across all device sizes. Use flexible grids, strategic breakpoints, touch-friendly elements, and progressively enhanced features.",
-    iconKey: "FaTabletAlt",
-    iconColor: "#0EA5E9"
+    value: "gradients-2",
+    label: "Gradients 2.0",
+    description: "Modern color transitions beyond simple linear gradients",
+    prompt: "Implement modern gradient techniques that go beyond simple linear transitions. Use duotone effects, mesh gradients, color overlays, and dynamic gradient animations to create depth and visual interest.",
+    iconKey: "FaGradient",
+    iconColor: "#8B5CF6"
+  },
+  {
+    value: "moire-patterns",
+    label: "Moiré Patterns",
+    description: "Visual effects created by overlapping lines or grids",
+    prompt: "Create designs featuring moiré patterns - visual effects created by overlapping lines or grids. Use these patterns strategically to create movement, depth, and optical illusions.",
+    iconKey: "FaWaveSquare",
+    iconColor: "#6366F1"
+  },
+  {
+    value: "accessibility-first",
+    label: "Accessibility-First Design",
+    description: "Inclusive approaches prioritizing all users' needs",
+    prompt: "Design with accessibility as the primary consideration, ensuring the interface works for all users regardless of abilities. Follow WCAG guidelines, use sufficient color contrast, provide text alternatives, and ensure keyboard navigability.",
+    iconKey: "FaUniversalAccess",
+    iconColor: "#0369A1"
+  },
+  {
+    value: "liquid-animation",
+    label: "Liquid Animation",
+    description: "Fluid, water-like motion effects",
+    prompt: "Incorporate liquid animation effects with fluid, water-like motion. Use organic shapes, smooth transitions, and physics-based movements that mimic liquid properties.",
+    iconKey: "FaWater",
+    iconColor: "#06B6D4"
+  },
+  {
+    value: "bio-design",
+    label: "Bio Design",
+    description: "Nature-inspired interfaces with organic elements",
+    prompt: "Create a bio-design interface inspired by nature with organic shapes, natural color palettes, biomimicry principles, and elements that reference biological structures and patterns.",
+    iconKey: "FaLeaf",
+    iconColor: "#84CC16"
+  },
+  {
+    value: "monochrome-photography",
+    label: "Monochrome Photography",
+    description: "Black and white imagery for dramatic contrast",
+    prompt: "Design using monochrome photography with black and white imagery for dramatic contrast. Focus on composition, texture, lighting, and tonal range to create visual impact without color.",
+    iconKey: "FaCamera",
+    iconColor: "#525252"
+  },
+  {
+    value: "split-screen",
+    label: "Split-Screen Layouts",
+    description: "Interfaces divided into two distinct sections",
+    prompt: "Create a split-screen layout that divides the interface into two distinct sections. Use this division to create visual contrast, separate content types, or highlight different functions.",
+    iconKey: "FaColumns",
+    iconColor: "#4B5563"
   },
   {
     value: "custom",
@@ -116,15 +204,17 @@ export const DESIGN_STYLES: StyleOption[] = [
 
 // Default styles for initial app state
 export const DEFAULT_STYLES = [
-  "glassmorphism", 
-  "neumorphism", 
-  "material",
-  "flat",
-  "skeuomorphism",
-  "grid",
-  "brutalism",
+  "neumorphism",
+  "modern-saas",
+  "dark-mode",
+  "pastel-palette",
+  "gradient-2",
+  "material-design",
   "minimalism",
-  "dark-mode"
+  "glassmorphism", 
+  "accessibility-first",
+  "kinetic-typography",
+  "retro-wave",
 ];
 
 // Get all predefined style values (excluding custom)
