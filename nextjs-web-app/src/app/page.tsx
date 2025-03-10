@@ -11,6 +11,9 @@ import { toast } from "react-hot-toast";
 import Image from "next/image";
 import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
+import { useTokenStore } from "@/store/useTokenStore";
+import { User } from "@supabase/supabase-js";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
@@ -22,9 +25,24 @@ export default function Home() {
   );
   const [isStyleSettingsExpanded, setIsStyleSettingsExpanded] = useState(false);
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  
+  // Token store state
+  const setTokens = useTokenStore((state) => state.setTokens);
 
   // Animated gradient positions
   const [gradientPosition, setGradientPosition] = useState(0);
+  
+  // Check for user auth state on component mount
+  useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
+    
+    checkUser();
+  }, []);
   
   // Animate the gradient
   useEffect(() => {
@@ -59,7 +77,7 @@ export default function Home() {
   // Handle number of generations changes
   const incrementGenerations = () => {
     setNumGenerations((prev) => {
-      const newNum = prev + 1;
+      const newNum = Math.min(prev + 1, 5); // Cap at 5
       
       // Find the next unused style option
       setStyles((current) => {
@@ -79,15 +97,15 @@ export default function Home() {
   };
 
   const decrementGenerations = () => {
-    if (numGenerations > 1) {
-      setNumGenerations((prev) => {
-        const newNum = prev - 1;
-        // Remove style from the last generation
-        setStyles((current) => current.slice(0, newNum));
-        setCustomStyles((current) => current.slice(0, newNum));
-        return newNum;
-      });
-    }
+    setNumGenerations((prev) => {
+      if (prev <= 1) return prev;
+      
+      const newNum = prev - 1;
+      // Remove style from the last generation
+      setStyles((current) => current.slice(0, newNum));
+      setCustomStyles((current) => current.slice(0, newNum));
+      return newNum;
+    });
   };
 
   // Handle style selection
@@ -108,6 +126,32 @@ export default function Home() {
     });
   };
 
+  // Function to sync tokens with the database
+  const syncTokensWithDB = async (userId: string) => {
+    if (!userId) return;
+    
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user tokens:', error);
+        return;
+      }
+      
+      if (data && data.credits !== undefined) {
+        // Update the token store with the user's credits from DB
+        setTokens(data.credits);
+      }
+    } catch (error) {
+      console.error('Error syncing tokens with DB:', error);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!prompt) {
       setErrorMessage("Please enter a prompt to generate web applications.");
@@ -116,7 +160,7 @@ export default function Home() {
 
     setErrorMessage(null);
     setIsLoading(true);
-
+    
     try {
       // Make a test request to check authentication and credits before redirecting
       const response = await fetch("/api/check-auth", {
@@ -126,7 +170,7 @@ export default function Home() {
           prompt: prompt.substring(0, 50), // Just send a small part of the prompt for the check
         }),
       });
-
+      
       if (response.status === 401) {
         // Authentication required error
         setAlertInfo({
@@ -139,7 +183,7 @@ export default function Home() {
         setIsLoading(false);
         return;
       }
-
+      
       if (response.status === 402) {
         // Insufficient credits error
         setAlertInfo({
@@ -151,6 +195,12 @@ export default function Home() {
         setShowAlertModal(true);
         setIsLoading(false);
         return;
+      }
+      
+      // After submission is complete, sync tokens with the database
+      // to ensure the displayed token count is accurate
+      if (user?.id) {
+        await syncTokensWithDB(user.id);
       }
 
       const encodedPrompt = encodeURIComponent(prompt);
@@ -289,7 +339,7 @@ export default function Home() {
                 </RainbowButton>
 
                 {/* Collapsible Style Settings */}
-                <div className="mb-4">
+                <div className="mb-4 mt-4">
                   <button 
                     onClick={() => setIsStyleSettingsExpanded(!isStyleSettingsExpanded)}
                     className="w-full p-3 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg flex justify-between items-center"

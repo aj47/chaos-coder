@@ -730,7 +730,7 @@ function ResultsContent() {
                       delay: appTitles.length * 0.05
                     }}
                   >
-                    <AppTile
+                    {/* <AppTile
                       title="Add New Design"
                       isSelected={false}
                       onClick={handleNewGeneration}
@@ -738,7 +738,7 @@ function ResultsContent() {
                       isPlaceholder={true}
                       availableStyles={Object.values(getStyleDisplayNames())}
                       onStyleSelect={handleStyleSelect}
-                    />
+                    /> */}
                   </motion.div>
                 </AnimatePresence>
               </div>

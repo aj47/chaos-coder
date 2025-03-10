@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
 import { FcGoogle } from "react-icons/fc";
+import { useTokenStore } from "@/store/useTokenStore";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const setTokens = useTokenStore((state) => state.setTokens);
   
   if (!isOpen) return null;
 
@@ -44,7 +46,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       } else {
         // No need to validate firstName since it's a hidden field with default value
         
-        const { error } = await supabase.auth.signUp({
+        const { error, data } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -59,6 +61,11 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         
         // Store first name in localStorage as a backup
         localStorage.setItem('firstName', firstName);
+        
+        // Set default token value for new users (typically 100 as per the DB schema)
+        if (data && data.user) {
+          setTokens(100); // Set default token value for new accounts
+        }
         
         setMessage({ 
           type: "success", 
@@ -81,6 +88,10 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     
     try {
       const supabase = createClient();
+      
+      // Set default tokens for new users - this will be visible immediately
+      // in case of new Google sign-ups
+      setTokens(100);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

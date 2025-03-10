@@ -18,6 +18,31 @@ export function AuthButton() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const tokens = useTokenStore((state) => state.tokens);
+  const setTokens = useTokenStore((state) => state.setTokens);
+
+  // Fetch user profile and tokens from the database
+  const fetchUserTokens = async (userId: string) => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user tokens:', error);
+        return;
+      }
+      
+      if (data && data.credits !== undefined) {
+        // Update the token store with the user's credits from DB
+        setTokens(data.credits);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserTokens:', error);
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -29,6 +54,11 @@ export function AuthButton() {
           data: { user },
         } = await supabase.auth.getUser();
         setUser(user);
+        
+        // If user is authenticated, fetch their tokens
+        if (user) {
+          await fetchUserTokens(user.id);
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
       } finally {
@@ -42,8 +72,13 @@ export function AuthButton() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
+      async (_event: AuthChangeEvent, session: Session | null) => {
         setUser(session?.user || null);
+        
+        // Fetch tokens whenever auth state changes (login, signup, etc.)
+        if (session?.user) {
+          await fetchUserTokens(session.user.id);
+        }
       }
     );
 
