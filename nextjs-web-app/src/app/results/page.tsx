@@ -11,51 +11,14 @@ import PromptInput from "@/components/DevTools/PromptInput";
 import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import { SignupModal } from "@/components/SignupModal";
-import styled from "styled-components";
-import { useTokenStore } from "@/store/useTokenStore";
 import { AlertModal } from "@/components/AlertModal";
+import { useTokenStore } from "@/store/useTokenStore";
 import { 
   DEFAULT_STYLES, 
   isPredefinedStyle, 
   getStyleDisplayNames
 } from "@/config/styles";
 import AppTile from "@/components/AppTile";
-
-const LoadingContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-  width: 100%;
-  gap: 20px;
-  color: #9ca3af;
-`;
-
-const LoadingTitle = styled.div`
-  font-size: 24px;
-  margin-bottom: 10px;
-`;
-
-const LoadingBar = styled(motion.div)`
-  width: 100%;
-  max-width: 500px;
-  height: 8px;
-  background: rgba(75, 85, 99, 0.3);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-`;
-
-const LoadingProgress = styled(motion.div)`
-  height: 100%;
-  background: #4b5563;
-  border-radius: 4px;
-`;
-
-const ShortLoadingBar = styled(LoadingBar)`
-  max-width: 300px;
-`;
 
 // Wrapper component that uses searchParams
 function ResultsContent() {
@@ -88,6 +51,7 @@ function ResultsContent() {
   const [results, setResults] = useState<string[]>(new Array(numGenerations).fill(""));
   const [error, setError] = useState<string | null>(null);
   const [selectedAppIndex, setSelectedAppIndex] = useState<number>(0);
+  const [expandedAppIndex, setExpandedAppIndex] = useState<number | null>(null);
   const [editedResults, setEditedResults] = useState<string[]>(
     new Array(numGenerations).fill("")
   );
@@ -544,16 +508,16 @@ function ResultsContent() {
     );
   }, [promptParam, numGenerations]);
 
-  const handleCodeChange = (newCode: string) => {
-    const newResults = [...editedResults];
-    newResults[selectedAppIndex] = newCode;
-    setEditedResults(newResults);
-  };
-
   // Function to handle clicking on a tile
   const handleTileClick = (index: number) => {
+    if (expandedAppIndex === index) {
+      // If clicking the already expanded tile, collapse it
+      setExpandedAppIndex(null);
+    } else {
+      // Expand the clicked tile
+      setExpandedAppIndex(index);
+    }
     setSelectedAppIndex(index);
-    // No need to scroll to detailed view since it's now at the top
   };
 
   // Handle app deletion
@@ -658,118 +622,7 @@ function ResultsContent() {
 
           {results.length > 0 && (
             <div className="h-[calc(100vh-10rem)] overflow-y-auto" ref={containerRef}>
-              {/* Expanded view of selected app at the TOP */}
-              <motion.div
-                layout
-                id="detailed-view"
-                className="mb-8"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="relative bg-gray-50 dark:bg-gray-800 rounded-lg p-3 shadow-xl border border-gray-200 dark:border-gray-700">
-                  {/* Mac-style header */}
-                  <div className="flex items-center px-3 py-2 bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    </div>
-                    <div className="flex-1 text-center">
-                      <span className={`text-xs font-medium truncate ${
-                        theme === "dark" ? "text-gray-300" : "text-gray-600"
-                      }`}>
-                        {appTitles[selectedAppIndex]} - Detailed View
-                        {/* Add pro model badge to detailed view title */}
-                        {modelTypes[selectedAppIndex] === "pro" && (
-                          <span className="ml-2 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium">
-                            PRO
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="w-12"></div>
-                  </div>
-                  
-                  {/* Main content */}
-                  <div className="h-[500px]">
-                    {loadingStates[selectedAppIndex] ? (
-                      <LoadingContainer>
-                        <LoadingTitle>Generating</LoadingTitle>
-                        <LoadingBar>
-                          <LoadingProgress
-                            animate={{
-                              x: ["-100%", "100%"],
-                            }}
-                            transition={{
-                              repeat: Infinity,
-                              duration: 1.5,
-                              ease: "linear",
-                            }}
-                          />
-                        </LoadingBar>
-                        <ShortLoadingBar>
-                          <LoadingProgress
-                            animate={{
-                              x: ["-100%", "100%"],
-                            }}
-                            transition={{
-                              repeat: Infinity,
-                              duration: 2,
-                              ease: "linear",
-                              delay: 0.2,
-                            }}
-                          />
-                        </ShortLoadingBar>
-                      </LoadingContainer>
-                    ) : (
-                      <CodePreviewPanel
-                        code={editedResults[selectedAppIndex] || ""}
-                        onChange={(newCode) => handleCodeChange(newCode)}
-                        isLoading={loadingStates[selectedAppIndex]}
-                        theme={theme}
-                        showControls={true}
-                      />
-                    )}
-                  </div>
-                  
-                  {/* Control buttons */}
-                  <div className="pt-4 pb-2 px-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
-                    <div>
-                      <button
-                        onClick={() => setIsPromptOpen(true)}
-                        className={`px-4 py-2 rounded-md font-medium text-sm mr-2 ${
-                          theme === "dark"
-                            ? "bg-gray-700 text-white hover:bg-gray-600"
-                            : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-                        }`}
-                      >
-                        Edit Prompt
-                      </button>
-                    </div>
-                    <div>
-                      <button
-                        className={`px-4 py-2 rounded-md font-medium text-sm mr-2 ${
-                          theme === "dark"
-                            ? "bg-blue-600 text-white hover:bg-blue-500"
-                            : "bg-blue-500 text-white hover:bg-blue-600"
-                        }`}
-                      >
-                        Deploy
-                      </button>
-                      <button
-                        className={`px-4 py-2 rounded-md font-medium text-sm ${
-                          theme === "dark"
-                            ? "bg-green-600 text-white hover:bg-green-500"
-                            : "bg-green-500 text-white hover:bg-green-600"
-                        }`}
-                      >
-                        Preview
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+              {/* Remove the detailed view at the top since we'll show expanded tiles in the grid */}
               
               {/* Grid of all app previews */}
               <AnimatePresence>
@@ -790,37 +643,10 @@ function ResultsContent() {
                     <motion.div
                       key={index}
                       layout
-                      className={`rounded-lg overflow-hidden ${
-                        selectedAppIndex === index 
-                          ? theme === "dark" 
-                            ? "border-indigo-500/50 ring-2 ring-indigo-500/30" 
-                            : "border-indigo-500 ring-2 ring-indigo-300/50"
-                          : theme === "dark"
-                            ? "border-gray-700"
-                            : "border-gray-200"
-                      } transition-all duration-300 relative`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ 
-                        opacity: 1, 
-                        y: 0,
-                        scale: selectedAppIndex === index ? 1.03 : 1
-                      }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ 
-                        type: "spring",
-                        damping: 20,
-                        stiffness: 200,
-                        delay: index * 0.05
-                      }}
+                      className={`${
+                        expandedAppIndex === index ? "col-span-2 row-span-2" : ""
+                      }`}
                     >
-                      {/* Pro model badge */}
-                      {modelTypes[index] === "pro" && (
-                        <div className="absolute top-2 right-2 z-20 px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-medium shadow-lg">
-                          PRO
-                        </div>
-                      )}
-                      
-                      {/* Use the AppTile component with Mac-like window style */}
                       <AppTile
                         title={title}
                         isSelected={selectedAppIndex === index}
@@ -828,7 +654,7 @@ function ResultsContent() {
                         onDelete={() => handleDeleteApp(index)}
                         isLoading={loadingStates[index]}
                         theme={theme}
-                        showPreviewButtons={selectedAppIndex === index}
+                        isExpanded={expandedAppIndex === index}
                       >
                         {!loadingStates[index] && (
                           <CodePreviewPanel
@@ -840,7 +666,7 @@ function ResultsContent() {
                             }}
                             isLoading={false}
                             theme={theme}
-                            showControls={false}
+                            showControls={expandedAppIndex === index}
                           />
                         )}
                       </AppTile>

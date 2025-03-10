@@ -6,7 +6,9 @@ import {
   FaCode,
   FaTimes,
   FaPlus,
-  FaChevronDown
+  FaChevronDown,
+  FaRocket,
+  FaEye
 } from "react-icons/fa";
 
 interface AppTileProps {
@@ -16,11 +18,11 @@ interface AppTileProps {
   onDelete?: () => void;
   isLoading?: boolean;
   theme: "light" | "dark";
-  showPreviewButtons?: boolean;
   children?: React.ReactNode;
   isPlaceholder?: boolean;
   availableStyles?: string[];
   onStyleSelect?: (style: string) => void;
+  isExpanded?: boolean;
 }
 
 export default function AppTile({
@@ -30,15 +32,16 @@ export default function AppTile({
   onDelete,
   isLoading,
   theme,
-  showPreviewButtons = false,
   children,
   isPlaceholder = false,
   availableStyles = [],
-  onStyleSelect
+  onStyleSelect,
+  isExpanded = false
 }: AppTileProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStyleDropdown, setShowStyleDropdown] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
   
   const getBgColor = () => {
     if (isPlaceholder) {
@@ -100,6 +103,25 @@ export default function AppTile({
       onStyleSelect(selectedStyle);
     }
     onClick();
+  };
+
+  // Handle preview button click without minimizing
+  const handlePreviewClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setViewMode('preview');
+  };
+
+  // Handle code view button click without minimizing
+  const handleCodeViewClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setViewMode('code');
+  };
+
+  // Handle deploy button click (coming soon feature)
+  const handleDeployClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // This is a coming soon feature, so we'll just show an alert for now
+    alert('Deploy feature coming soon!');
   };
 
   // If this is a placeholder tile, render it differently
@@ -188,13 +210,16 @@ export default function AppTile({
   return (
     <motion.div
       layout
-      className={`relative rounded-lg cursor-pointer transition-all duration-200 overflow-hidden ${getBgColor()}`}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      className={`relative rounded-lg cursor-pointer transition-all duration-200 overflow-hidden ${getBgColor()} ${
+        isExpanded ? 'col-span-2 row-span-2' : ''
+      }`}
+      whileHover={{ scale: isExpanded ? 1 : 1.02 }}
+      whileTap={{ scale: isExpanded ? 1 : 0.98 }}
       style={{
         boxShadow: isSelected
           ? "0 8px 24px rgba(37, 99, 235, 0.15)"
           : "0 4px 20px rgba(0, 0, 0, 0.1)",
+        height: isExpanded ? '650px' : '300px'
       }}
     >
       {/* Mac-style window header - make entire header clickable except for red button */}
@@ -209,7 +234,6 @@ export default function AppTile({
           </div>
           {/* Yellow minimize button (just for show) */}
           <div 
-            onClick={onClick}
             className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 cursor-pointer transition-colors duration-150"
           ></div>
           {/* Green expand button */}
@@ -231,15 +255,71 @@ export default function AppTile({
             {title}
           </span>
         </div>
-        <div className="w-12"></div> {/* Spacer for balance */}
+        
+        {/* View mode and deploy buttons toolbar */}
+        {isSelected && (
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handlePreviewClick}
+              className={`px-2 py-1 text-xs rounded ${
+                viewMode === 'preview' 
+                  ? 'bg-blue-500 text-white' 
+                  : theme === 'dark' 
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <FaEye className="inline mr-1 w-3 h-3" /> Preview
+            </button>
+            <button
+              onClick={handleCodeViewClick}
+              className={`px-2 py-1 text-xs rounded ${
+                viewMode === 'code' 
+                  ? 'bg-blue-500 text-white' 
+                  : theme === 'dark' 
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <FaCode className="inline mr-1 w-3 h-3" /> Code
+            </button>
+            <button
+              onClick={handleDeployClick}
+              className={`px-2 py-1 text-xs rounded ${
+                theme === 'dark' 
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <FaRocket className="inline mr-1 w-3 h-3" /> Deploy
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Content - make the entire area clickable */}
-      <div onClick={onClick} className="h-[300px] overflow-hidden">
-        {/* Always show preview in smaller windows */}
+      <div onClick={onClick} className={`overflow-hidden ${isExpanded ? 'h-[600px]' : 'h-[250px]'}`}>
+        {/* Display content based on viewMode */}
         <div className="h-full overflow-auto">
           {!isLoading ? (
-            children
+            <>
+              {viewMode === 'preview' && (
+                <div className="h-full">{children}</div>
+              )}
+              {viewMode === 'code' && (
+                <div className="h-full p-4 font-mono text-sm overflow-auto bg-gray-50 dark:bg-gray-900">
+                  <pre className={`${theme === "dark" ? "text-gray-300" : "text-gray-800"}`}>
+                    {/* Display code representation */}
+                    {/* This is a simplified representation - in a real app, you would extract actual code */}
+                    {`<div className="component">
+  <h2>${title}</h2>
+  ${isExpanded ? '  <div className="expanded-content">...</div>' : ''}
+  ${isSelected ? '  <div className="selected-styles">...</div>' : ''}
+</div>`}
+                  </pre>
+                </div>
+              )}
+            </>
           ) : (
             <div className="h-full w-full flex flex-col items-center justify-center">
               <div className="p-6 flex flex-col items-center">
@@ -252,27 +332,6 @@ export default function AppTile({
           )}
         </div>
       </div>
-      
-      {/* Preview buttons that appear only when selected and showPreviewButtons is true */}
-      <AnimatePresence>
-        {isSelected && showPreviewButtons && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 via-black/50 to-transparent"
-          >
-            <div className="flex justify-center space-x-3">
-              <button className="px-3 py-1 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 transition-colors">
-                Preview
-              </button>
-              <button className="px-3 py-1 bg-green-500 text-white text-sm rounded-md hover:bg-green-600 transition-colors">
-                Deploy
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       
       {/* Delete confirmation modal */}
       <AnimatePresence>

@@ -93,21 +93,21 @@ export async function POST(req: NextRequest) {
         },
         targets: [
           {
-            virtual_key: "sambanova-6bc4d0",
-            override_params: {
-              model: model === "pro" ? "DeepSeek-R1" : "Meta-Llama-3.2-1B-Instruct",
-            },
-          },
-          {
             virtual_key: "openrouter-07e727",
             override_params: {
-              model: model === "pro" ? "deepseek/deepseek-r1" : "google/gemini-flash-1.5-8b",
+              model: model === "pro" ? "anthropic/claude-3-5-sonnet" : "google/gemini-flash-1.5-8b",
             },
           },
           {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
-              model: model === "pro" ? "llama-3.2-70b-8192" : "llama-3.2-1b-preview",
+              model: "deepseek-r1-distill-qwen-32b",
+            },
+          },
+          {
+            virtual_key: "sambanova-6bc4d0",
+            override_params: {
+              model: model === "pro" ? "DeepSeek-R1" : "Meta-Llama-3.2-1B-Instruct",
             },
           },
           {
