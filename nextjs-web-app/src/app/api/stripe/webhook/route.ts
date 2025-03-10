@@ -52,20 +52,29 @@ export async function POST(req: NextRequest) {
       }
       
       if (sessionMetadata.isCreditPurchase === 'true') {
-        const creditsToAdd = parseInt(sessionMetadata.credits || '0', 10);
+        const purchaseAmount = parseInt(sessionMetadata.credits || '0', 10);
         
-        if (isNaN(creditsToAdd) || creditsToAdd <= 0) {
-          return NextResponse.json({ error: 'Invalid credit amount' }, { status: 400 });
+        if (isNaN(purchaseAmount) || purchaseAmount <= 0) {
+          return NextResponse.json({ error: 'Invalid purchase amount' }, { status: 400 });
         }
         
+        // Get user's subscription tier to determine credit rate
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, subscription_tier')
           .eq('id', userId)
           .single();
         
         if (profileError) {
           return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
+        }
+        
+        // Calculate credits based on subscription tier
+        let creditsToAdd = purchaseAmount;
+        if (profile?.subscription_tier?.toLowerCase() === 'pro') {
+          creditsToAdd = purchaseAmount * 15; // Pro tier: $1 = 15 credits
+        } else if (profile?.subscription_tier?.toLowerCase() === 'ultra') {
+          creditsToAdd = purchaseAmount * 30; // Ultra tier: $1 = 30 credits
         }
         
         const currentCredits = profile?.credits || 0;
@@ -88,7 +97,7 @@ export async function POST(req: NextRequest) {
             user_id: userId,
             amount: creditsToAdd,
             type: 'purchase',
-            description: `Purchased ${creditsToAdd} credits`,
+            description: `Purchased ${creditsToAdd} credits ($${purchaseAmount})`,
             created_at: new Date().toISOString()
           });
         
