@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Handle the authentication callback from Supabase
  * This route is called when a user clicks the confirmation link in their email
+ * or when they sign in with a third-party provider like Google
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${requestUrl.origin}?error=missing_code`);
     }
 
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -47,8 +48,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Redirect back to the origin page instead of the dashboard
-    return NextResponse.redirect(`${requestUrl.origin}`);
+    // Redirect back to the origin page with auth_refresh and hard_refresh flags
+    // hard_refresh=true will force a complete page reload via client-side JavaScript
+    return NextResponse.redirect(`${requestUrl.origin}?auth_refresh=true&hard_refresh=true`);
   } catch (err) {
     console.error('Unexpected error in auth callback:', err);
     const requestUrl = new URL(request.url);

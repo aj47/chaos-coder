@@ -34,7 +34,8 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       const supabase = createClient();
       
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log("Attempting login with email:", email);
+        const { error, data } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -42,7 +43,13 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         if (error) throw error;
         
         setMessage({ type: "success", text: "Login successful!" });
-        onClose();
+        
+        // Add a slight delay before closing modal to allow auth state to update
+        setTimeout(() => {
+          onClose();
+          // Force a complete page refresh to ensure UI properly updates
+          window.location.reload();
+        }, 1000);
       } else {
         // No need to validate firstName since it's a hidden field with default value
         
@@ -59,11 +66,13 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         
         if (error) throw error;
         
+        
         // Store first name in localStorage as a backup
         localStorage.setItem('firstName', firstName);
         
         // Set default token value for new users (typically 100 as per the DB schema)
         if (data && data.user) {
+          console.log("Setting initial tokens for new user:", 100);
           setTokens(100); // Set default token value for new accounts
         }
         
@@ -71,8 +80,11 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
           type: "success", 
           text: "Check your email for the confirmation link!" 
         });
+        
+        // For sign-up, we'll keep the modal open so they can read the message
       }
     } catch (error: unknown) {
+      console.error("Auth error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during authentication" 
@@ -89,6 +101,8 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     try {
       const supabase = createClient();
       
+      console.log("Attempting Google authentication");
+      
       // Set default tokens for new users - this will be visible immediately
       // in case of new Google sign-ups
       setTokens(100);
@@ -104,6 +118,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       
       // No need to set success message as we're redirecting to Google
     } catch (error: unknown) {
+      console.error("Google auth error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during Google authentication" 

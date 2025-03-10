@@ -72,13 +72,16 @@ export function AuthButton() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, session: Session | null) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         setUser(session?.user || null);
         
         // Fetch tokens whenever auth state changes (login, signup, etc.)
         if (session?.user) {
           await fetchUserTokens(session.user.id);
         }
+        
+        // Important: Also set loading to false here after auth state changes
+        setLoading(false);
       }
     );
 
@@ -86,6 +89,14 @@ export function AuthButton() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Force loading to false if we have a user but loading is still true
+  // This is a safeguard to ensure the UI updates
+  useEffect(() => {
+    if (user && loading) {
+      setLoading(false);
+    }
+  }, [user, loading]);
 
   if (loading) {
     return (

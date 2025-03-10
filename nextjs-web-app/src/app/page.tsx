@@ -74,6 +74,46 @@ export default function Home() {
     type: "auth",
   });
 
+  // Handle auth refresh from redirects
+  useEffect(() => {
+    // Check if we have the auth_refresh query parameter
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const authRefresh = params.get('auth_refresh');
+      const hardRefresh = params.get('hard_refresh');
+      
+      // Remove the query parameters without refreshing the page
+      const url = new URL(window.location.href);
+      url.searchParams.delete('auth_refresh');
+      url.searchParams.delete('hard_refresh');
+      window.history.replaceState({}, document.title, url.toString());
+      
+      // If hard refresh is requested, reload the page completely
+      if (hardRefresh === 'true') {
+        console.log("Hard refresh requested, reloading page");
+        window.location.reload();
+        return;
+      }
+      
+      if (authRefresh === 'true') {
+        console.log("Auth refresh detected, updating UI");
+        
+        // Force auth state check
+        const checkUser = async () => {
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          setUser(data.user);
+          
+          if (data.user) {
+            await syncTokensWithDB(data.user.id);
+          }
+        };
+        
+        checkUser();
+      }
+    }
+  }, []);
+
   // Handle number of generations changes
   const incrementGenerations = () => {
     setNumGenerations((prev) => {
