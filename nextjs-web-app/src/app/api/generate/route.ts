@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     
     // Parse the request body
     const body = await req.json();
+    console.log(JSON.stringify(body));
     const { prompt, variation = '', framework, customStyle, model = 'fast' } = body;
     
     // Check if user is authenticated
@@ -93,15 +94,22 @@ export async function POST(req: NextRequest) {
         },
         targets: [
           {
-            virtual_key: "openrouter-07e727",
-            override_params: {
-              model: model === "pro" ? "anthropic/claude-3-5-sonnet" : "google/gemini-flash-1.5-8b",
-            },
-          },
-          {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
               model: "deepseek-r1-distill-qwen-32b",
+            },
+          },
+          {
+            virtual_key: "cerebras-b79172",
+            override_params: {
+              model: "deepseek-r1-distill-llama-70b",
+            },
+          },
+          {
+            virtual_key: "openrouter-07e727",
+            override_params: {
+              // model: model === "pro" ? "anthropic/claude-3.7-sonnet" : "google/gemini-flash-1.5-8b",
+              model: "google/gemini-flash-1.5-8b",
             },
           },
           {
@@ -110,12 +118,6 @@ export async function POST(req: NextRequest) {
               model: model === "pro" ? "DeepSeek-R1" : "Meta-Llama-3.2-1B-Instruct",
             },
           },
-          {
-            virtual_key: "openai-9c929c",
-            override_params: {
-              model: model === "pro" ? "gpt-4o" : "gpt-4o-mini",
-            },
-          }
         ],
       },
     });
