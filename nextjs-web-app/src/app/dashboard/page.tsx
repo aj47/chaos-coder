@@ -484,26 +484,18 @@ export default function DashboardPage() {
     }
   }, [credits, setTokens]);
 
-  // Add an effect to force refresh tokens when needed
+  // Add an effect to force refresh tokens when needed - OPTIMIZE THIS
   useEffect(() => {
     // If we have a userId but credits/tokens aren't loaded, try to sync
-    if (userId && (credits === null || tokens === 0)) {
+    // Only sync if tokens is actually 0, not if it has a valid value
+    if (userId && tokens === 0 && !tokenLoading) {
       console.log("Force syncing tokens for user", userId);
       syncTokensWithDB(userId);
     }
-  }, [userId, credits, tokens, syncTokensWithDB]);
+  }, [userId, tokens, tokenLoading, syncTokensWithDB]);
 
-  // Add an effect to log token and loading states
-  useEffect(() => {
-    console.log("Dashboard token state:", {
-      tokens,
-      tokenLoading,
-      credits,
-      loading
-    });
-  }, [tokens, tokenLoading, credits, loading]);
-
-  console.log("Dashboard render - tokens:", tokens, "credits:", credits, "loading:", loading, "tokenLoading:", tokenLoading);
+  // Remove excessive logging in production
+  // console.log("Dashboard render - tokens:", tokens, "credits:", credits, "loading:", loading, "tokenLoading:", tokenLoading);
 
   if (loading) {
     return (

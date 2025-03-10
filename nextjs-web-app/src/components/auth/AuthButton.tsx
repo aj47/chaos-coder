@@ -91,26 +91,17 @@ export function AuthButton() {
     }
   }, [user, loading]);
 
-  // Add an effect to log token changes
-  useEffect(() => {
-    console.log("Token value in AuthButton:", tokens);
-    console.log("Token loading state:", tokenLoading);
-  }, [tokens, tokenLoading]);
-
   // Add an effect to force refresh tokens when the component is mounted and a user is present
   useEffect(() => {
     const refreshTokensFromDB = async () => {
-      if (user) {
-        console.log("Force refreshing tokens for user", user.id);
+      // Only refresh if tokens is 0 and we're not already loading
+      if (user && tokens === 0 && !tokenLoading) { 
         await fetchUserTokens(user.id);
-        console.log("Tokens refreshed from DB");
       }
     };
     
     refreshTokensFromDB();
-  }, [user]); // Only run when user changes
-
-  console.log("AuthButton render - tokens:", tokens, "loading:", loading, "tokenLoading:", tokenLoading);
+  }, [user, tokens, tokenLoading]); // Include tokenLoading in dependencies
 
   if (loading) {
     return (
