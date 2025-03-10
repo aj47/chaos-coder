@@ -11,10 +11,11 @@ interface AlertModalProps {
   onClose: () => void;
   title: string;
   message: string;
-  type: 'auth' | 'credits';
+  type: 'auth' | 'credits' | 'downgrade';
+  onConfirm?: () => void;
 }
 
-export function AlertModal({ isOpen, onClose, title, message, type }: AlertModalProps) {
+export function AlertModal({ isOpen, onClose, title, message, type, onConfirm }: AlertModalProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -28,6 +29,13 @@ export function AlertModal({ isOpen, onClose, title, message, type }: AlertModal
   
   const handleSubscribe = () => {
     router.push('/pricing');
+    onClose();
+  };
+
+  const handleConfirm = () => {
+    if (onConfirm) {
+      onConfirm();
+    }
     onClose();
   };
   
@@ -68,17 +76,25 @@ export function AlertModal({ isOpen, onClose, title, message, type }: AlertModal
             <div className={`p-2 rounded-full mr-3 ${
               type === 'auth' 
                 ? (theme === 'dark' ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-600')
-                : (theme === 'dark' ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-600')
+                : type === 'credits'
+                ? (theme === 'dark' ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-600')
+                : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-600')
             }`}>
               {type === 'auth' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
-              ) : (
+              ) : type === 'credits' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
                 </svg>
               )}
             </div>
@@ -89,14 +105,18 @@ export function AlertModal({ isOpen, onClose, title, message, type }: AlertModal
           
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={type === 'auth' ? handleSignIn : handleSubscribe}
+              onClick={type === 'auth' ? handleSignIn : type === 'credits' ? handleSubscribe : handleConfirm}
               className={`py-2 px-4 rounded-lg font-medium flex-1 ${
-                theme === 'dark'
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                type === 'downgrade'
+                  ? theme === 'dark'
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                  : theme === 'dark'
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    : 'bg-indigo-500 hover:bg-indigo-600 text-white'
               }`}
             >
-              {type === 'auth' ? 'Sign In' : 'Subscribe'}
+              {type === 'auth' ? 'Sign In' : type === 'credits' ? 'Subscribe' : 'Confirm Downgrade'}
             </button>
             
             <button

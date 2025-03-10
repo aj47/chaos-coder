@@ -9,6 +9,7 @@ import { useTokenStore } from "@/store/useTokenStore";
 import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import CreditPurchase from "@/components/CreditPurchase";
+import { PLANS } from "@/lib/stripe";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
@@ -184,7 +185,19 @@ export default function DashboardPage() {
           }
           
           // Success path
-          setSuccessMessage(responseData?.message || 'Subscription updated successfully');
+          setSuccessMessage(responseData?.message || 'Subscription downgraded successfully');
+          
+          // Update the UI immediately to reflect the downgrade
+          setSubscriptionTier(planType.toLowerCase());
+          
+          // Update max credits based on the new plan
+          if (planType.toLowerCase() === 'free') {
+            setMaxCredits(PLANS.FREE.credits);
+          } else if (planType.toLowerCase() === 'pro') {
+            setMaxCredits(PLANS.PRO.credits);
+          } else if (planType.toLowerCase() === 'ultra') {
+            setMaxCredits(PLANS.ULTRA.credits);
+          }
           
           // Reset state
           setIsUpgrading(false);
@@ -192,8 +205,9 @@ export default function DashboardPage() {
           
           // Refresh the profile data
           await refreshUserProfile();
-        } catch {
+        } catch (error) {
           setError('Failed to update subscription. Please try again later.');
+          console.error('Downgrade error:', error);
         }
       } else {
         // Regular upgrade flow - redirect to Stripe Checkout
@@ -216,8 +230,9 @@ export default function DashboardPage() {
           if (url) {
             window.location.href = url;
           }
-        } catch {
+        } catch (error) {
           setError('Failed to start checkout process. Please try again later.');
+          console.error('Upgrade error:', error);
         }
       }
     } finally {

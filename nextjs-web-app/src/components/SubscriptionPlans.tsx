@@ -3,6 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { PLANS } from '@/lib/stripe';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { AlertModal } from './AlertModal';
 
 interface SubscriptionPlansProps {
   currentPlan: string;
@@ -26,6 +27,8 @@ export default function SubscriptionPlans({
 }: SubscriptionPlansProps) {
   const { theme } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [showDowngradeConfirmation, setShowDowngradeConfirmation] = useState(false);
+  const [planToDowngradeTo, setPlanToDowngradeTo] = useState<string | null>(null);
   
   // Check if the user has an active paid subscription
   const hasActiveSubscription = currentPlan !== 'free' && subscriptionStatus === 'active';
@@ -49,8 +52,21 @@ export default function SubscriptionPlans({
     
     setSelectedPlan(plan);
     
-    // Call onSelectPlan with a flag to indicate if this is a downgrade
-    onSelectPlan(plan + (isDowngrade ? ':downgrade' : ''));
+    // If this is a downgrade, show confirmation dialog
+    if (isDowngrade) {
+      setPlanToDowngradeTo(plan);
+      setShowDowngradeConfirmation(true);
+    } else {
+      // For upgrades, proceed directly
+      onSelectPlan(plan);
+    }
+  };
+
+  const handleConfirmDowngrade = () => {
+    if (planToDowngradeTo) {
+      // Call onSelectPlan with a flag to indicate this is a downgrade
+      onSelectPlan(planToDowngradeTo + ':downgrade');
+    }
   };
 
   return (
@@ -72,6 +88,16 @@ export default function SubscriptionPlans({
           </p>
         </div>
       )}
+      
+      {/* Downgrade Confirmation Modal */}
+      <AlertModal
+        isOpen={showDowngradeConfirmation}
+        onClose={() => setShowDowngradeConfirmation(false)}
+        title="Confirm Plan Downgrade"
+        message={`Are you sure you want to downgrade from ${currentPlan.toUpperCase()} to ${planToDowngradeTo?.toUpperCase()}? This will take effect immediately and you'll lose access to your current plan's features.`}
+        type="downgrade"
+        onConfirm={handleConfirmDowngrade}
+      />
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Free Plan */}
