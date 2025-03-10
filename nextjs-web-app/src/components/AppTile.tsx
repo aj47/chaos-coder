@@ -276,7 +276,7 @@ export default function AppTile({
         </div>
         
         {/* View mode and deploy buttons toolbar */}
-        {isSelected && (
+        {isSelected && isExpanded && (
           <div className="flex items-center space-x-2">
             <button
               onClick={handlePreviewClick}
