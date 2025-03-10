@@ -18,7 +18,6 @@ export function AuthButton() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const tokens = useTokenStore((state) => state.tokens);
-  const setTokens = useTokenStore((state) => state.setTokens);
 
   useEffect(() => {
     const supabase = createClient();
@@ -30,20 +29,6 @@ export function AuthButton() {
           data: { user },
         } = await supabase.auth.getUser();
         setUser(user);
-        
-        // If user is logged in, fetch their token count from the database
-        if (user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('credits')
-            .eq('id', user.id)
-            .single();
-            
-          if (data && !error) {
-            // Update the token store with the user's credits
-            setTokens(data.credits);
-          }
-        }
       } catch (error) {
         console.error("Error fetching user:", error);
       } finally {
@@ -57,29 +42,15 @@ export function AuthButton() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, session: Session | null) => {
+      (_event: AuthChangeEvent, session: Session | null) => {
         setUser(session?.user || null);
-        
-        // If user is logged in, fetch their token count from the database
-        if (session?.user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('credits')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (data && !error) {
-            // Update the token store with the user's credits
-            setTokens(data.credits);
-          }
-        }
       }
     );
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [setTokens]);
+  }, []);
 
   if (loading) {
     return (
