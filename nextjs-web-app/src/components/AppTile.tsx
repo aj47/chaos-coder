@@ -319,11 +319,20 @@ export default function AppTile({
       {/* Content area with integrated code preview functionality */}
       <div className={`overflow-hidden ${isExpanded ? 'h-[600px]' : 'h-[250px]'}`}>
         {isLoading ? (
-          <div className="h-full w-full flex flex-col items-center justify-center">
+          <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
             <div className="p-6 flex flex-col items-center">
-              <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
-                Generating design...
+              <div className="relative">
+                <div className="w-10 h-10 border-4 border-blue-400/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                <div className="absolute top-0 left-0 w-10 h-10 border-4 border-transparent border-r-indigo-400 rounded-full animate-spin animate-delay-150"></div>
+              </div>
+              <p className={`text-sm font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"} mb-2`}>
+                Generating {title}...
+              </p>
+              <div className="w-48 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 animate-pulse-width"></div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                This may take a few moments
               </p>
             </div>
           </div>

@@ -500,11 +500,32 @@ function ResultsContent() {
       return;
     }
 
-    Promise.all(
-      Array.from({ length: numGenerations }).map((_, index) => 
-        generateApp(index, promptParam)
-      )
-    );
+    // Generate apps in parallel with a small delay between each to avoid overwhelming the server
+    // This creates a staggered loading effect that feels more responsive
+    const generateAppsWithStagger = async () => {
+      const batchSize = 3; // Process in batches of 3 for better performance
+      const delay = 500; // 500ms delay between batches
+      
+      for (let batch = 0; batch < Math.ceil(numGenerations / batchSize); batch++) {
+        const startIdx = batch * batchSize;
+        const endIdx = Math.min(startIdx + batchSize, numGenerations);
+        
+        // Generate this batch in parallel
+        await Promise.all(
+          Array.from({ length: endIdx - startIdx }).map((_, i) => {
+            const index = startIdx + i;
+            return generateApp(index, promptParam);
+          })
+        );
+        
+        // Small delay before next batch if not the last batch
+        if (batch < Math.ceil(numGenerations / batchSize) - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    };
+    
+    generateAppsWithStagger();
   }, [promptParam, numGenerations]);
 
   // Function to handle clicking on a tile

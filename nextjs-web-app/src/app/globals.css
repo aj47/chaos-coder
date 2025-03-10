@@ -45,6 +45,27 @@
   animation: aurora 60s linear infinite;
 }
 
+/* Loading animations */
+@keyframes pulse-width {
+  0% {
+    width: 0%;
+  }
+  50% {
+    width: 70%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-pulse-width {
+  animation: pulse-width 2s ease-in-out infinite;
+}
+
+.animate-delay-150 {
+  animation-delay: 150ms;
+}
+
 /* Base styles */
 html,
 body {

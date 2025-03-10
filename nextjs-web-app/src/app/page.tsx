@@ -119,13 +119,11 @@ export default function Home() {
 
     try {
       // Make a test request to check authentication and credits before redirecting
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/check-auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: prompt.substring(0, 50), // Just send a small part of the prompt for the check
-          variation: "rate-limit-check",
-          framework: "none",
         }),
       });
 
@@ -264,24 +262,15 @@ export default function Home() {
 
                 {/* Generate Button - Moved above style settings */}
                 <RainbowButton
+                  className={`w-full ${isLoading ? 'opacity-80' : ''}`}
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 text-lg font-medium mb-4"
                 >
                   {isLoading ? (
-                    <motion.div 
-                      className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full" 
-                      animate={{ 
-                        rotate: 360,
-                        scale: [1, 1.2, 1],
-                        borderWidth: ["2px", "1px", "2px"]
-                      }}
-                      transition={{ 
-                        rotate: { duration: 1, repeat: Infinity, ease: "linear" },
-                        scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
-                        borderWidth: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-                      }}
-                    />
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      <span>Preparing...</span>
+                    </div>
                   ) : (
                     <span className="flex items-center">
                       Generate {numGenerations} Website{numGenerations > 1 ? 's' : ''} Now <span className="mx-1">•</span> (
