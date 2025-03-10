@@ -17,28 +17,18 @@ export function AuthButton() {
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
-  const tokens = useTokenStore((state) => state.tokens);
-  const setTokens = useTokenStore((state) => state.setTokens);
+  
+  // Use individual selectors to avoid creating new objects on each render
+  const tokens = useTokenStore(state => state.tokens);
+  const tokenLoading = useTokenStore(state => state.isLoading);
+  const syncTokensWithDB = useTokenStore(state => state.syncTokensWithDB);
 
   // Fetch user profile and tokens from the database
   const fetchUserTokens = async (userId: string) => {
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('credits')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user tokens:', error);
-        return;
-      }
-      
-      if (data && data.credits !== undefined) {
-        // Update the token store with the user's credits from DB
-        setTokens(data.credits);
-      }
+      console.log("AuthButton: Fetching tokens for user", userId);
+      // Use the store's syncTokensWithDB function
+      await syncTokensWithDB(userId);
     } catch (error) {
       console.error('Error in fetchUserTokens:', error);
     }
@@ -90,13 +80,37 @@ export function AuthButton() {
     };
   }, []);
 
+  console.log("Render state:", { user: user?.id, loading, tokens });
+
   // Force loading to false if we have a user but loading is still true
   // This is a safeguard to ensure the UI updates
   useEffect(() => {
     if (user && loading) {
+      console.log("Force updating loading state to false since user is authenticated");
       setLoading(false);
     }
   }, [user, loading]);
+
+  // Add an effect to log token changes
+  useEffect(() => {
+    console.log("Token value in AuthButton:", tokens);
+    console.log("Token loading state:", tokenLoading);
+  }, [tokens, tokenLoading]);
+
+  // Add an effect to force refresh tokens when the component is mounted and a user is present
+  useEffect(() => {
+    const refreshTokensFromDB = async () => {
+      if (user) {
+        console.log("Force refreshing tokens for user", user.id);
+        await fetchUserTokens(user.id);
+        console.log("Tokens refreshed from DB");
+      }
+    };
+    
+    refreshTokensFromDB();
+  }, [user]); // Only run when user changes
+
+  console.log("AuthButton render - tokens:", tokens, "loading:", loading, "tokenLoading:", tokenLoading);
 
   if (loading) {
     return (
@@ -118,7 +132,12 @@ export function AuthButton() {
             }`}
           >
             <Image src="/coin.png" alt="Credits" width={16} height={16} className="mr-1" />
-            <span>{tokens} credits</span>
+            <span>
+              {/* Force display tokens regardless of loading state */}
+              {tokens !== undefined && tokens !== null 
+                ? `${tokens} credits` 
+                : "0 credits"}
+            </span>
           </div>
         )}
         <button

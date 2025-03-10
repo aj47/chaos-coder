@@ -35,13 +35,14 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       
       if (mode === "login") {
         console.log("Attempting login with email:", email);
-        const { error, data } = await supabase.auth.signInWithPassword({
+        const { error, data: userData } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         
         if (error) throw error;
         
+        console.log("Login successful:", userData?.user?.id);
         setMessage({ type: "success", text: "Login successful!" });
         
         // Add a slight delay before closing modal to allow auth state to update

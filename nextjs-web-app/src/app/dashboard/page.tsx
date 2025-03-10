@@ -9,28 +9,29 @@ import { useTokenStore } from "@/store/useTokenStore";
 import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import CreditPurchase from "@/components/CreditPurchase";
-import { PLANS } from "@/lib/stripe";
-import { User } from "@supabase/supabase-js";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const setTokens = useTokenStore((state) => state.setTokens);
+  
+  // Use individual selectors to avoid creating new objects on each render
+  const tokens = useTokenStore(state => state.tokens);
+  const setTokens = useTokenStore(state => state.setTokens);
+  const tokenLoading = useTokenStore(state => state.isLoading);
+  const syncTokensWithDB = useTokenStore(state => state.syncTokensWithDB);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [showCreditModal, setShowCreditModal] = useState(false);
-  const [creditAmount, setCreditAmount] = useState<number | null>(null);
   const [isProcessingCredits, setIsProcessingCredits] = useState(false);
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(0);
-  const [user, setUser] = useState<User | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -46,6 +47,12 @@ export default function DashboardPage() {
           router.push("/");
           return;
         }
+        
+        // Save user ID for later use
+        setUserId(userData.user.id);
+        
+        // Immediately sync token store with database
+        await syncTokensWithDB(userData.user.id);
         
         // Set user email
         setUserEmail(userData.user.email || null);
@@ -93,6 +100,7 @@ export default function DashboardPage() {
         if (profileError) {
           console.error("Error fetching profile:", profileError);
         } else if (data) {
+          console.log("Profile data received:", data);
           // First cast to unknown then to the expected type
           const profile = data as unknown as {
             credits: number;
@@ -103,10 +111,19 @@ export default function DashboardPage() {
             stripe_customer_id?: string;
           };
           
+          console.log("Parsed profile data:", profile);
+          console.log("Current credits value:", profile.credits);
+          
           // Only update credits if they weren't just refreshed
           if (!refreshed) {
+            console.log("Setting credits from profile:", profile.credits);
             setCredits(profile.credits);
+            
+            // Update token store to ensure AuthButton displays correct value
+            console.log("Updating token store with:", profile.credits);
             setTokens(profile.credits); // Update token store with credits from profile
+          } else {
+            console.log("Not updating credits from profile as they were just refreshed");
           }
           
           setSubscriptionTier(profile.subscription_tier || "free");
@@ -129,7 +146,7 @@ export default function DashboardPage() {
         sessionStorage.removeItem('dashboard_visited');
       }
     };
-  }, [router, setTokens]);
+  }, [router, setTokens, syncTokensWithDB]);
 
   // Check for successful Stripe session
   useEffect(() => {
@@ -332,37 +349,70 @@ export default function DashboardPage() {
     email?: string;
   }) => {
     if (profile) {
-      setCredits(profile.credits || 0);
+      console.log("Updating profile state:", profile);
+      // Use default of 0 for credits if undefined
+      const creditValue = profile.credits !== undefined ? profile.credits : 0;
+      console.log("Setting credits to:", creditValue);
+      setCredits(creditValue);
+      
+      // Also update the token store to ensure consistent UI across components
+      console.log("Updating token store with:", creditValue);
+      setTokens(creditValue);
+      
       setSubscriptionTier(profile.subscription_tier || 'free');
       setSubscriptionStatus(profile.subscription_status || null);
       setUserEmail(profile.email || null);
+    } else {
+      console.warn("Empty profile data received");
     }
   };
   
   // Helper function to get user data
   const getUserData = async () => {
-    const supabase = createClient();
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      setError(userError.message);
+    try {
+      console.log("Getting user data");
+      const supabase = createClient();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error("User error:", userError);
+        setError(userError.message);
+        setLoading(false);
+        return null;
+      }
+      
+      if (!userData?.user) {
+        console.log("No user found, redirecting to home");
+        setLoading(false);
+        router.push("/");
+        return null;
+      }
+      
+      console.log("User found:", userData.user.id);
+      return userData;
+    } catch (err) {
+      console.error("Error in getUserData:", err);
+      setError("Failed to get user information");
+      setLoading(false);
       return null;
     }
-    
-    if (!userData?.user) {
-      router.push("/");
-      return null;
-    }
-    
-    return userData;
   };
   
   // Fix the getUserProfile reference by creating a new local function
   const refreshUserProfile = async () => {
     try {
-      const userData = await getUserData();
-      if (!userData) return null;
+      console.log("Refreshing user profile");
+      // Set loading true only if it's a manual refresh (not initial load)
+      setLoading(true);
       
+      const userData = await getUserData();
+      if (!userData) {
+        console.log("No user data found during refresh");
+        setLoading(false);
+        return null;
+      }
+      
+      console.log("User data found, fetching profile for:", userData.user.id);
       const supabase = createClient();
       // Fetch latest user profile from database
       const { data: profile, error: profileError } = await supabase
@@ -372,20 +422,88 @@ export default function DashboardPage() {
         .single();
 
       if (profileError) {
+        console.error("Profile error:", profileError);
         setError("Unable to load profile data");
+        setLoading(false);
         return null;
       }
       
+      console.log("Profile data retrieved:", profile);
       if (profile) {
+        // Update all state using the helper function
         updateStateFromProfile(profile);
+        
+        // Log what's happening with credits
+        if (profile.credits !== undefined) {
+          console.log(`Updated credits to ${profile.credits} and token store updated`);
+        } else {
+          console.warn("Profile didn't contain credits data");
+        }
+      } else {
+        console.warn("No profile data returned from database");
       }
       
+      // Always ensure loading is set to false
+      setLoading(false);
       return profile;
-    } catch {
+    } catch (err) {
+      console.error("Error in refreshUserProfile:", err);
       setError("Unable to check user account");
+      // Always ensure loading is set to false, even on error
+      setLoading(false);
       return null;
     }
   };
+
+  // Add a safety mechanism to prevent infinite loading
+  useEffect(() => {
+    // If loading is true for more than 10 seconds, force it to false
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.log("Safety timeout triggered - forcing loading to false");
+        setLoading(false);
+      }, 10000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
+
+  // Add a cleanup effect for when the component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any potential loading state when component unmounts
+      setLoading(false);
+    };
+  }, []);
+
+  // Add an effect to make sure tokens in store match credit state
+  useEffect(() => {
+    if (credits !== null) {
+      console.log("Syncing token store with credits state:", credits);
+      setTokens(credits);
+    }
+  }, [credits, setTokens]);
+
+  // Add an effect to force refresh tokens when needed
+  useEffect(() => {
+    // If we have a userId but credits/tokens aren't loaded, try to sync
+    if (userId && (credits === null || tokens === 0)) {
+      console.log("Force syncing tokens for user", userId);
+      syncTokensWithDB(userId);
+    }
+  }, [userId, credits, tokens, syncTokensWithDB]);
+
+  // Add an effect to log token and loading states
+  useEffect(() => {
+    console.log("Dashboard token state:", {
+      tokens,
+      tokenLoading,
+      credits,
+      loading
+    });
+  }, [tokens, tokenLoading, credits, loading]);
+
+  console.log("Dashboard render - tokens:", tokens, "credits:", credits, "loading:", loading, "tokenLoading:", tokenLoading);
 
   if (loading) {
     return (
@@ -476,7 +594,14 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="text-right">
-                    <p className="text-xl font-bold">{credits}</p>
+                    <p className="text-xl font-bold">
+                      {/* Force display tokens regardless of loading state */}
+                      {tokens !== null && tokens !== undefined 
+                        ? tokens 
+                        : credits !== null 
+                          ? credits 
+                          : '0'}
+                    </p>
                     <p className="text-sm opacity-75">Credits Available</p>
                   </div>
                 </div>
