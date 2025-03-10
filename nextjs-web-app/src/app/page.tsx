@@ -375,6 +375,7 @@ export default function Home() {
                 </div>
 
                 <div className="mt-4 text-center text-sm text-gray-400">
+                  Actively being developed
                   <p>
                     ❤️ 👨🏻‍💻 {" "}
                     <a
@@ -386,6 +387,7 @@ export default function Home() {
                       @techfren
                     </a>
                   </p>
+
                 </div>
               </div>
             </div>

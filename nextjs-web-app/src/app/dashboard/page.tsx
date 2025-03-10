@@ -10,23 +10,27 @@ import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import CreditPurchase from "@/components/CreditPurchase";
 import { PLANS } from "@/lib/stripe";
+import { User } from "@supabase/supabase-js";
 
 export default function DashboardPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const setTokens = useTokenStore((state) => state.setTokens);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
-  const [maxCredits, setMaxCredits] = useState(5); // Default to 5 daily credits for free plan
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [isPurchasingCredits, setIsPurchasingCredits] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const setTokens = useTokenStore((state) => state.setTokens);
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [creditAmount, setCreditAmount] = useState<number | null>(null);
+  const [isProcessingCredits, setIsProcessingCredits] = useState(false);
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -107,7 +111,6 @@ export default function DashboardPage() {
           
           setSubscriptionTier(profile.subscription_tier || "free");
           setSubscriptionStatus(profile.subscription_status || null);
-          setMaxCredits(profile.max_daily_credits || 5); // Default to 5 daily credits for free plan
         }
       } catch (err) {
         console.error("Error checking user:", err);
@@ -157,13 +160,6 @@ export default function DashboardPage() {
       // Update the UI immediately to reflect the upgrade
       setSubscriptionTier(planName);
       setSubscriptionStatus('active');
-      
-      // Update max credits based on the new plan
-      if (planName === 'pro') {
-        setMaxCredits(PLANS.PRO.credits);
-      } else if (planName === 'ultra') {
-        setMaxCredits(PLANS.ULTRA.credits);
-      }
       
       // Remove the session_id from the URL
       const newUrl = window.location.pathname;
@@ -247,15 +243,6 @@ export default function DashboardPage() {
           // Update the UI immediately to reflect the downgrade
           setSubscriptionTier(planType.toLowerCase());
           
-          // Update max credits based on the new plan
-          if (planType.toLowerCase() === 'free') {
-            setMaxCredits(PLANS.FREE.credits);
-          } else if (planType.toLowerCase() === 'pro') {
-            setMaxCredits(PLANS.PRO.credits);
-          } else if (planType.toLowerCase() === 'ultra') {
-            setMaxCredits(PLANS.ULTRA.credits);
-          }
-          
           // Reset state
           setIsUpgrading(false);
           setError(null);
@@ -299,7 +286,7 @@ export default function DashboardPage() {
 
   const handlePurchaseCredits = async (amount: number) => {
     try {
-      setIsPurchasingCredits(true);
+      setIsProcessingCredits(true);
       
       // Create Stripe checkout session for credit purchase
       const response = await fetch('/api/stripe/credits', {
@@ -324,7 +311,7 @@ export default function DashboardPage() {
     } catch {
       setError('Failed to start checkout process. Please try again later.');
     } finally {
-      setIsPurchasingCredits(false);
+      setIsProcessingCredits(false);
     }
   };
 
@@ -342,14 +329,12 @@ export default function DashboardPage() {
     credits?: number;
     subscription_tier?: string;
     subscription_status?: string;
-    max_monthly_credits?: number;
     email?: string;
   }) => {
     if (profile) {
       setCredits(profile.credits || 0);
       setSubscriptionTier(profile.subscription_tier || 'free');
       setSubscriptionStatus(profile.subscription_status || null);
-      setMaxCredits(profile.max_monthly_credits || 5);
       setUserEmail(profile.email || null);
     }
   };
@@ -491,7 +476,7 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="text-right">
-                    <p className="text-xl font-bold">{credits} / {maxCredits}</p>
+                    <p className="text-xl font-bold">{credits}</p>
                     <p className="text-sm opacity-75">Credits Available</p>
                   </div>
                 </div>
@@ -502,7 +487,7 @@ export default function DashboardPage() {
             {subscriptionTier && subscriptionTier !== 'free' && (
               <CreditPurchase 
                 subscriptionTier={subscriptionTier}
-                isLoading={isPurchasingCredits}
+                isLoading={isProcessingCredits}
                 onPurchase={handlePurchaseCredits}
               />
             )}
@@ -512,7 +497,6 @@ export default function DashboardPage() {
           <SubscriptionPlans 
             currentPlan={subscriptionTier}
             credits={credits}
-            maxCredits={maxCredits}
             onSelectPlan={handleSelectPlan}
             isLoading={isUpgrading}
             subscriptionStatus={subscriptionStatus}

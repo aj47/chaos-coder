@@ -50,7 +50,6 @@ export async function GET(req: NextRequest) {
       .update({
         subscription_tier: 'test',
         subscription_status: 'active',
-        max_monthly_credits: 999,
         credits: 999,
       })
       .eq('id', userId);

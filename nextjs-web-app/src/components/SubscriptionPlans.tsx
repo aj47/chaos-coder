@@ -8,7 +8,6 @@ import { AlertModal } from './AlertModal';
 interface SubscriptionPlansProps {
   currentPlan: string;
   credits: number | null;
-  maxCredits: number;
   onSelectPlan: (plan: string) => void;
   isLoading: boolean;
   subscriptionStatus?: string | null;
@@ -19,8 +18,6 @@ export default function SubscriptionPlans({
   // We still need these props for the component signature even if not directly used in this component
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   credits,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  maxCredits,
   onSelectPlan,
   isLoading,
   subscriptionStatus

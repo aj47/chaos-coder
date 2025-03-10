@@ -16,7 +16,7 @@ export const PLANS = {
     credits: 100,
     price: 10,
     priceId: process.env.STRIPE_PRO_PRICE_ID,
-    features: ['100 free credits per day', 'Ability to use smarter models', 'Ability to configure vibes', 'Buy additional credits: $1 = 15 credits'],
+    features: ['100 free credits per day', 'Ability to configure vibes', 'Buy additional credits: $1 = 15 credits'],
     topUpRate: 15, // Credits per $1
   },
   ULTRA: {
