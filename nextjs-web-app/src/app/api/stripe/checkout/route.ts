@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PaymentService } from '@/lib/payment';
 import { AuthService } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+// Define a type for the user object
+interface UserData {
+  id: string;
+  email?: string | null;
+}
 
 // Add OPTIONS method handler for CORS preflight requests
 export async function OPTIONS() {
@@ -25,10 +32,11 @@ export async function POST(req: NextRequest) {
     
     // Parse the request body first to get potential access token
     const body = await req.json();
-    const { tier, accessToken: bodyToken } = body;
+    const { tier, accessToken: bodyToken, userId } = body;
     
     console.log(`🔄 Processing checkout for tier: ${tier}`);
     console.log(`📊 Access token in body: ${bodyToken ? `Present (length: ${bodyToken.length})` : 'Not present'}`);
+    console.log(`📊 User ID in body: ${userId || 'Not present'}`);
     
     // Try to get the auth token from multiple sources
     // 1. Authorization header
@@ -116,7 +124,7 @@ export async function POST(req: NextRequest) {
         console.log(`✅ User authenticated via AuthService: ${user.id}`);
         
         // Continue with checkout using this user
-        return await processCheckout(user, tier, supabase);
+        return await processCheckout(user as UserData, tier, supabase);
       }
     } catch (authServiceError) {
       console.error(`❌ AuthService approach failed:`, authServiceError);
@@ -154,21 +162,71 @@ export async function POST(req: NextRequest) {
         console.log(`✅ User authenticated via direct token: ${user.id}`);
         
         // Continue with checkout using this user
-        return await processCheckout(user, tier, supabase);
+        return await processCheckout(user as UserData, tier, supabase);
       }
     } catch (directTokenError) {
       console.error(`❌ Direct token approach failed:`, directTokenError);
     }
     
-    // Approach 3: Use service role as a last resort
+    // Approach 3: Use service role as a last resort with userId from the request body
+    if (userId) {
+      try {
+        console.log(`🔄 Trying service role authentication with provided userId: ${userId}`);
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        
+        if (!supabaseUrl || !serviceRoleKey) {
+          throw new Error('Missing Supabase environment variables');
+        }
+        
+        console.log(`📊 Supabase URL: ${supabaseUrl}`);
+        console.log(`📊 Service role key available: ${!!serviceRoleKey}`);
+        
+        const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        });
+        
+        // Get the user directly from the database using provided userId
+        const { data: userData, error: userDataError } = await adminClient
+          .from('profiles')
+          .select('id, email')
+          .eq('id', userId)
+          .single();
+          
+        if (userDataError) {
+          console.error(`❌ Error getting user data:`, userDataError);
+        } else if (userData) {
+          console.log(`✅ Found user in database using provided userId: ${userData.id}`);
+          
+          // Create a user object that matches the structure expected by processCheckout
+          const user: UserData = {
+            id: userData.id,
+            email: userData.email
+          };
+          
+          // Continue with checkout using this user
+          return await processCheckout(user, tier, adminClient);
+        }
+      } catch (serviceRoleError) {
+        console.error(`❌ Service role approach with userId failed:`, serviceRoleError);
+      }
+    }
+    
+    // Approach 4: Use service role with JWT parsing as before
     try {
-      console.log(`🔄 Trying service role authentication...`);
+      console.log(`🔄 Trying service role authentication with JWT parsing...`);
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       
       if (!supabaseUrl || !serviceRoleKey) {
         throw new Error('Missing Supabase environment variables');
       }
+      
+      console.log(`📊 Supabase URL: ${supabaseUrl}`);
+      console.log(`📊 Service role key available: ${!!serviceRoleKey}`);
       
       const adminClient = createClient(supabaseUrl, serviceRoleKey, {
         auth: {
@@ -198,7 +256,7 @@ export async function POST(req: NextRequest) {
             console.log(`✅ Found user in database: ${userData.id}`);
             
             // Create a user object that matches the structure expected by processCheckout
-            const user = {
+            const user: UserData = {
               id: userData.id,
               email: userData.email
             };
@@ -211,11 +269,19 @@ export async function POST(req: NextRequest) {
         console.error(`❌ Error decoding token:`, decodeError);
       }
     } catch (serviceRoleError) {
-      console.error(`❌ Service role approach failed:`, serviceRoleError);
+      console.error(`❌ Service role approach with JWT failed:`, serviceRoleError);
     }
     
     // If we get here, all authentication approaches failed
     console.error(`❌ All authentication approaches failed`);
+    console.error(`📊 Auth debugging: 
+      - Auth token first 20 chars: ${authToken?.substring(0, 20)}...
+      - Auth token length: ${authToken?.length}
+      - User ID from body: ${userId || 'Not present'}
+      - Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL || 'Not set'}
+      - Anon key available: ${!!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - Service role key available: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}
+    `);
     return NextResponse.json({ error: 'User not authenticated - Invalid token' }, { status: 401 });
   } catch (error) {
     console.error(`❌ Checkout error:`, error);
@@ -227,7 +293,7 @@ export async function POST(req: NextRequest) {
 }
 
 // Helper function to process the checkout once we have a valid user
-async function processCheckout(user: any, tier: string, supabase: any) {
+async function processCheckout(user: UserData, tier: string, supabase: SupabaseClient) {
   console.log(`🔄 Processing checkout for user: ${user.id}, tier: ${tier}`);
   
   // Get the user's profile

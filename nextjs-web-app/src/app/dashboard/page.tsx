@@ -311,7 +311,10 @@ export default function DashboardPage() {
           // Include the token directly in the request body as a fallback
           accessToken: sessionData.session.access_token,
           // Include user ID for additional verification
-          userId: userData.user.id
+          userId: userData.user.id,
+          // Include additional user data to assist with verification
+          userEmail: userData.user.email,
+          userAuthTime: userData.user.last_sign_in_at || new Date().toISOString()
         }),
       });
       
