@@ -317,17 +317,52 @@ export class PaymentService {
     
     // If this is a credit purchase, add credits to the user's account
     if (session.metadata?.credits && session.metadata?.userId) {
-      const credits = parseInt(session.metadata.credits, 10);
+      // Get the user's current tier to determine credit multiplier
       const userId = session.metadata.userId;
-      
-      console.log(`🔄 Adding ${credits} credits to user ${userId}`);
-      
       const supabase = await AuthService.createServerClient();
       
-      // Add credits to the user's account
+      // Get the user's tier
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', userId)
+        .single();
+        
+      if (profileError) {
+        console.error('❌ Error getting user profile:', profileError);
+        return;
+      }
+      
+      const tier = profile?.subscription_tier || 'free';
+      
+      // Get the appropriate top-up rate based on the subscription tier
+      let topUpRate = 1; // Default (no multiplication)
+      
+      if (tier === 'pro') {
+        topUpRate = PLANS.PRO.topUpRate || 15; // 15 credits per $1
+      } else if (tier === 'ultra') {
+        topUpRate = PLANS.ULTRA.topUpRate || 30; // 30 credits per $1
+      }
+      
+      // Calculate the amount paid in dollars (convert from cents)
+      const amountPaid = (session.amount_total || 0) / 100;
+      
+      // Calculate the actual credits to award using the tier's topUpRate
+      // This is different from the requested credits amount
+      const requestedCredits = parseInt(session.metadata.credits, 10);
+      const calculatedCredits = Math.round(amountPaid * topUpRate);
+      
+      // Use the calculated credits which should match the plan rate
+      const creditsToAdd = calculatedCredits;
+      
+      console.log(`💰 Credit purchase calculation: $${amountPaid} paid at rate of ${topUpRate} credits per dollar`);
+      console.log(`💰 Requested credits: ${requestedCredits}, Calculated credits: ${calculatedCredits}`);
+      console.log(`🔄 Adding ${creditsToAdd} credits to user ${userId} (${tier} plan)`);
+      
+      // Add credits to the user's account using the calculated amount
       const { error } = await (supabase as any).rpc('add_user_credits', {
         p_user_id: userId,
-        p_amount: credits,
+        p_amount: creditsToAdd,
       });
       
       if (error) {
@@ -335,28 +370,19 @@ export class PaymentService {
         return;
       }
       
-      console.log(`✅ Successfully added ${credits} credits to user ${userId}`);
+      console.log(`✅ Successfully added ${creditsToAdd} credits to user ${userId}`);
       
       // Record the purchase in the credit_purchases table
       try {
         const stripe = this.getStripe();
         const customer = await stripe.customers.retrieve(session.customer as string) as StripeCustomer;
         
-        // Get the user's current tier
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', userId)
-          .single();
-          
-        const tier = profile?.subscription_tier || 'free';
-        
         await supabase
           .from('credit_purchases')
           .insert({
             user_id: userId,
-            amount: credits,
-            price_paid: (session.amount_total || 0) / 100, // Convert from cents to dollars
+            amount: creditsToAdd, // Use the calculated amount
+            price_paid: amountPaid,
             currency: session.currency || 'usd',
             stripe_session_id: session.id,
             tier: tier,
@@ -398,7 +424,6 @@ export class PaymentService {
         }
       } else {
         console.log(`⚠️ Session does not contain subscription information`);
-        console.log(`📊 Session metadata:`, session.metadata);
       }
     }
   }

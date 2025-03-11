@@ -378,45 +378,80 @@ export default function DashboardPage() {
         throw new Error("No checkout URL returned");
       }
     } catch (err) {
-      console.error(`❌ Upgrade process error:`, {
-        error: err instanceof Error ? {
-          message: err.message,
-          stack: err.stack,
-          name: err.name
-        } : err,
-        timestamp: new Date().toISOString()
-      });
-      setError(`Failed to start checkout process: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Checkout error:', err);
+      setError('Failed to start checkout process. Please try again later.');
       setIsUpgrading(false);
     }
   };
 
-  const handlePurchaseCredits = async (amount: number) => {
+  const handlePurchaseCredits = async (creditAmount: number) => {
     try {
       setIsProcessingCredits(true);
+      setError(null); // Clear any previous errors
+      
+      // Get access token from current session
+      const supabase = AuthService.createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      if (!accessToken) {
+        console.error('No valid session found for credit purchase');
+        throw new Error('No valid session found. Please log in again.');
+      }
+      
+      // Log request details for debugging
+      console.log(`🔄 Sending credit purchase request:`, {
+        creditAmount,
+        hasAccessToken: !!accessToken,
+        timestamp: new Date().toISOString()
+      });
       
       // Create Stripe checkout session for credit purchase
       const response = await fetch('/api/stripe/credits', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        credentials: 'include', // Include cookies for additional auth context
+        body: JSON.stringify({ 
+          amount: creditAmount, // This is CREDITS, not dollars
+          accessToken
+        }),
+      });
+      
+      // Log response details
+      console.log(`📥 Credit purchase response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
       });
       
       if (!response.ok) {
-        const { error } = await response.json();
-        throw new Error(error || 'Failed to create checkout session');
+        const errorData = await response.json();
+        console.error(`❌ Credit purchase API error:`, {
+          status: response.status,
+          error: errorData.error || 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(errorData.error || 'Failed to create checkout session');
       }
       
       const { url } = await response.json();
       
       // Redirect to checkout
       if (url) {
+        console.log(`✅ Credit purchase checkout URL created:`, {
+          url: url.substring(0, 50) + '...',
+          timestamp: new Date().toISOString()
+        });
         window.location.href = url;
       } else {
         throw new Error('No checkout URL returned');
       }
-    } catch {
-      setError('Failed to start checkout process. Please try again later.');
+    } catch (err) {
+      console.error('Credit purchase error:', err);
+      setError(`Failed to start checkout process: ${err instanceof Error ? err.message : 'Please try again later.'}`);
     } finally {
       setIsProcessingCredits(false);
     }
