@@ -2,9 +2,6 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { AuthService } from '@/lib/auth';
 
-// Define a type for the Supabase client to avoid 'any'
-type SupabaseClient = ReturnType<typeof AuthService.createClient>;
-
 // Define type for Stripe session to avoid any type
 interface StripeSession {
   id?: string;
@@ -23,6 +20,7 @@ interface StripeSubscription {
   current_period_start: number;
   current_period_end: number;
   currency?: string;
+  metadata?: Record<string, string>;
   items: {
     data: Array<{
       price: {
@@ -169,6 +167,8 @@ export class PaymentService {
    * Create a subscription checkout session
    */
   static async createSubscriptionCheckout(customerId: string, tier: 'pro' | 'ultra', userId: string): Promise<{ url: string | null }> {
+    console.log(`🔄 Creating subscription checkout for customer ${customerId}, tier: ${tier}`);
+    
     try {
       const stripe = this.getStripe();
       
@@ -179,6 +179,16 @@ export class PaymentService {
       
       if (!priceId) {
         throw new Error(`Price ID not found for ${tier} tier`);
+      }
+      
+      // Get the product ID for this price to include in metadata
+      let productId = '';
+      try {
+        const price = await stripe.prices.retrieve(priceId);
+        productId = price.product as string;
+        console.log(`📊 Retrieved product ID for ${tier} tier: ${productId}`);
+      } catch (error) {
+        console.warn(`⚠️ Could not retrieve product ID for price ${priceId}:`, error);
       }
       
       const session = await stripe.checkout.sessions.create({
@@ -198,6 +208,7 @@ export class PaymentService {
         metadata: {
           userId,
           tier,
+          productId,
         },
       });
 
@@ -276,38 +287,48 @@ export class PaymentService {
       // Verify the event came from Stripe
       const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
       
-      console.log(`Processing webhook event: ${event.type}`);
+      console.log(`🔔 Processing webhook event: ${event.type}`);
+      console.log(`📊 Event ID: ${event.id}`);
       
       // Handle different event types
       switch (event.type) {
         case 'checkout.session.completed':
+          console.log(`🔄 Handling checkout.session.completed event`);
           await this.handleCheckoutSessionCompleted(event.data.object as StripeSession);
           break;
           
         case 'customer.subscription.created':
+          console.log(`🔄 Handling customer.subscription.created event`);
+          await this.handleSubscriptionChange(event.data.object as StripeSubscription);
+          break;
+          
         case 'customer.subscription.updated':
+          console.log(`🔄 Handling customer.subscription.updated event`);
           await this.handleSubscriptionChange(event.data.object as StripeSubscription);
           break;
           
         case 'customer.subscription.deleted':
+          console.log(`🔄 Handling customer.subscription.deleted event`);
           await this.handleSubscriptionCancelled(event.data.object as StripeSubscription);
           break;
           
         case 'invoice.payment_succeeded':
+          console.log(`🔄 Handling invoice.payment_succeeded event`);
           await this.handleInvoicePaymentSucceeded(event.data.object as StripeInvoice);
           break;
           
         case 'invoice.payment_failed':
+          console.log(`🔄 Handling invoice.payment_failed event`);
           await this.handleInvoicePaymentFailed(event.data.object as StripeInvoice);
           break;
           
         default:
-          console.log(`Unhandled event type: ${event.type}`);
+          console.log(`⚠️ Unhandled event type: ${event.type}`);
       }
       
       return { success: true, message: `Processed ${event.type} event` };
     } catch (error) {
-      console.error('Webhook error:', error);
+      console.error('❌ Webhook error:', error);
       return { 
         success: false, 
         message: `Webhook Error: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -319,22 +340,17 @@ export class PaymentService {
    * Handle checkout session completed event
    */
   private static async handleCheckoutSessionCompleted(session: StripeSession) {
-    const supabase = await AuthService.createServerClient() as SupabaseClient;
-    const userId = session.metadata?.userId;
+    console.log(`🔄 Processing checkout session completed: ${session.id}`);
+    console.log(`📊 Session metadata:`, session.metadata);
     
-    if (!userId) {
-      console.error('No user ID in session metadata');
-      return;
-    }
-    
-    // Check if this is a credit purchase
-    if (session.metadata?.isCreditPurchase === 'true') {
+    // If this is a credit purchase, add credits to the user's account
+    if (session.metadata?.credits && session.metadata?.userId) {
       const credits = parseInt(session.metadata.credits, 10);
+      const userId = session.metadata.userId;
       
-      if (isNaN(credits) || credits <= 0) {
-        console.error('Invalid credit amount in metadata');
-        return;
-      }
+      console.log(`🔄 Adding ${credits} credits to user ${userId}`);
+      
+      const supabase = await AuthService.createServerClient();
       
       // Add credits to the user's account
       const { error } = await (supabase as any).rpc('add_user_credits', {
@@ -343,27 +359,75 @@ export class PaymentService {
       });
       
       if (error) {
-        console.error('Error adding credits:', error);
+        console.error('❌ Error adding credits:', error);
         return;
       }
       
-      // Record the credit purchase
-      try {
-        await (supabase as any).from('credit_purchases').insert({
-          user_id: userId,
-          amount: credits,
-          cost: (session.amount_total || 0) / 100, // Convert cents to dollars
-          currency: session.currency || 'usd',
-          stripe_session_id: session.id
-        });
-      } catch (error) {
-        console.error('Error recording credit purchase:', error);
-      }
+      console.log(`✅ Successfully added ${credits} credits to user ${userId}`);
       
-      console.log(`Added ${credits} credits to user ${userId}`);
+      // Record the purchase in the credit_purchases table
+      try {
+        const stripe = this.getStripe();
+        const customer = await stripe.customers.retrieve(session.customer as string) as StripeCustomer;
+        
+        // Get the user's current tier
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', userId)
+          .single();
+          
+        const tier = profile?.subscription_tier || 'free';
+        
+        await supabase
+          .from('credit_purchases')
+          .insert({
+            user_id: userId,
+            amount: credits,
+            price_paid: (session.amount_total || 0) / 100, // Convert from cents to dollars
+            currency: session.currency || 'usd',
+            stripe_session_id: session.id,
+            tier: tier,
+          });
+          
+        console.log(`✅ Successfully recorded credit purchase for user ${userId}`);
+      } catch (error) {
+        console.error('❌ Error recording credit purchase:', error);
+      }
     } else {
-      // This is a subscription purchase, handled by subscription events
-      console.log(`Subscription checkout completed for user ${userId}`);
+      console.log(`📊 Session does not contain credit purchase information`);
+      
+      // Check if this is a subscription checkout
+      if (session.metadata?.tier && session.metadata?.userId) {
+        console.log(`📊 Session contains subscription information: tier=${session.metadata.tier}, userId=${session.metadata.userId}`);
+        console.log(`📊 Additional metadata:`, session.metadata);
+        
+        // The subscription will be handled by the subscription.created webhook
+        console.log(`ℹ️ Subscription will be handled by the subscription.created webhook`);
+        
+        // If there's a subscription ID, update its metadata with the user ID
+        if (session.subscription) {
+          try {
+            console.log(`🔄 Updating subscription metadata with user ID...`);
+            const stripe = this.getStripe();
+            
+            await stripe.subscriptions.update(session.subscription, {
+              metadata: {
+                userId: session.metadata.userId,
+                tier: session.metadata.tier,
+                productId: session.metadata.productId
+              }
+            });
+            
+            console.log(`✅ Successfully updated subscription metadata with user ID: ${session.metadata.userId}`);
+          } catch (error) {
+            console.error('❌ Error updating subscription metadata:', error);
+          }
+        }
+      } else {
+        console.log(`⚠️ Session does not contain subscription information`);
+        console.log(`📊 Session metadata:`, session.metadata);
+      }
     }
   }
 
@@ -371,78 +435,199 @@ export class PaymentService {
    * Handle subscription change event
    */
   private static async handleSubscriptionChange(subscription: StripeSubscription) {
+    console.log(`🔄 Processing subscription change for subscription: ${subscription.id}`);
+    console.log(`📊 Subscription status: ${subscription.status}`);
+    
     const supabase = await AuthService.createServerClient();
     
     // Find the user ID from the customer metadata
     const customerId = subscription.customer;
+    console.log(`📊 Customer ID: ${customerId}`);
+    
     const stripe = this.getStripe();
     
     try {
-      const customer = await stripe.customers.retrieve(customerId) as StripeCustomer;
+      // First try to get the user ID from the subscription metadata
+      let userId = subscription.metadata?.userId;
       
-      if (!customer || customer.deleted) {
-        console.error('Customer not found or deleted');
-        return;
+      if (userId) {
+        console.log(`✅ User ID found in subscription metadata: ${userId}`);
+      } else {
+        // Fall back to getting it from the customer metadata
+        const customer = await stripe.customers.retrieve(customerId) as StripeCustomer;
+        
+        if (!customer || customer.deleted) {
+          console.error('❌ Customer not found or deleted');
+          return;
+        }
+        
+        userId = customer.metadata?.userId;
+        
+        if (!userId) {
+          console.error('❌ No user ID in customer metadata');
+          console.log(`📊 Customer metadata:`, customer.metadata);
+          return;
+        }
+        
+        console.log(`✅ User ID found in customer metadata: ${userId}`);
       }
       
-      const userId = customer.metadata?.userId;
-      
-      if (!userId) {
-        console.error('No user ID in customer metadata');
-        return;
+      // First, check the current profile state
+      try {
+        console.log(`🔍 Checking current profile state for user ${userId}`);
+        const { data: currentProfile, error: currentProfileError } = await (supabase as any)
+          .from('profiles')
+          .select('subscription_tier, subscription_status, credits')
+          .eq('id', userId)
+          .single();
+          
+        if (currentProfileError) {
+          console.error('❌ Error fetching current profile:', currentProfileError);
+        } else {
+          console.log(`📊 Current profile state:`, currentProfile);
+        }
+      } catch (error) {
+        console.error('❌ Error checking current profile:', error);
       }
       
       // Determine the subscription tier from the product
       const productId = subscription.items.data[0]?.price.product;
-      const product = await stripe.products.retrieve(productId as string);
+      console.log(`📊 Product ID from subscription: ${productId}`);
       
+      const product = await stripe.products.retrieve(productId as string);
+      console.log(`📊 Product details:`, {
+        name: product.name,
+        metadata: product.metadata
+      });
+      
+      // Determine tier from product metadata, environment variables, or product name
       let tier = 'free';
+      
+      // First try to get tier from product metadata
       if (product.metadata?.tier) {
         tier = product.metadata.tier;
-      } else if (productId === process.env.STRIPE_PRO_PRODUCT_ID) {
+        console.log(`📊 Tier from product metadata: ${tier}`);
+      } 
+      // Then try to match against environment variables
+      else if (productId === process.env.STRIPE_PRO_PRODUCT_ID) {
         tier = 'pro';
+        console.log(`📊 Tier matched to PRO product ID`);
       } else if (productId === process.env.STRIPE_ULTRA_PRODUCT_ID) {
         tier = 'ultra';
+        console.log(`📊 Tier matched to ULTRA product ID`);
+      } 
+      // If that fails, try to determine from product name
+      else if (product.name) {
+        const productName = product.name.toLowerCase();
+        if (productName.includes('pro')) {
+          tier = 'pro';
+          console.log(`📊 Tier determined from product name '${product.name}': pro`);
+        } else if (productName.includes('ultra')) {
+          tier = 'ultra';
+          console.log(`📊 Tier determined from product name '${product.name}': ultra`);
+        } else {
+          console.log(`⚠️ Could not determine tier from product name: ${product.name}. Using default: ${tier}`);
+        }
+      } else {
+        console.log(`⚠️ Could not determine tier from product. Using default: ${tier}`);
+        console.log(`📊 Environment variables:
+          - STRIPE_PRO_PRODUCT_ID: ${process.env.STRIPE_PRO_PRODUCT_ID ? 'Set' : 'Not set'}
+          - STRIPE_ULTRA_PRODUCT_ID: ${process.env.STRIPE_ULTRA_PRODUCT_ID ? 'Set' : 'Not set'}
+        `);
       }
       
       // Update the user's subscription information
       try {
+        console.log(`🔄 Updating profile for user ${userId} with tier: ${tier}`);
+        
+        const updateData = {
+          stripe_customer_id: customerId,
+          subscription_tier: tier,
+          subscription_status: subscription.status,
+          subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          max_monthly_credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
+        };
+        
+        console.log(`📊 Profile update data:`, updateData);
+        
+        // Log the exact SQL query that will be executed
+        console.log(`🔄 Executing update query: UPDATE profiles SET subscription_tier = '${tier}', subscription_status = '${subscription.status}' WHERE id = '${userId}'`);
+        
         const { error } = await (supabase as any).from('profiles')
-          .update({
-            stripe_customer_id: customerId,
-            subscription_tier: tier,
-            subscription_status: subscription.status,
-            subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            max_monthly_credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
-          })
+          .update(updateData)
           .eq('id', userId);
         
         if (error) {
-          console.error('Error updating profile:', error);
+          console.error('❌ Error updating profile:', error);
           return;
         }
+        
+        console.log(`✅ Successfully updated profile for user ${userId} to ${tier} tier`);
+        
+        // Verify the update was successful with multiple approaches
+        try {
+          console.log(`🔍 Verifying profile update with direct query...`);
+          const { data: directProfile, error: directError } = await (supabase as any)
+            .from('profiles')
+            .select('subscription_tier, subscription_status, credits')
+            .eq('id', userId)
+            .single();
+            
+          if (directError) {
+            console.error('❌ Error with direct profile query:', directError);
+          } else {
+            console.log(`📊 Direct profile query result:`, directProfile);
+          }
+        } catch (directQueryError) {
+          console.error('❌ Exception in direct profile query:', directQueryError);
+        }
+        
+        // Try a raw SQL query as a last resort
+        try {
+          console.log(`🔍 Verifying with raw SQL query...`);
+          const { data: rawData, error: rawError } = await (supabase as any).rpc(
+            'exec_sql',
+            { sql: `SELECT subscription_tier, subscription_status, credits FROM profiles WHERE id = '${userId}'` }
+          );
+          
+          if (rawError) {
+            console.error('❌ Error with raw SQL query:', rawError);
+          } else {
+            console.log(`📊 Raw SQL query result:`, rawData);
+          }
+        } catch (rawQueryError) {
+          console.error('❌ Exception in raw SQL query:', rawQueryError);
+        }
+        
+        // Record in subscription history
+        try {
+          console.log(`🔄 Recording subscription history for user ${userId}`);
+          
+          const historyData = {
+            user_id: userId,
+            subscription_tier: tier,
+            status: subscription.status,
+            amount_paid: subscription.items.data[0]?.price.unit_amount ? subscription.items.data[0].price.unit_amount / 100 : null,
+            currency: subscription.currency || 'usd',
+            stripe_subscription_id: subscription.id
+          };
+          
+          console.log(`📊 Subscription history data:`, historyData);
+          
+          await (supabase as any).from('subscription_history').insert(historyData);
+          
+          console.log(`✅ Successfully recorded subscription history`);
+        } catch (error) {
+          console.error('❌ Error recording subscription history:', error);
+        }
+        
+        console.log(`✅ Completed subscription update for user ${userId} to ${tier} tier`);
       } catch (error) {
-        console.error('Error updating profile:', error);
+        console.error('❌ Error updating profile:', error);
       }
-      
-      // Record in subscription history
-      try {
-        await (supabase as any).from('subscription_history').insert({
-          user_id: userId,
-          subscription_tier: tier,
-          status: subscription.status,
-          amount_paid: subscription.items.data[0]?.price.unit_amount ? subscription.items.data[0].price.unit_amount / 100 : null,
-          currency: subscription.currency || 'usd',
-          stripe_subscription_id: subscription.id
-        });
-      } catch (error) {
-        console.error('Error recording subscription history:', error);
-      }
-      
-      console.log(`Updated subscription for user ${userId} to ${tier} tier`);
     } catch (error) {
-      console.error('Error processing subscription change:', error);
+      console.error('❌ Error processing subscription change:', error);
     }
   }
 

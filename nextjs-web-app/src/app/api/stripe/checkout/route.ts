@@ -1,277 +1,214 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PaymentService, PlanTierSchema } from '@/lib/payment';
+import { PaymentService } from '@/lib/payment';
+import { AuthService } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/supabase';
 
 // Add OPTIONS method handler for CORS preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
-    status: 200,
+    status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
     },
   });
 }
 
 export async function POST(req: NextRequest) {
+  console.log(`🔄 Starting checkout process`);
+  
   try {
-    // Log request headers for debugging
-    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+    // Log all request headers for debugging
+    const headers = Object.fromEntries(req.headers.entries());
+    console.log(`📊 Request headers:`, JSON.stringify(headers, null, 2));
     
-    // Log cookies directly from the request header for debugging
-    const cookieHeader = req.headers.get('cookie');
-    console.log('Raw cookie header:', cookieHeader);
-    
-    // Extract auth token from cookies
-    let authToken = null;
-    if (cookieHeader) {
-      const cookiePairs = cookieHeader.split(';').map(c => c.trim());
-      const authCookies = cookiePairs.filter(c => c.startsWith('sb-') && c.includes('-auth-token'));
-      console.log('Auth cookies from header:', authCookies);
-      
-      // Extract the token value from the cookie
-      if (authCookies.length > 0) {
-        const authCookie = authCookies[0];
-        const tokenMatch = authCookie.match(/=(.*)/);
-        if (tokenMatch && tokenMatch[1]) {
-          try {
-            // The token is stored as a JSON string in the cookie
-            authToken = JSON.parse(decodeURIComponent(tokenMatch[1]));
-            console.log('Auth token extracted successfully');
-          } catch (e) {
-            console.error('Failed to parse auth token:', e);
-          }
-        }
-      }
-    }
-    
-    // Parse the request body
+    // Parse the request body first to get potential access token
     const body = await req.json();
-    const { tier } = body;
-    console.log('Requested tier:', tier);
-
-    // Validate the tier
-    const result = PlanTierSchema.safeParse(tier);
-    if (!result.success || result.data === 'free') {
-      console.log('Invalid tier:', tier);
-      return new NextResponse(
-        JSON.stringify({ error: 'Invalid subscription tier' }), 
-        { 
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+    const { tier, accessToken: bodyToken } = body;
+    
+    console.log(`🔄 Processing checkout for tier: ${tier}`);
+    console.log(`📊 Access token in body: ${bodyToken ? `Present (length: ${bodyToken.length})` : 'Not present'}`);
+    
+    // Try to get the auth token from multiple sources
+    // 1. Authorization header
+    let authToken = req.headers.get('Authorization')?.replace('Bearer ', '');
+    console.log(`📊 Authorization header: ${authToken ? `Present (length: ${authToken.length})` : 'Not present'}`);
+    
+    // 2. Request body
+    if (!authToken && bodyToken) {
+      console.log(`✅ Using auth token from request body`);
+      authToken = bodyToken;
     }
-
-    // Create a Supabase client with the auth token
-    const supabase = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        global: {
-          headers: {
-            Authorization: authToken ? `Bearer ${authToken[0]}` : '',
-          },
-        },
+    
+    // 3. Cookies as fallback
+    if (!authToken) {
+      console.log(`⚠️ No auth token found in header or body, checking cookies...`);
+      
+      // Log all cookies for debugging
+      const allCookies = req.cookies.getAll();
+      console.log(`📊 All cookies:`, allCookies.map(c => `${c.name}: ${c.value.substring(0, 20)}...`));
+      
+      // Try common Supabase cookie names
+      const cookieNames = [
+        'sb-access-token',
+        'supabase-auth-token',
+        'sb:token',
+        'sb-auth-token',
+        'sb-refresh-token',
+        'sb-provider-token'
+      ];
+      
+      for (const name of cookieNames) {
+        const token = req.cookies.get(name)?.value;
+        if (token) {
+          console.log(`✅ Auth token found in cookie: ${name} (length: ${token.length})`);
+          authToken = token;
+          break;
+        }
       }
-    );
-    
-    console.log('Supabase client created with direct auth token');
-    
-    // Log auth debug info
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      console.log('Session exists:', !!session.session);
-      if (session.session) {
-        const expiresAt = session.session.expires_at;
-        if (expiresAt) {
-          console.log('Session expires at:', new Date(expiresAt * 1000).toISOString());
-          console.log('Current time:', new Date().toISOString());
-          console.log('Session expired:', new Date(expiresAt * 1000) < new Date());
-        } else {
-          console.log('Session has no expiration time');
+      
+      // If still not found, try to find any cookie that might contain the auth token
+      if (!authToken) {
+        console.log(`⚠️ No token found in common cookies, checking all cookies...`);
+        
+        const authCookie = allCookies.find(c => 
+          c.name.includes('auth') || 
+          c.name.includes('supabase') || 
+          c.name.startsWith('sb-')
+        );
+        
+        if (authCookie) {
+          console.log(`✅ Found potential auth cookie: ${authCookie.name} (length: ${authCookie.value.length})`);
+          authToken = authCookie.value;
         }
-        console.log('Session user ID:', session.session.user.id);
       }
-    } catch (sessionError) {
-      console.error('Error getting session:', sessionError);
+    } else {
+      console.log(`✅ Auth token found in header or body (length: ${authToken.length})`);
     }
     
-    // Get the current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    console.log('Auth result - User exists:', !!user, 'Error:', userError);
-
-    if (userError || !user) {
-      console.error('Authentication error details:', userError);
-      return new NextResponse(
-        JSON.stringify({ error: 'User not authenticated' }), 
-        { 
-          status: 401,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+    if (!authToken) {
+      console.error(`❌ No auth token found in any source`);
+      return NextResponse.json({ error: 'Unauthorized - No authentication token found' }, { status: 401 });
     }
-
-    // Get user profile
+    
+    console.log(`✅ Auth token extracted successfully (length: ${authToken.length}, first 10 chars: ${authToken.substring(0, 10)}...)`);
+    
+    // Create a Supabase client directly with the auth token
+    // This is a different approach than using AuthService.createClient()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error(`❌ Missing Supabase environment variables`);
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    
+    console.log(`🔄 Creating Supabase client with direct token...`);
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      }
+    });
+    
+    // Get the current user directly with the token
+    console.log(`🔄 Getting user with direct token...`);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(authToken);
+    
+    if (userError) {
+      console.error(`❌ Error getting user:`, userError);
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+    
+    if (!user) {
+      console.error(`❌ No user found with token`);
+      return NextResponse.json({ error: 'Unauthorized - User not found' }, { status: 401 });
+    }
+    
+    console.log(`✅ User authenticated: ${user.id} (${user.email})`);
+    
+    // Get the user's profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
-
-    if (profileError || !profile) {
-      console.error('Error fetching profile:', profileError);
-      return new NextResponse(
-        JSON.stringify({ error: 'Failed to fetch user profile' }), 
-        { 
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      
+    if (profileError) {
+      console.error(`❌ Error getting profile:`, profileError);
+      return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 });
     }
-
-    console.log('User profile found:', { 
-      id: profile.id, 
-      hasStripeCustomerId: !!profile.stripe_customer_id,
-      tier: profile.subscription_tier || 'free'
-    });
-
-    let customerId = profile.stripe_customer_id || null;
-    let needsUpdate = false;
-
-    // If no Stripe customer ID exists or if we encounter an error with the existing customer ID,
-    // create a new customer
-    try {
-      // Create a checkout session to test if the customer ID is valid
-      if (customerId) {
-        const { url } = await PaymentService.createSubscriptionCheckout(
-          customerId,
-          result.data,
-          user.id
-        );
+    
+    console.log(`✅ User profile found: ${profile.id}`);
+    console.log(`📊 Current subscription tier: ${profile.subscription_tier || 'free'}`);
+    console.log(`📊 Current subscription status: ${profile.subscription_status || 'none'}`);
+    
+    // Check if the user already has a Stripe customer ID
+    const customerId = profile.stripe_customer_id;
+    console.log(`📊 Has Stripe customer ID: ${!!customerId}`);
+    
+    // Create or retrieve a Stripe customer
+    let stripeCustomerId: string;
+    
+    if (customerId) {
+      console.log(`🔄 Creating checkout session with existing customer ID: ${customerId}`);
+      stripeCustomerId = customerId;
+    } else {
+      console.log(`🔄 Creating new Stripe customer for user: ${user.id}`);
+      stripeCustomerId = await PaymentService.createOrRetrieveCustomer(
+        user.email || 'unknown@example.com',
+        user.id
+      );
+      
+      console.log(`✅ New Stripe customer created: ${stripeCustomerId}`);
+      
+      // Update the user's profile with the Stripe customer ID
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', user.id);
         
-        return new NextResponse(
-          JSON.stringify({ url }), 
-          { 
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          }
-        );
-      }
-    } catch (error) {
-      console.error('Error with existing customer ID, creating a new one:', error);
-      customerId = null;
-      needsUpdate = true;
-    }
-
-    // If we reach here, either there was no customer ID or the existing one was invalid
-    if (!customerId) {
-      // Get a valid email address - first try profile email, then user email, then error
-      const email = profile.email || user.email;
-      
-      if (!email || !email.includes('@')) {
-        return new NextResponse(
-          JSON.stringify({ error: 'Valid email address required for checkout. Please update your profile.' }),
-          { 
-            status: 400,
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          }
-        );
-      }
-      
-      customerId = await PaymentService.createOrRetrieveCustomer(email, user.id);
-      needsUpdate = true;
-    }
-
-    // Update the user's profile with the new Stripe customer ID if needed
-    if (needsUpdate && customerId) {
-      try {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ stripe_customer_id: customerId })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('Error updating profile with Stripe customer ID:', updateError);
-          return new NextResponse(
-            JSON.stringify({ error: 'Failed to update profile with Stripe customer ID' }),
-            { 
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-        }
-      } catch (error) {
-        console.error('Error updating profile:', error);
-        return new NextResponse(
-          JSON.stringify({ error: 'Failed to update profile with Stripe customer ID' }),
-          { 
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          }
-        );
+      if (updateError) {
+        console.error(`❌ Error updating profile with Stripe customer ID:`, updateError);
+      } else {
+        console.log(`✅ Profile updated with Stripe customer ID`);
       }
     }
-
-    // Create a checkout session with the valid customer ID
-    if (!customerId) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Failed to create or retrieve Stripe customer ID' }),
-        { 
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-    }
-
+    
+    // Create a checkout session
     const { url } = await PaymentService.createSubscriptionCheckout(
-      customerId,
-      result.data,
+      stripeCustomerId,
+      tier as 'pro' | 'ultra',
       user.id
     );
-
-    return new NextResponse(
-      JSON.stringify({ url }), 
-      { 
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
-    );
+    
+    if (!url) {
+      console.error(`❌ Failed to create checkout session`);
+      return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+    }
+    
+    console.log(`✅ Checkout session created, redirecting to: ${url ? 'Valid URL' : 'No URL'}`);
+    console.log(`📊 Checkout details:
+          - User ID: ${user.id}
+          - Customer ID: ${stripeCustomerId}
+          - Target tier: ${tier}
+          - Current tier: ${profile.subscription_tier || 'free'}
+          - Current status: ${profile.subscription_status || 'none'}
+        `);
+    
+    return NextResponse.json({ url });
   } catch (error) {
-    console.error('Checkout error:', error);
-    return new NextResponse(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred during checkout' }),
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
+    console.error(`❌ Checkout error:`, error);
+    return NextResponse.json(
+      { error: `Failed to create checkout session: ${error instanceof Error ? error.message : 'Unknown error'}` },
+      { status: 500 }
     );
   }
 } 
