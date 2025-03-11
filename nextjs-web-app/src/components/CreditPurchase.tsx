@@ -57,8 +57,6 @@ export default function CreditPurchase({
     if (dollarAmount > 0) {
       // Calculate the equivalent credit amount based on the plan's credit rate
       const creditAmount = Math.round(dollarAmount * creditsPerDollar);
-      console.log(`💰 Converting $${dollarAmount} to ${creditAmount} credits at rate of ${creditsPerDollar} credits per dollar`);
-      
       // Pass the credit amount to the payment service
       onPurchase(creditAmount);
     }

@@ -238,12 +238,12 @@ export default function AppTile({
         boxShadow: isSelected
           ? "0 8px 24px rgba(37, 99, 235, 0.15)"
           : "0 4px 20px rgba(0, 0, 0, 0.1)",
-        height: isExpanded ? '650px' : '300px'
+        height: isExpanded ? '80vh' : '300px'
       }}
     >
       {/* Mac-style window header - make entire header clickable except for red button */}
-      <div className="flex items-center px-3 py-2 bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600">
-        <div className="flex items-center space-x-2">
+      <div className="flex items-center px-3 py-2 bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 relative">
+        <div className="flex items-center space-x-2 z-10">
           {/* Red close button */}
           <div 
             onClick={handleDeleteClick}
@@ -266,9 +266,9 @@ export default function AppTile({
         {/* Make the title area clickable for maximizing */}
         <div 
           onClick={onClick}
-          className="flex-1 text-center cursor-pointer"
+          className="absolute inset-0 flex items-center justify-center cursor-pointer"
         >
-          <span className={`text-xs font-medium truncate select-none ${
+          <span className={`text-xs font-medium truncate select-none px-12 ${
             theme === "dark" ? "text-gray-300" : "text-gray-600"
           }`}>
             {title}
@@ -277,7 +277,7 @@ export default function AppTile({
         
         {/* View mode and deploy buttons toolbar */}
         {isSelected && isExpanded && (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 z-10 ml-auto">
             <button
               onClick={handlePreviewClick}
               className={`px-2 py-1 text-xs rounded ${

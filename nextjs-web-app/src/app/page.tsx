@@ -313,7 +313,7 @@ export default function Home() {
                 {/* Prompt and Number of Websites Container */}
                 <div className="flex flex-col md:flex-row gap-4 mb-4">
                   {/* Prompt Text Area */}
-                  <div className="flex-grow">
+                  <div className="w-full md:flex-grow">
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
@@ -327,7 +327,7 @@ export default function Home() {
                   </div>
                   
                   {/* Number of Websites Control */}
-                  <div className="md:w-48 p-3 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg self-start h-32 flex flex-col justify-around">
+                  <div className="w-full md:w-48 p-3 bg-[#1a1f2e]/30 border border-[#2a3040] rounded-lg self-start h-32 flex flex-col justify-around">
                     <div className="text-sm bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 font-medium mb-2">
                       Number of Websites:
                     </div>

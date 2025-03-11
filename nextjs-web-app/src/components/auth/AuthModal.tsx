@@ -32,12 +32,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     
     try {
       if (mode === "login") {
-        console.log("Attempting login with email:", email);
-        const { data: userData, error } = await AuthService.signIn(email, password);
-        
-        if (error) throw error;
-        
-        console.log("Login successful:", userData?.user?.id);
         setMessage({ type: "success", text: "Login successful!" });
         
         // Add a slight delay before closing modal to allow auth state to update
@@ -66,7 +60,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         // For sign-up, we'll keep the modal open so they can read the message
       }
     } catch (error: unknown) {
-      console.error("Auth error:", error);
       setMessage({ 
         type: "error", 
         text: error instanceof Error ? error.message : "An error occurred during authentication" 
@@ -81,7 +74,6 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setMessage(null);
     
     try {
-      console.log("Attempting Google authentication");
       
       // Set default tokens for new users - this will be visible immediately
       // in case of new Google sign-ups

@@ -500,6 +500,10 @@ function ResultsContent() {
       return;
     }
 
+    // Set the last tile to be expanded initially
+    setExpandedAppIndex(numGenerations - 1);
+    setSelectedAppIndex(numGenerations - 1);
+
     // Generate apps in parallel with a small delay between each to avoid overwhelming the server
     // This creates a staggered loading effect that feels more responsive
     const generateAppsWithStagger = async () => {
@@ -601,17 +605,6 @@ function ResultsContent() {
     }
   };
 
-  // Handle style selection for new generation
-  const handleStyleSelect = (style: string) => {
-    setSelectedStyle(style);
-  };
-
-  // Handle new generation with selected style
-  const handleNewGeneration = () => {
-    // Open the prompt input with the selected style
-    setIsPromptOpen(true);
-  };
-
   return (
     <AuroraBackground>
       <AlertModal
@@ -696,7 +689,7 @@ function ResultsContent() {
                       key={index}
                       layout
                       className={`${
-                        expandedAppIndex === index ? "col-span-2 row-span-2" : ""
+                        expandedAppIndex === index ? "col-span-full" : ""
                       }`}
                     >
                       <AppTile
@@ -716,30 +709,6 @@ function ResultsContent() {
                       />
                     </motion.div>
                   ))}
-                  
-                  {/* Add the "+" placeholder tile for generating new designs */}
-                  <motion.div
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ 
-                      type: "spring",
-                      damping: 20,
-                      stiffness: 200,
-                      delay: appTitles.length * 0.05
-                    }}
-                  >
-                    {/* <AppTile
-                      title="Add New Design"
-                      isSelected={false}
-                      onClick={handleNewGeneration}
-                      theme={theme}
-                      isPlaceholder={true}
-                      availableStyles={Object.values(getStyleDisplayNames())}
-                      onStyleSelect={handleStyleSelect}
-                    /> */}
-                  </motion.div>
                 </AnimatePresence>
               </div>
             </div>

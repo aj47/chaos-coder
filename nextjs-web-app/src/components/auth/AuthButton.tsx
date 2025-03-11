@@ -49,14 +49,14 @@ export function AuthButton() {
 
         {pathname === "/dashboard" ? (
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/")}
             className={`py-2 px-4 rounded-lg text-sm font-medium ${
               theme === "dark"
                 ? "bg-gray-800 hover:bg-gray-700 text-gray-300"
                 : "bg-gray-200 hover:bg-gray-300 text-gray-700"
             }`}
           >
-            Back
+            Home
           </button>
         ) : (
           <button
