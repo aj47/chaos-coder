@@ -16,9 +16,12 @@ export interface Database {
           updated_at: string
           credits: number
           stripe_customer_id?: string | null
-          subscription_tier?: string | null
-          subscription_status?: string | null
-          email?: string | null
+          stripe_subscription_id?: string | null
+          subscription_tier?: 'free' | 'pro' | 'ultra' | null
+          subscription_status?: 'active' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'unpaid' | null
+          subscription_period_start?: string | null
+          subscription_period_end?: string | null
+          last_credit_refresh?: string | null
         }
         Insert: {
           id: string
@@ -26,9 +29,12 @@ export interface Database {
           updated_at?: string
           credits?: number
           stripe_customer_id?: string | null
-          subscription_tier?: string | null
-          subscription_status?: string | null
-          email?: string | null
+          stripe_subscription_id?: string | null
+          subscription_tier?: 'free' | 'pro' | 'ultra' | null
+          subscription_status?: 'active' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'unpaid' | null
+          subscription_period_start?: string | null
+          subscription_period_end?: string | null
+          last_credit_refresh?: string | null
         }
         Update: {
           id?: string
@@ -36,9 +42,12 @@ export interface Database {
           updated_at?: string
           credits?: number
           stripe_customer_id?: string | null
-          subscription_tier?: string | null
-          subscription_status?: string | null
-          email?: string | null
+          stripe_subscription_id?: string | null
+          subscription_tier?: 'free' | 'pro' | 'ultra' | null
+          subscription_status?: 'active' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'unpaid' | null
+          subscription_period_start?: string | null
+          subscription_period_end?: string | null
+          last_credit_refresh?: string | null
         }
         Relationships: [
           {

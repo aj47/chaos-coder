@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentService } from '@/lib/payment';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/types/supabase';
+import { AuthService } from '@/lib/auth';
+import { CookieOptions } from '@supabase/ssr';
 
 // Simplified request type
 interface CheckoutRequestBody {
   tier: 'pro' | 'ultra';
+  accessToken: string;
+  userId: string;
+  userEmail: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Basic request validation
     const body = await req.json() as CheckoutRequestBody;
-    const { tier } = body;
+    const { tier, accessToken, userId, userEmail } = body;
     
     if (!tier || !['pro', 'ultra'].includes(tier)) {
       return new NextResponse(
@@ -25,12 +27,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Get authenticated user using server-side client with cookies
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (!accessToken || !userId || !userEmail) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Missing authentication data' }), 
+        { status: 400 }
+      );
+    }
+
+    // 2. Create Supabase client with auth token
+    const supabase = await AuthService.createServerClientWithToken(accessToken);
+    console.log(`🔄 [${requestId}] Created Supabase client`);
     
-    if (userError || !user?.id || !user?.email) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log(`👤 [${requestId}] Auth check result - User:`, user?.id, 'Error:', userError?.message);
+    
+    if (userError || !user?.id || user.id !== userId) {
       console.error(`❌ [${requestId}] Auth error:`, userError);
       return new NextResponse(
         JSON.stringify({ error: 'Not authenticated' }), 
@@ -45,33 +56,40 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
       .single();
     
-    if (profileError?.code === 'PGRST116') {
-      // Profile doesn't exist, create it
-      const { error: createError } = await supabase
-        .from('profiles')
-        .insert([{ id: user.id }])
-        .single();
-      
-      if (createError) {
-        console.error(`❌ [${requestId}] Profile creation error:`, createError);
+    if (profileError) {
+      if (profileError.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        console.log(`🔄 [${requestId}] Profile not found, creating new profile for user ${user.id}`);
+        
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({ id: user.id });
+        
+        if (createError) {
+          console.error(`❌ [${requestId}] Profile creation error:`, createError);
+          return new NextResponse(
+            JSON.stringify({ error: 'Failed to create profile' }), 
+            { status: 500 }
+          );
+        }
+        
+        console.log(`✅ [${requestId}] Created new profile for user ${user.id}`);
+      } else {
+        console.error(`❌ [${requestId}] Profile error:`, profileError);
         return new NextResponse(
-          JSON.stringify({ error: 'Failed to create profile' }), 
+          JSON.stringify({ error: 'Failed to get profile' }), 
           { status: 500 }
         );
       }
-    } else if (profileError) {
-      console.error(`❌ [${requestId}] Profile error:`, profileError);
-      return new NextResponse(
-        JSON.stringify({ error: 'Failed to get profile' }), 
-        { status: 500 }
-      );
     }
 
     // 4. Get or create Stripe customer
     let stripeCustomerId = profile?.stripe_customer_id;
     
     if (!stripeCustomerId) {
-      stripeCustomerId = await PaymentService.createOrRetrieveCustomer(user.email, user.id);
+      console.log(`🔄 [${requestId}] No Stripe customer ID found, creating new customer`);
+      
+      stripeCustomerId = await PaymentService.createOrRetrieveCustomer(userEmail, userId);
       
       // Update profile with new customer ID
       const { error: updateError } = await supabase
@@ -81,10 +99,16 @@ export async function POST(req: NextRequest) {
       
       if (updateError) {
         console.error(`❌ [${requestId}] Failed to update stripe_customer_id:`, updateError);
+      } else {
+        console.log(`✅ [${requestId}] Updated profile with new Stripe customer ID: ${stripeCustomerId}`);
       }
+    } else {
+      console.log(`✅ [${requestId}] Using existing Stripe customer ID: ${stripeCustomerId}`);
     }
 
     // 5. Create checkout session
+    console.log(`🔄 Creating subscription checkout for customer ${stripeCustomerId}, tier: ${tier}`);
+    
     const { url } = await PaymentService.createSubscriptionCheckout(
       stripeCustomerId,
       tier,
@@ -98,6 +122,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log(`✅ [${requestId}] Created checkout session with URL: ${url.substring(0, 50)}...`);
+    
     return new NextResponse(
       JSON.stringify({ url }), 
       { status: 200 }

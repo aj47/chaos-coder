@@ -1,50 +1,22 @@
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { AuthService } from '@/lib/auth';
+import { Database } from '@/types/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-// Define type for Stripe session to avoid any type
-interface StripeSession {
-  id?: string;
-  metadata?: Record<string, string>;
-  amount_total?: number;
-  currency?: string;
-  customer?: string;
-  subscription?: string;
-}
+type SubscriptionTier = Database['public']['Tables']['profiles']['Row']['subscription_tier'];
+type SubscriptionStatus = NonNullable<Database['public']['Tables']['profiles']['Row']['subscription_status']>;
+type Profile = Database['public']['Tables']['profiles']['Row'];
+type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
-// Define type for Stripe subscription
-interface StripeSubscription {
-  id?: string;
-  customer: string;
-  status: string;
-  current_period_start: number;
-  current_period_end: number;
-  currency?: string;
-  metadata?: Record<string, string>;
-  items: {
-    data: Array<{
-      price: {
-        id: string;
-        product: string;
-        unit_amount?: number;
-      }
-    }>
-  }
-}
-
-// Define type for Stripe invoice
-interface StripeInvoice {
-  customer: string;
-  id: string;
-}
-
-// Define type for Stripe customer
-interface StripeCustomer {
-  id: string;
-  email?: string;
-  metadata?: Record<string, string>;
-  deleted?: boolean;
-}
+// Define types for Stripe events to avoid any type
+type StripeEvent = Stripe.Event;
+type StripeSession = Stripe.Checkout.Session;
+type StripeSubscription = Stripe.Subscription;
+type StripeInvoice = Stripe.Invoice;
+type StripeCustomer = Stripe.Customer;
+type StripeDeletedCustomer = Stripe.DeletedCustomer;
 
 /**
  * Subscription plan configuration
@@ -132,35 +104,38 @@ export class PaymentService {
   }
 
   /**
-   * Create or retrieve a Stripe customer
+   * Get or create a Stripe customer for a user
    */
-  static async createOrRetrieveCustomer(email: string, userId: string): Promise<string> {
-    const stripe = this.getStripe();
-    
-    try {
-      // First check if customer already exists for this user
-      const existingCustomers = await stripe.customers.list({
-        email,
-        limit: 1,
-      });
-      
-      if (existingCustomers.data.length > 0) {
-        return existingCustomers.data[0].id;
-      }
-      
-      // Create a new customer if none exists
-      const newCustomer = await stripe.customers.create({
-        email,
-        metadata: {
-          userId
+  static async getOrCreateCustomer(userId: string, email: string): Promise<string> {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const supabase = await AuthService.createServerClient() as SupabaseClient<Database>;
+
+    // Check if user already has a customer ID
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.stripe_customer_id) {
+      // Verify the customer still exists in Stripe
+      try {
+        const customer = await stripe.customers.retrieve(profile.stripe_customer_id) as StripeCustomer | StripeDeletedCustomer;
+        if (!('deleted' in customer)) {
+          return customer.id;
         }
-      });
-      
-      return newCustomer.id;
-    } catch (error) {
-      console.error('Error creating/retrieving customer:', error);
-      throw new Error(`Failed to create/retrieve customer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } catch (error) {
+        console.error('Error retrieving Stripe customer:', error);
+      }
     }
+
+    // Create new customer if none exists
+    const customer = await stripe.customers.create({
+      email,
+      metadata: { userId }
+    });
+
+    return customer.id;
   }
 
   /**
@@ -434,187 +409,100 @@ export class PaymentService {
   private static async handleSubscriptionChange(subscription: StripeSubscription) {
     console.log(`🔄 Processing subscription change for subscription: ${subscription.id}`);
     console.log(`📊 Subscription status: ${subscription.status}`);
-    console.log(`📊 Full subscription data:`, JSON.stringify(subscription, null, 2));
-    
-    const supabase = await AuthService.createServerClient();
-    
-    // Find the user ID from the customer metadata
-    const customerId = subscription.customer;
-    console.log(`📊 Customer ID: ${customerId}`);
-    
-    const stripe = this.getStripe();
-    
+    console.log(`📊 Full subscription data:`, subscription);
+
+    const supabase = await AuthService.createServerClient() as SupabaseClient<Database>;
+
     try {
-      // First try to get the user ID from the subscription metadata
-      let userId = subscription.metadata?.userId;
-      
-      if (userId) {
-        console.log(`✅ User ID found in subscription metadata: ${userId}`);
-      } else {
-        // Fall back to getting it from the customer metadata
-        const customer = await stripe.customers.retrieve(customerId) as StripeCustomer;
-        
-        if (!customer || customer.deleted) {
-          console.error('❌ Customer not found or deleted');
-          return;
-        }
-        
-        userId = customer.metadata?.userId;
-        
-        if (!userId) {
-          console.error('❌ No user ID in customer metadata');
-          console.log(`📊 Customer metadata:`, customer.metadata);
-          return;
-        }
-        
-        console.log(`✅ User ID found in customer metadata: ${userId}`);
+      // Get the user ID from the subscription metadata
+      const userId = subscription.metadata?.userId;
+      if (!userId) {
+        console.error('❌ No user ID in subscription metadata');
+        return;
       }
-      
-      // First, check the current profile state
-      try {
-        console.log(`🔍 Checking current profile state for user ${userId}`);
-        const { data: currentProfile, error: currentProfileError } = await (supabase as any)
-          .from('profiles')
-          .select('subscription_tier, subscription_status, credits')
-          .eq('id', userId)
-          .single();
-          
-        if (currentProfileError) {
-          console.error('❌ Error fetching current profile:', currentProfileError);
-        } else {
-          console.log(`📊 Current profile state:`, currentProfile);
-        }
-      } catch (error) {
-        console.error('❌ Error checking current profile:', error);
-      }
-      
-      // Determine the subscription tier from the product
-      const productId = subscription.items.data[0]?.price.product;
-      console.log(`📊 Product ID from subscription: ${productId}`);
-      console.log(`📊 Environment variables for product IDs:
-        - STRIPE_PRO_PRODUCT_ID: ${process.env.STRIPE_PRO_PRODUCT_ID || 'Not set'}
-        - STRIPE_ULTRA_PRODUCT_ID: ${process.env.STRIPE_ULTRA_PRODUCT_ID || 'Not set'}
-      `);
-      
-      const product = await stripe.products.retrieve(productId as string);
-      console.log(`📊 Product details:`, {
-        name: product.name,
-        metadata: product.metadata
-      });
-      
-      // Determine tier from product metadata, environment variables, or product name
-      let tier = 'free';
-      
-      // First try to get tier from product metadata
-      if (product.metadata?.tier) {
-        tier = product.metadata.tier;
-        console.log(`📊 Tier from product metadata: ${tier}`);
-      } 
-      // Then try to match against environment variables
-      else if (productId === process.env.STRIPE_PRO_PRODUCT_ID) {
-        tier = 'pro';
-        console.log(`📊 Tier matched to PRO product ID`);
-      } else if (productId === process.env.STRIPE_ULTRA_PRODUCT_ID) {
-        tier = 'ultra';
-        console.log(`📊 Tier matched to ULTRA product ID`);
-      } 
-      // If that fails, try to determine from product name
-      else if (product.name) {
-        const productName = product.name.toLowerCase();
-        if (productName.includes('pro')) {
-          tier = 'pro';
-          console.log(`📊 Tier determined from product name '${product.name}': pro`);
-        } else if (productName.includes('ultra')) {
-          tier = 'ultra';
-          console.log(`📊 Tier determined from product name '${product.name}': ultra`);
-        } else {
-          console.log(`⚠️ Could not determine tier from product name: ${product.name}. Using default: ${tier}`);
-        }
-      } else {
-        console.log(`⚠️ Could not determine tier from product. Using default: ${tier}`);
-        console.log(`📊 Environment variables:
-          - STRIPE_PRO_PRODUCT_ID: ${process.env.STRIPE_PRO_PRODUCT_ID ? 'Set' : 'Not set'}
-          - STRIPE_ULTRA_PRODUCT_ID: ${process.env.STRIPE_ULTRA_PRODUCT_ID ? 'Set' : 'Not set'}
-        `);
-      }
-      
-      // Update the user's subscription information
-      try {
-        console.log(`🔄 Updating profile for user ${userId} with tier: ${tier}`);
+      console.log(`✅ User ID found in subscription metadata: ${userId}`);
+
+      // Check current profile state
+      console.log(`🔍 Checking current profile state for user ${userId}`);
+      const { data: currentProfile, error: currentProfileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (currentProfileError) {
+        console.error('❌ Error fetching current profile:', currentProfileError);
         
-        const profileData = {
+        // Create a new profile if one doesn't exist
+        const tier = (subscription.metadata?.tier || 'free') as SubscriptionTier;
+        console.log(`🔄 Creating new profile for user ${userId} with tier ${tier}`);
+        
+        const newProfile: ProfileInsert = {
+          id: userId,
           subscription_tier: tier,
-          subscription_status: 'active',
-          stripe_customer_id: customerId,
+          subscription_status: subscription.status as SubscriptionStatus,
+          stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
           stripe_subscription_id: subscription.id,
           subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
           subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
+          last_credit_refresh: new Date().toISOString()
         };
         
-        console.log(`📊 Update data:`, profileData);
+        console.log(`📊 New profile data:`, newProfile);
         
-        const { error } = await (supabase as any).from('profiles')
-          .update(profileData)
-          .eq('id', userId);
-        
-        if (error) {
-          console.error('❌ Error updating profile:', error);
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert(newProfile);
+          
+        if (createError) {
+          console.error('❌ Failed to create profile:', createError);
+          console.error('❌ Profile creation error details:', JSON.stringify(createError));
+          
+          // If this is an RLS error, log additional information
+          if (createError.code === '42501') {
+            console.error('❌ This is a Row-Level Security policy error. Make sure:');
+            console.error('   1. The supabase client is using the service role key');
+            console.error('   2. The RLS policies allow inserts for the service role');
+            console.error('   3. The correct schema is being used');
+          }
+          
           return;
         }
+        console.log(`✅ Created new profile for user ${userId}`);
+      } else {
+        console.log(`📊 Current profile state:`, currentProfile);
         
-        console.log(`✅ Successfully updated profile for user ${userId} to ${tier} tier`);
+        // Update the existing profile
+        const tier = (subscription.metadata?.tier || currentProfile.subscription_tier) as SubscriptionTier;
+        const profileUpdate: ProfileUpdate = {
+          subscription_tier: tier,
+          subscription_status: subscription.status as SubscriptionStatus,
+          stripe_subscription_id: subscription.id,
+          subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+        };
         
-        // Verify the update was successful
-        try {
-          console.log(`🔍 Verifying profile update for user ${userId}`);
-          const { data: updatedProfile, error: verifyError } = await (supabase as any)
-            .from('profiles')
-            .select('subscription_tier, subscription_status')
-            .eq('id', userId)
-            .single();
-            
-          if (verifyError) {
-            console.error('❌ Error verifying profile update:', verifyError);
-          } else {
-            console.log(`📊 Updated profile state:`, updatedProfile);
-            if (updatedProfile.subscription_tier !== tier) {
-              console.error(`❌ Profile update verification failed: expected tier ${tier}, got ${updatedProfile.subscription_tier}`);
-            } else {
-              console.log(`✅ Profile update verification successful: tier is now ${updatedProfile.subscription_tier}`);
-            }
-          }
-        } catch (verifyError) {
-          console.error('❌ Exception during profile update verification:', verifyError);
+        console.log(`📊 Profile update data:`, profileUpdate);
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update(profileUpdate)
+          .eq('id', userId);
+          
+        if (updateError) {
+          console.error('❌ Failed to update profile:', updateError);
+          console.error('❌ Profile update error details:', JSON.stringify(updateError));
+          return;
         }
-        
-        // Record in subscription history
-        try {
-          console.log(`🔄 Recording subscription history for user ${userId}`);
-          
-          const historyData = {
-            user_id: userId,
-            subscription_tier: tier,
-            status: subscription.status,
-            amount_paid: subscription.items.data[0]?.price.unit_amount ? subscription.items.data[0].price.unit_amount / 100 : null,
-            currency: subscription.currency || 'usd',
-            stripe_subscription_id: subscription.id
-          };
-          
-          console.log(`📊 Subscription history data:`, historyData);
-          
-          await (supabase as any).from('subscription_history').insert(historyData);
-          
-          console.log(`✅ Successfully recorded subscription history`);
-        } catch (error) {
-          console.error('❌ Error recording subscription history:', error);
-        }
-        
-        console.log(`✅ Completed subscription update for user ${userId} to ${tier} tier`);
-      } catch (error) {
-        console.error('❌ Error updating profile:', error);
+        console.log(`✅ Updated profile for user ${userId}`);
       }
     } catch (error) {
       console.error('❌ Error processing subscription change:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
     }
   }
 
@@ -825,6 +713,6 @@ export const getStripe = PaymentService.getStripe.bind(PaymentService);
 export const createSubscriptionCheckout = PaymentService.createSubscriptionCheckout.bind(PaymentService);
 export const createCreditPurchaseCheckout = PaymentService.createCreditPurchaseCheckout.bind(PaymentService);
 export const calculateCreditPrice = PaymentService.calculateCreditPrice.bind(PaymentService);
-export const createOrRetrieveCustomer = PaymentService.createOrRetrieveCustomer.bind(PaymentService);
+export const createOrRetrieveCustomer = PaymentService.getOrCreateCustomer.bind(PaymentService);
 export const cancelSubscription = PaymentService.cancelSubscription.bind(PaymentService);
 export const handleWebhookEvent = PaymentService.handleWebhookEvent.bind(PaymentService); 

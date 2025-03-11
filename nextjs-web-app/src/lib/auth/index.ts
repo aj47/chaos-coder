@@ -1,16 +1,16 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { createServerClient as createServerClientSSR } from '@supabase/ssr';
+import { createServerClient as createServerClientSSR, CookieOptions } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 import type { Database } from '@/types/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-// Import cookies conditionally to avoid errors in client components
-let cookies: any;
-try {
-  cookies = require('next/headers').cookies;
-} catch (error) {
-  // We're in a client component or environment that doesn't support cookies
-  // This is ok, we'll use an alternative approach for server contexts
+interface CookieStore {
+  get(name: string): { value: string } | undefined;
+  set(options: { name: string; value: string } & CookieOptions): void;
+  delete(options: { name: string } & CookieOptions): void;
 }
+
+type SupabaseClientType = SupabaseClient<Database>;
 
 /**
  * Centralized auth service that provides methods for all authentication-related operations
@@ -43,60 +43,132 @@ export class AuthService {
 
   /**
    * Create a server-side Supabase client for API routes and server components
-   * 
-   * Note: This function may need different implementations depending on whether it's
-   * called from an app directory server component or pages directory API route.
    */
-  static async createServerClient(cookieStore?: any) {
-    // If cookies is available and no cookieStore provided, use cookies() from next/headers
-    if (!cookieStore && typeof cookies?.() === 'function') {
-      cookieStore = await cookies();
-    }
-    
+  static async createServerClient(cookieStore?: CookieStore): Promise<SupabaseClientType> {
     console.log('AuthService: Creating server client with cookie store:', !!cookieStore);
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl) {
       console.error("AuthService: Supabase environment variables are not set correctly for server client!");
+      throw new Error("Missing Supabase configuration");
     }
     
     // If we have a valid cookieStore, use it
     if (cookieStore) {
       console.log('AuthService: Using cookie store for server client');
-      return createClientComponentClient<Database>({
-        cookies: () => cookieStore
-      });
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!supabaseKey) {
+        throw new Error("Missing Supabase anon key");
+      }
+      
+      return createServerClientSSR<Database>(
+        supabaseUrl,
+        supabaseKey,
+        {
+          cookies: {
+            get(name: string): string {
+              const cookie = cookieStore?.get(name);
+              if (!cookie?.value) return '';
+              
+              // For auth token cookies, they're stored in a JSON array format
+              if (name.includes('-auth-token')) {
+                try {
+                  // Only try to parse if it starts with a bracket (JSON array)
+                  if (cookie.value.startsWith('[')) {
+                    const parsed = JSON.parse(cookie.value);
+                    return Array.isArray(parsed) ? parsed[0] : cookie.value;
+                  }
+                  // If it's already a JWT token (starts with ey), return as is
+                  if (cookie.value.startsWith('ey')) {
+                    return cookie.value;
+                  }
+                } catch (error) {
+                  console.warn('AuthService: Cookie parse error:', error);
+                  return cookie.value;
+                }
+              }
+              
+              return cookie.value;
+            },
+            set(name: string, value: string, options: CookieOptions): void {
+              try {
+                cookieStore?.set({ name, value, ...options });
+              } catch (error) {
+                console.warn('AuthService: Could not set cookie:', error);
+              }
+            },
+            remove(name: string, options: CookieOptions): void {
+              try {
+                cookieStore?.delete({ name, ...options });
+              } catch (error) {
+                console.warn('AuthService: Could not remove cookie:', error);
+              }
+            }
+          }
+        }
+      );
     }
     
-    // Fallback to anon client if no cookies available (handle via JWT if needed)
-    console.log('AuthService: Falling back to anon client (no cookie store)');
-    return createClientComponentClient<Database>({
-      supabaseUrl: supabaseUrl || '',
-      supabaseKey: supabaseKey || '',
-    });
+    // Use service role key for webhook handlers and background processes
+    // This is required for operations that need to bypass RLS
+    console.log('AuthService: Using service role client (no cookie store)');
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      console.error("AuthService: Missing service role key, falling back to anon client");
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!supabaseKey) {
+        throw new Error("Missing Supabase keys");
+      }
+      
+      return createServerClientSSR<Database>(
+        supabaseUrl,
+        supabaseKey,
+        {
+          cookies: {
+            get: () => '',
+            set: () => {},
+            remove: () => {}
+          }
+        }
+      );
+    }
+    
+    return createServerClientSSR<Database>(
+      supabaseUrl,
+      serviceRoleKey,
+      {
+        auth: {
+          persistSession: false
+        },
+        cookies: {
+          get: () => '',
+          set: () => {},
+          remove: () => {}
+        }
+      }
+    );
   }
 
   /**
    * Create a Supabase client for middleware
    */
   static createMiddlewareClient(request: NextRequest) {
-    return createServerClientSSR(
+    return createServerClientSSR<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return request.cookies.getAll();
+          get(name: string): string {
+            return request.cookies.get(name)?.value ?? '';
           },
-          set(name, value, options) {
+          set(name: string, value: string, options: CookieOptions): void {
             // This is handled in the middleware
           },
-          remove(name, options) {
+          remove(name: string, options: CookieOptions): void {
             // This is handled in the middleware  
-          },
-        },
+          }
+        }
       }
     );
   }
@@ -169,7 +241,7 @@ export class AuthService {
   /**
    * Get the current user
    */
-  static async getCurrentUser(supabase: Database['supabase']) {
+  static async getCurrentUser(supabase: SupabaseClientType) {
     try {
       console.log('AuthService: Getting current user');
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -195,7 +267,7 @@ export class AuthService {
   /**
    * Verify that a user exists in the database
    */
-  static async verifyUserProfile(supabase: Database['supabase'], userId: string) {
+  static async verifyUserProfile(supabase: SupabaseClientType, userId: string) {
     try {
       const { error } = await supabase
         .from('profiles')
@@ -304,7 +376,7 @@ export class AuthService {
   /**
    * Exchange an auth code for a session
    */
-  static async exchangeCodeForSession(code: string, cookieStore?: any) {
+  static async exchangeCodeForSession(code: string, cookieStore?: CookieStore) {
     const supabase = await this.createServerClient(cookieStore);
     
     try {
@@ -359,6 +431,45 @@ export class AuthService {
         error: error instanceof Error ? error : new Error('Unknown error updating password') 
       };
     }
+  }
+
+  /**
+   * Create a server-side Supabase client using an access token
+   */
+  static async createServerClientWithToken(accessToken: string): Promise<SupabaseClientType> {
+    console.log('AuthService: Creating server client with access token');
+    
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("AuthService: Supabase environment variables are not set correctly for server client!");
+      throw new Error("Missing Supabase configuration");
+    }
+    
+    const supabase = createServerClientSSR<Database>(
+      supabaseUrl,
+      supabaseKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false
+        },
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        },
+        cookies: {
+          get: () => '',
+          set: () => {},
+          remove: () => {}
+        }
+      }
+    );
+
+    return supabase;
   }
 }
 
