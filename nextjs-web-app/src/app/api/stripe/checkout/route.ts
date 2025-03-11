@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { PaymentService, PlanTierSchema } from '@/lib/payment';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 
 // Add OPTIONS method handler for CORS preflight requests
@@ -22,17 +21,31 @@ export async function POST(req: NextRequest) {
     // Log request headers for debugging
     console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
-    // Properly await cookies
-    const cookieStore = cookies();
-    
     // Log cookies directly from the request header for debugging
     const cookieHeader = req.headers.get('cookie');
     console.log('Raw cookie header:', cookieHeader);
     
+    // Extract auth token from cookies
+    let authToken = null;
     if (cookieHeader) {
       const cookiePairs = cookieHeader.split(';').map(c => c.trim());
-      const authCookies = cookiePairs.filter(c => c.startsWith('sb-') || c.includes('supabase'));
+      const authCookies = cookiePairs.filter(c => c.startsWith('sb-') && c.includes('-auth-token'));
       console.log('Auth cookies from header:', authCookies);
+      
+      // Extract the token value from the cookie
+      if (authCookies.length > 0) {
+        const authCookie = authCookies[0];
+        const tokenMatch = authCookie.match(/=(.*)/);
+        if (tokenMatch && tokenMatch[1]) {
+          try {
+            // The token is stored as a JSON string in the cookie
+            authToken = JSON.parse(decodeURIComponent(tokenMatch[1]));
+            console.log('Auth token extracted successfully');
+          } catch (e) {
+            console.error('Failed to parse auth token:', e);
+          }
+        }
+      }
     }
     
     // Parse the request body
@@ -55,9 +68,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a Supabase client directly with the cookie store
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
-    console.log('Supabase client created with cookie store');
+    // Create a Supabase client with the auth token
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+        global: {
+          headers: {
+            Authorization: authToken ? `Bearer ${authToken[0]}` : '',
+          },
+        },
+      }
+    );
+    
+    console.log('Supabase client created with direct auth token');
     
     // Log auth debug info
     try {
