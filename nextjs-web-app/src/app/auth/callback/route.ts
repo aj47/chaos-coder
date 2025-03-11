@@ -1,4 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { AuthService } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -19,9 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await AuthService.exchangeCodeForSession(code, cookieStore);
     
     if (error) {
       console.error('Error exchanging code for session:', error.message);
@@ -32,6 +30,7 @@ export async function GET(request: NextRequest) {
     // and store it in user metadata if it doesn't exist yet
     if (data?.user) {
       const user = data.user;
+      const supabase = await AuthService.createServerClient(cookieStore);
       
       // Check if we need to update user metadata with first name
       if (!user.user_metadata?.first_name) {
@@ -48,12 +47,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Redirect back to the origin page with auth_refresh and hard_refresh flags
-    // hard_refresh=true will force a complete page reload via client-side JavaScript
-    return NextResponse.redirect(`${requestUrl.origin}?auth_refresh=true&hard_refresh=true`);
-  } catch (err) {
-    console.error('Unexpected error in auth callback:', err);
+    // Redirect to the dashboard page on successful authentication
+    return NextResponse.redirect(`${requestUrl.origin}/dashboard`);
+  } catch (error) {
+    console.error('Unexpected error in auth callback:', error);
     const requestUrl = new URL(request.url);
-    return NextResponse.redirect(`${requestUrl.origin}?error=server_error`);
+    return NextResponse.redirect(`${requestUrl.origin}?error=unexpected_error`);
   }
 } 

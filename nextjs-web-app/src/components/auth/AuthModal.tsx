@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { createClient } from "@/lib/supabase/client";
+import { AuthService } from "@/lib/auth";
 import { FcGoogle } from "react-icons/fc";
 import { useTokenStore } from "@/store/useTokenStore";
 
@@ -31,14 +31,9 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setMessage(null);
     
     try {
-      const supabase = createClient();
-      
       if (mode === "login") {
         console.log("Attempting login with email:", email);
-        const { error, data: userData } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data: userData, error } = await AuthService.signIn(email, password);
         
         if (error) throw error;
         
@@ -54,16 +49,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
       } else {
         // No need to validate firstName since it's a hidden field with default value
         
-        const { error, data } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              // Always use "User" as the first name if not provided
-              first_name: firstName.trim() || "User",
-            },
-          },
-        });
+        const { error } = await AuthService.signUp(email, password, firstName);
         
         if (error) throw error;
         
@@ -96,20 +82,13 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
     setMessage(null);
     
     try {
-      const supabase = createClient();
-      
       console.log("Attempting Google authentication");
       
       // Set default tokens for new users - this will be visible immediately
       // in case of new Google sign-ups
       setTokens(100);
       
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        }
-      });
+      const { error } = await AuthService.signInWithOAuth('google');
       
       if (error) throw error;
       

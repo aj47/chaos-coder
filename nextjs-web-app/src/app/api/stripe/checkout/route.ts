@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { createCheckoutSession, createOrRetrieveCustomer, PLANS } from '@/lib/stripe';
+import { AuthService } from '@/lib/auth';
+import { PaymentService, PlanTierSchema } from '@/lib/payment';
 
 export async function POST(req: NextRequest) {
   try {
     // Parse the request body
     const body = await req.json();
-    const { plan } = body;
+    const { tier } = body;
 
-    // Get plan details
-    const planDetails = plan === 'PRO' ? PLANS.PRO : plan === 'ULTRA' ? PLANS.ULTRA : null;
-
-    if (!planDetails || !planDetails.priceId) {
-      return NextResponse.json({ error: 'Invalid plan or price ID not configured' }, { status: 400 });
+    // Validate the tier
+    const result = PlanTierSchema.safeParse(tier);
+    if (!result.success || result.data === 'free') {
+      return NextResponse.json({ error: 'Invalid subscription tier' }, { status: 400 });
     }
 
-    // Initialize Supabase client
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Use our auth service to get the authenticated user
+    const cookieStore = cookies();
+    const supabase = await AuthService.createServerClient(cookieStore);
+    const { user, error: userError } = await AuthService.getCurrentUser(supabase);
 
     if (userError || !user) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
@@ -34,12 +31,12 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profileError) {
+    if (profileError || !profile) {
       console.error('Error fetching profile:', profileError);
       return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
-    let customerId = profile?.stripe_customer_id;
+    let customerId = profile.stripe_customer_id;
     let needsUpdate = false;
 
     // If no Stripe customer ID exists or if we encounter an error with the existing customer ID,
@@ -47,9 +44,9 @@ export async function POST(req: NextRequest) {
     try {
       // Create a checkout session to test if the customer ID is valid
       if (customerId) {
-        const { url } = await createCheckoutSession(
+        const { url } = await PaymentService.createSubscriptionCheckout(
           customerId,
-          planDetails.priceId as string,
+          result.data,
           user.id
         );
         
@@ -73,19 +70,27 @@ export async function POST(req: NextRequest) {
         );
       }
       
-      customerId = await createOrRetrieveCustomer(email, user.id);
+      customerId = await PaymentService.createOrRetrieveCustomer(email, user.id);
       needsUpdate = true;
     }
 
     // Update the user's profile with the new Stripe customer ID if needed
     if (needsUpdate) {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
+      try {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', user.id);
 
-      if (updateError) {
-        console.error('Error updating profile with Stripe customer ID:', updateError);
+        if (updateError) {
+          console.error('Error updating profile with Stripe customer ID:', updateError);
+          return NextResponse.json(
+            { error: 'Failed to update profile with Stripe customer ID' },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
         return NextResponse.json(
           { error: 'Failed to update profile with Stripe customer ID' },
           { status: 500 }
@@ -94,17 +99,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a checkout session with the valid customer ID
-    const { url } = await createCheckoutSession(
+    const { url } = await PaymentService.createSubscriptionCheckout(
       customerId,
-      planDetails.priceId as string,
+      result.data,
       user.id
     );
 
     return NextResponse.json({ url });
   } catch (error) {
-    console.error('Error in checkout API:', error);
+    console.error('Checkout error:', error);
     return NextResponse.json(
-      { error: `Failed to create checkout session: ${error instanceof Error ? error.message : 'Unknown error'}` },
+      { error: error instanceof Error ? error.message : 'An error occurred during checkout' },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { AuthService } from "@/lib/auth";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthModal } from "./AuthModal";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
@@ -35,21 +35,16 @@ export function AuthButton() {
   };
 
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = AuthService.createClient();
 
     // Check current session
     const checkUser = async () => {
       try {
-        const {
-          data: { user },
-          error: userError
-        } = await supabase.auth.getUser();
+        const { user, error: userError } = await AuthService.getCurrentUser(supabase);
 
-        // Don't treat missing session as an error - it's a normal state
-        if (userError && userError.name !== 'AuthSessionMissingError') {
+        if (userError) {
           console.error("Error fetching user:", userError);
-          // Only sign out if it's not a missing session error
-          await supabase.auth.signOut();
+          await AuthService.signOut();
           setUser(null);
           return;
         }
@@ -59,21 +54,7 @@ export function AuthButton() {
           return;
         }
 
-        // Verify the user exists in the database
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .single();
-
-        if (profileError) {
-          console.error("User profile not found:", profileError);
-          // Sign out if profile doesn't exist
-          await supabase.auth.signOut();
-          setUser(null);
-          return;
-        }
-
+        // User is authenticated
         setUser(user);
         
         // If user is authenticated, fetch their tokens
@@ -104,22 +85,7 @@ export function AuthButton() {
         }
 
         try {
-          // Verify the user exists in the database
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profileError) {
-            console.error("User profile not found during auth state change:", profileError);
-            // Sign out if profile doesn't exist
-            await supabase.auth.signOut();
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-
+          // User is authenticated
           setUser(session.user);
           
           // Fetch tokens whenever auth state changes (login, signup, etc.)
@@ -128,7 +94,7 @@ export function AuthButton() {
           }
         } catch (error) {
           console.error("Error in auth state change:", error);
-          await supabase.auth.signOut();
+          await AuthService.signOut();
           setUser(null);
         } finally {
           // Important: Also set loading to false here after auth state changes
@@ -141,8 +107,6 @@ export function AuthButton() {
       subscription.unsubscribe();
     };
   }, []);
-
-  console.log("Render state:", { user: user?.id, loading, tokens });
 
   // Force loading to false if we have a user but loading is still true
   // This is a safeguard to ensure the UI updates

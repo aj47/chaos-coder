@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { createClient } from "@/lib/supabase/client";
 import { useTokenStore } from "@/store/useTokenStore";
+import { AuthService } from "@/lib/auth";
 import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import CreditPurchase from "@/components/CreditPurchase";
@@ -36,32 +36,28 @@ export default function DashboardPage() {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const supabase = createClient();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const supabase = AuthService.createClient();
+        const { user, error } = await AuthService.getCurrentUser(supabase);
         
-        if (userError) {
-          throw new Error(userError.message);
-        }
-        
-        if (!userData?.user) {
+        if (error || !user) {
+          console.error("Error loading user:", error);
           router.push("/");
           return;
         }
         
-        // Save user ID for later use
-        setUserId(userData.user.id);
+        setUserId(user.id);
         
         // Immediately sync token store with database
-        await syncTokensWithDB(userData.user.id);
+        await syncTokensWithDB(user.id);
         
         // Set user email
-        setUserEmail(userData.user.email || null);
+        setUserEmail(user.email || null);
         
         // Check if this is a new login (using sessionStorage to track login state)
         const isNewLogin = !sessionStorage.getItem('dashboard_visited');
         if (isNewLogin) {
           // Set a welcome message for new logins
-          setSuccessMessage(`Welcome back, ${userData.user.email}!`);
+          setSuccessMessage(`Welcome back, ${user.email}!`);
           
           // Mark as visited
           sessionStorage.setItem('dashboard_visited', 'true');
@@ -75,7 +71,7 @@ export default function DashboardPage() {
         // Check if credits need to be refreshed for the day
         const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
           supabase,
-          userData.user.id
+          user.id
         );
         
         if (refreshed) {
@@ -90,19 +86,19 @@ export default function DashboardPage() {
         }
         
         // Fetch user profile to get subscription info - adding logging
-        console.log('Fetching user profile for:', userData.user.id);
-        const { data, error: profileError } = await supabase
+        console.log('Fetching user profile for:', user.id);
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*') // Get all columns for debugging
-          .eq('id', userData.user.id)
+          .eq('id', user.id)
           .single();
         
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-        } else if (data) {
-          console.log("Profile data received:", data);
+        } else if (profileData) {
+          console.log("Profile data received:", profileData);
           // First cast to unknown then to the expected type
-          const profile = data as unknown as {
+          const profile = profileData as unknown as {
             credits: number;
             subscription_tier?: string;
             subscription_status?: string;
@@ -226,7 +222,6 @@ export default function DashboardPage() {
           const response = await fetch('/api/stripe/downgrade', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: planType.toUpperCase() }),
           });
           
           const responseText = await response.text();
@@ -336,8 +331,8 @@ export default function DashboardPage() {
     // Clear the dashboard_visited flag
     sessionStorage.removeItem('dashboard_visited');
     
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    // Use the new AuthService for logout
+    await AuthService.signOut();
     router.push('/');
   };
 
@@ -371,25 +366,25 @@ export default function DashboardPage() {
   const getUserData = async () => {
     try {
       console.log("Getting user data");
-      const supabase = createClient();
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const supabase = AuthService.createClient();
+      const { user, error } = await AuthService.getCurrentUser(supabase);
       
-      if (userError) {
-        console.error("User error:", userError);
-        setError(userError.message);
+      if (error) {
+        console.error("User error:", error);
+        setError(error.message);
         setLoading(false);
         return null;
       }
       
-      if (!userData?.user) {
+      if (!user) {
         console.log("No user found, redirecting to home");
         setLoading(false);
         router.push("/");
         return null;
       }
       
-      console.log("User found:", userData.user.id);
-      return userData;
+      console.log("User found:", user.id);
+      return user;
     } catch (err) {
       console.error("Error in getUserData:", err);
       setError("Failed to get user information");
@@ -412,13 +407,13 @@ export default function DashboardPage() {
         return null;
       }
       
-      console.log("User data found, fetching profile for:", userData.user.id);
-      const supabase = createClient();
+      console.log("User data found, fetching profile for:", userData.id);
+      const supabase = AuthService.createClient();
       // Fetch latest user profile from database
-      const { data: profile, error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userData.user.id)
+        .eq('id', userData.id)
         .single();
 
       if (profileError) {
@@ -428,14 +423,14 @@ export default function DashboardPage() {
         return null;
       }
       
-      console.log("Profile data retrieved:", profile);
-      if (profile) {
+      console.log("Profile data retrieved:", profileData);
+      if (profileData) {
         // Update all state using the helper function
-        updateStateFromProfile(profile);
+        updateStateFromProfile(profileData);
         
         // Log what's happening with credits
-        if (profile.credits !== undefined) {
-          console.log(`Updated credits to ${profile.credits} and token store updated`);
+        if (profileData.credits !== undefined) {
+          console.log(`Updated credits to ${profileData.credits} and token store updated`);
         } else {
           console.warn("Profile didn't contain credits data");
         }
@@ -445,7 +440,7 @@ export default function DashboardPage() {
       
       // Always ensure loading is set to false
       setLoading(false);
-      return profile;
+      return profileData;
     } catch (err) {
       console.error("Error in refreshUserProfile:", err);
       setError("Unable to check user account");

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { createCreditsCheckoutSession, createOrRetrieveCustomer } from '@/lib/stripe';
+import { AuthService } from '@/lib/auth';
+import { PaymentService, PlanTierSchema } from '@/lib/payment';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,12 +14,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
-    // Initialize Supabase client
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Use our auth service to get the authenticated user
+    const cookieStore = cookies();
+    const supabase = await AuthService.createServerClient(cookieStore);
+    const { user, error: userError } = await AuthService.getCurrentUser(supabase);
 
     if (userError || !user) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
@@ -32,17 +30,23 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profileError) {
+    if (profileError || !profile) {
       console.error('Error fetching profile:', profileError);
       return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
     // Check if user has a paid plan
-    if (!profile?.subscription_tier || profile.subscription_tier.toLowerCase() === 'free') {
+    if (!profile.subscription_tier || profile.subscription_tier.toLowerCase() === 'free') {
       return NextResponse.json(
         { error: 'Credit purchases are only available for Pro and Ultra plans' },
         { status: 400 }
       );
+    }
+
+    // Validate the tier
+    const tierResult = PlanTierSchema.safeParse(profile.subscription_tier.toLowerCase());
+    if (!tierResult.success) {
+      return NextResponse.json({ error: 'Invalid subscription tier' }, { status: 400 });
     }
 
     let customerId = profile.stripe_customer_id;
@@ -53,9 +57,10 @@ export async function POST(req: NextRequest) {
     try {
       // Create a checkout session to test if the customer ID is valid
       if (customerId) {
-        const { url } = await createCreditsCheckoutSession(
+        const { url } = await PaymentService.createCreditPurchaseCheckout(
           customerId,
           amount,
+          tierResult.data,
           user.id
         );
         
@@ -70,7 +75,7 @@ export async function POST(req: NextRequest) {
     // If we reach here, either there was no customer ID or the existing one was invalid
     if (!customerId) {
       // Get a valid email address - first try profile email, then user email, then error
-      const email = profile?.email || user.email;
+      const email = profile.email || user.email;
       
       if (!email || !email.includes('@')) {
         return NextResponse.json(
@@ -79,19 +84,27 @@ export async function POST(req: NextRequest) {
         );
       }
       
-      customerId = await createOrRetrieveCustomer(email, user.id);
+      customerId = await PaymentService.createOrRetrieveCustomer(email, user.id);
       needsUpdate = true;
     }
 
     // Update the user's profile with the new Stripe customer ID if needed
     if (needsUpdate) {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
+      try {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', user.id);
 
-      if (updateError) {
-        console.error('Error updating profile with Stripe customer ID:', updateError);
+        if (updateError) {
+          console.error('Error updating profile with Stripe customer ID:', updateError);
+          return NextResponse.json(
+            { error: 'Failed to update profile with Stripe customer ID' },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
         return NextResponse.json(
           { error: 'Failed to update profile with Stripe customer ID' },
           { status: 500 }
@@ -100,17 +113,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a checkout session for credit purchase with the valid customer ID
-    const { url } = await createCreditsCheckoutSession(
+    const { url } = await PaymentService.createCreditPurchaseCheckout(
       customerId,
       amount,
+      tierResult.data,
       user.id
     );
 
     return NextResponse.json({ url });
   } catch (error) {
-    console.error('Error in credits purchase API:', error);
+    console.error('Credit purchase error:', error);
     return NextResponse.json(
-      { error: `Failed to create checkout session for credits: ${error instanceof Error ? error.message : 'Unknown error'}` },
+      { error: error instanceof Error ? error.message : 'An error occurred during credit purchase' },
       { status: 500 }
     );
   }
