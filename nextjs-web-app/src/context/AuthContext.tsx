@@ -6,7 +6,8 @@ import {
   ReactNode,
   useState,
   useEffect,
-  useCallback
+  useCallback,
+  useRef
 } from "react";
 import { AuthService } from "@/lib/auth";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
@@ -45,6 +46,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokensState] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Create refs to track the latest values without triggering re-renders
+  const userRef = useRef<User | null>(null);
+  const tokensRef = useRef<number>(0);
+  const pendingTokenUpdateRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update refs when state changes
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    tokensRef.current = tokens;
+  }, [tokens]);
 
   // Function to set tokens
   const setTokens = useCallback((newTokens: number) => {
@@ -68,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Function to sync tokens with database
   const syncTokensWithDB = useCallback(async () => {
-    if (!user || isLoading) return;
+    if (!userRef.current) return;
 
     try {
       const supabase = AuthService.createClient();
@@ -77,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select("credits")
-        .eq("id", user.id)
+        .eq("id", userRef.current.id)
         .single();
       
       if (error) {
@@ -92,19 +107,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error syncing tokens with DB:", error);
     }
-  }, [user, isLoading, setTokens]);
+  }, [setTokens]);
 
   // Function to update tokens in database
   const updateTokensInDB = useCallback(async () => {
-    if (!user) return;
+    if (!userRef.current) return;
     
     try {
       const supabase = AuthService.createClient();
       
       const { error } = await supabase
         .from("profiles")
-        .update({ credits: tokens })
-        .eq("id", user.id);
+        .update({ credits: tokensRef.current })
+        .eq("id", userRef.current.id);
       
       if (error) {
         console.error("Error updating tokens in DB:", error);
@@ -112,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error updating tokens in DB:", error);
     }
-  }, [user, tokens]);
+  }, []);
 
   // Function to sign out
   const signOut = useCallback(async () => {
@@ -127,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Effect to initialize auth state and listen for changes
   useEffect(() => {
+    let isMounted = true;
     const supabase = AuthService.createClient();
     
     // Load tokens from localStorage on initialization
@@ -146,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         
-        if (user) {
+        if (user && isMounted) {
           setUser(user);
           await syncTokensWithDB();
         }
@@ -155,7 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Error fetching user:", error);
         }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -165,34 +183,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         if (event === 'SIGNED_OUT' || !session) {
-          setUser(null);
-          setTokens(0);
-          setIsLoading(false);
+          if (isMounted) {
+            setUser(null);
+            setTokens(0);
+            setIsLoading(false);
+          }
           return;
         }
 
         try {
-          setUser(session.user);
-          await syncTokensWithDB();
+          if (isMounted) {
+            setUser(session.user);
+            await syncTokensWithDB();
+          }
         } catch (error) {
           console.error("Error in auth state change:", error);
           await signOut();
         } finally {
-          setIsLoading(false);
+          if (isMounted) {
+            setIsLoading(false);
+          }
         }
       }
     );
 
-    // Update tokens in DB when tokens change
-    if (user && tokens > 0) {
-      updateTokensInDB();
-    }
-
-    // Clean up subscription on unmount
+    // Clean up
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, [user, tokens, syncTokensWithDB, updateTokensInDB, signOut]);
+  }, [signOut, syncTokensWithDB]);
+
+  // Separate effect for token updates with debouncing
+  useEffect(() => {
+    // Skip the initial render
+    if (tokensRef.current === 0) return;
+    
+    // Skip if no user
+    if (!userRef.current) return;
+    
+    // Clear any pending update
+    if (pendingTokenUpdateRef.current) {
+      clearTimeout(pendingTokenUpdateRef.current);
+    }
+    
+    // Schedule new update with debounce
+    pendingTokenUpdateRef.current = setTimeout(() => {
+      updateTokensInDB();
+      pendingTokenUpdateRef.current = null;
+    }, 2000); // Longer debounce time to reduce API calls
+    
+    // Cleanup
+    return () => {
+      if (pendingTokenUpdateRef.current) {
+        clearTimeout(pendingTokenUpdateRef.current);
+      }
+    };
+  }, [tokens, updateTokensInDB]);
 
   // The value that will be given to consumers of the context
   const value = {

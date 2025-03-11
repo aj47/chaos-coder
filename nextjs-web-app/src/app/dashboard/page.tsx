@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
@@ -28,67 +28,72 @@ export default function DashboardPage() {
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Add refs to track latest values without causing re-renders
+  const latestCredits = useRef<number | null>(null);
+  const latestTokens = useRef<number>(tokens);
+  const latestSubscriptionTier = useRef<string>(subscriptionTier);
+  const latestSubscriptionStatus = useRef<string | null>(subscriptionStatus);
+
+  // Update refs when values change
+  useEffect(() => {
+    latestCredits.current = credits;
+  }, [credits]);
 
   useEffect(() => {
-    const supabase = AuthService.createClient();
-    
-    // Load tokens from localStorage on initialization
-    const storedTokens = localStorage.getItem('user-tokens');
-    if (storedTokens) {
-      setTokens(parseInt(storedTokens, 10) || 0);
+    latestTokens.current = tokens;
+  }, [tokens]);
+
+  useEffect(() => {
+    latestSubscriptionTier.current = subscriptionTier;
+  }, [subscriptionTier]);
+
+  useEffect(() => {
+    latestSubscriptionStatus.current = subscriptionStatus;
+  }, [subscriptionStatus]);
+
+  // Effect to check auth and load profile data
+  useEffect(() => {
+    if (!user && !isLoading) {
+      router.push("/");
+      return;
     }
 
-    // Check current session
-    const checkUser = async () => {
+    if (!user || isLoading) {
+      return;
+    }
+
+    // Set email and welcome message
+    setUserEmail(user.email || null);
+    
+    // Check if this is a new login
+    const isNewLogin = !sessionStorage.getItem('dashboard_visited');
+    if (isNewLogin) {
+      setSuccessMessage(`Welcome back, ${user.email}!`);
+      sessionStorage.setItem('dashboard_visited', 'true');
+      setTimeout(() => setSuccessMessage(null), 5000);
+    }
+
+    // Load user profile data
+    const loadProfileData = async () => {
       try {
-        // Only redirect if we're sure the user isn't logged in (not during loading)
-        if (!isLoading && !user) {
-          router.push("/");
-          return;
-        }
+        setLoading(true);
         
-        // If still loading, wait for it to complete
-        if (isLoading) {
-          return;
-        }
+        const supabase = AuthService.createClient();
         
-        // Set user email
-        setUserEmail(user?.email || null);
+        // Check if credits need refresh
+        const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
+          supabase,
+          user.id
+        );
         
-        // Check if this is a new login (using sessionStorage to track login state)
-        const isNewLogin = !sessionStorage.getItem('dashboard_visited');
-        if (isNewLogin && user) {
-          // Set a welcome message for new logins
-          setSuccessMessage(`Welcome back, ${user.email}!`);
-          
-          // Mark as visited
-          sessionStorage.setItem('dashboard_visited', 'true');
-          
-          // Hide the welcome message after 5 seconds
-          setTimeout(() => {
-            setSuccessMessage(null);
-          }, 5000);
-        }
-        
-        // Check if credits need to be refreshed for the day
-        if (user) {
-          const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
-            supabase,
-            user.id
-          );
-          
-          if (refreshed) {
-            setCredits(refreshedCredits);
-            setTokens(refreshedCredits);
-            setCreditsRefreshed(true);
-            
-            // Hide the refreshed message after 5 seconds
-            setTimeout(() => {
-              setCreditsRefreshed(false);
-            }, 5000);
-          }
-          
-          // Fetch user profile to get subscription info
+        if (refreshed) {
+          setCredits(refreshedCredits);
+          setTokens(refreshedCredits);
+          setCreditsRefreshed(true);
+          setTimeout(() => setCreditsRefreshed(false), 5000);
+        } else {
+          // Get full profile
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -97,52 +102,37 @@ export default function DashboardPage() {
           
           if (profileError) {
             console.error("Error fetching profile:", profileError);
+            setError("Could not load profile data");
           } else if (profileData) {
-            // First cast to unknown then to the expected type
             const profile = profileData as unknown as {
               credits: number;
               subscription_tier?: string;
               subscription_status?: string;
               max_daily_credits?: number;
-              stripe_subscription_id?: string;
-              stripe_customer_id?: string;
             };
             
-            // Only update if values are different to prevent loops
-            if (!refreshed && profile.credits !== credits) {
-              setCredits(profile.credits);
-              // Only update tokens if they're different
-              if (tokens !== profile.credits) {
-                setTokens(profile.credits);
-              }
-            }
-            
-            if (profile.subscription_tier !== subscriptionTier) {
-              setSubscriptionTier(profile.subscription_tier || "free");
-            }
-            if (profile.subscription_status !== subscriptionStatus) {
-              setSubscriptionStatus(profile.subscription_status || null);
-            }
+            setCredits(profile.credits);
+            setSubscriptionTier(profile.subscription_tier || "free");
+            setSubscriptionStatus(profile.subscription_status || null);
           }
         }
       } catch (err) {
-        console.error("Error checking user:", err);
-        setError(err instanceof Error ? err.message : "An error occurred");
+        console.error("Error loading profile:", err);
+        setError("An error occurred while loading your profile");
       } finally {
         setLoading(false);
       }
     };
-    
-    checkUser();
-    
-    // Clear the dashboard_visited flag when the component is unmounted
+
+    loadProfileData();
+
+    // Cleanup
     return () => {
-      // Only clear if the user is navigating away from the dashboard
       if (window.location.pathname !== '/dashboard') {
         sessionStorage.removeItem('dashboard_visited');
       }
     };
-  }, [router, user, isLoading]); // Remove tokens and other dependencies that cause loops
+  }, [user, isLoading, router, setTokens]);
 
   // Modify the force refresh tokens effect to only run on mount
   useEffect(() => {
