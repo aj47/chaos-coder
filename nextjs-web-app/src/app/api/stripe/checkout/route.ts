@@ -176,12 +176,41 @@ export async function POST(req: NextRequest) {
         .single();
       
       if (profileError) {
-        console.error(`❌ [${requestId}] User profile not found:`, {
-          error: profileError.message,
-          code: profileError.code,
-          details: profileError.details
+        console.log(`⚠️ [${requestId}] Profile not found, attempting to create:`, {
+          userId: validatedUser.id,
+          email: validatedUser.email
         });
-        return NextResponse.json({ error: 'User profile not found' }, { status: 401, headers });
+        
+        // Try to create the profile
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: validatedUser.id,
+              email: validatedUser.email,
+              subscription_tier: 'free',
+              credits: 30, // Default starting credits
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ])
+          .select()
+          .single();
+        
+        if (createError) {
+          console.error(`❌ [${requestId}] Failed to create profile:`, {
+            error: createError.message,
+            code: createError.code,
+            details: createError.details
+          });
+          return NextResponse.json({ error: 'Failed to create user profile' }, { status: 500, headers });
+        }
+        
+        console.log(`✅ [${requestId}] Profile created successfully:`, {
+          id: newProfile.id,
+          email: newProfile.email,
+          tier: newProfile.subscription_tier
+        });
       }
       
       return await processCheckout(validatedUser, tier, supabase, requestId, headers);
