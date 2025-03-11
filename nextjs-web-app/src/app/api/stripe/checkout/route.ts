@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentService } from '@/lib/payment';
-import { AuthService } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/types/supabase';
 
 // Simplified request type
 interface CheckoutRequestBody {
@@ -23,8 +25,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Get authenticated user
-    const supabase = AuthService.createClient();
+    // 2. Get authenticated user using server-side client with cookies
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user?.id || !user?.email) {
