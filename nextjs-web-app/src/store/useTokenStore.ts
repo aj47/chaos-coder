@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { AuthService } from '@/lib/auth';
 
 interface TokenState {
   tokens: number;
@@ -8,12 +8,9 @@ interface TokenState {
   setTokens: (tokens: number) => void;
   incrementTokens: (amount: number) => void;
   decrementTokens: (amount: number) => void;
-  syncTokensWithDB: (userId: string) => Promise<void>;
+  syncTokensWithDB: () => Promise<void>;
   setLoading: (isLoading: boolean) => void;
 }
-
-// Initialize a Supabase client - will be properly initialized in syncTokensWithDB
-let supabaseClient: SupabaseClient | null = null;
 
 export const useTokenStore = create<TokenState>()(
   persist(
@@ -59,55 +56,34 @@ export const useTokenStore = create<TokenState>()(
         },
         
         // Implementation for syncTokensWithDB - it now accepts userId parameter
-        syncTokensWithDB: async (userId: string) => {
-          // Minimal essential logging
-          // console.log(`syncTokensWithDB called for user ${userId}`);
+        syncTokensWithDB: async () => {
+          // Avoid unnecessary DB calls
+          if (get().tokens === 0 || get().isLoading) return;
           
-          // Performance optimization: Don't sync if we already have tokens and we're not loading
-          if (get().tokens > 0 && !get().isLoading) {
-            // console.log('Skipping sync - already have tokens');
-            return;
-          }
-          
-          // Only set loading to true if it's not already loading
-          if (!get().isLoading) {
-            set({ isLoading: true });
-          }
+          set({ isLoading: true });
           
           try {
-            // console.log("Syncing tokens with database for user:", userId);
-            // Dynamically import the client to avoid SSR issues
-            if (!supabaseClient) {
-              const { createClient } = await import('@/lib/supabase/client');
-              supabaseClient = createClient();
-            }
+            const supabase = AuthService.createClient();
+            const { user, error } = await AuthService.getCurrentUser(supabase);
             
-            const { data, error } = await supabaseClient
-              .from('profiles')
-              .select('credits')
-              .eq('id', userId)
-              .single();
-            
-            if (error) {
-              console.error('Error syncing tokens with DB:', error);
+            if (error || !user) {
+              console.error("Error getting user:", error);
               set({ isLoading: false });
               return;
             }
             
-            if (data && data.credits !== undefined) {
-              // Only update if the value is different
-              if (get().tokens !== data.credits) {
-                set({ tokens: data.credits, isLoading: false });
-              } else {
-                // Just update loading state if tokens didn't change
-                set({ isLoading: false });
-              }
-            } else {
-              console.warn('No credits data found in DB');
-              set({ isLoading: false });
+            const tokens = get().tokens;
+            
+            const { error: updateError } = await supabase.from("profiles").update({
+              credits: tokens, // Use 'credits' instead of 'tokens' to match the database column
+            }).eq("id", user.id);
+            
+            if (updateError) {
+              console.error("Error updating tokens:", updateError);
             }
           } catch (error) {
-            console.error('Exception in syncTokensWithDB:', error);
+            console.error("Error syncing tokens with DB:", error);
+          } finally {
             set({ isLoading: false });
           }
         }
@@ -115,6 +91,7 @@ export const useTokenStore = create<TokenState>()(
     },
     {
       name: 'token-storage',
+      storage: createJSONStorage(() => localStorage),
       // Only persist the tokens value, not the functions
       partialize: (state) => ({ tokens: state.tokens }),
     }

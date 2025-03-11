@@ -2,9 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { createClient } from "@/lib/supabase/client";
+import { AuthService } from "@/lib/auth";
 import { useState } from "react";
-import { UserMetadata } from "@/types/supabase";
 import { FcGoogle } from "react-icons/fc";
 
 interface SignupModalProps {
@@ -20,9 +19,9 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
     email?: string;
     password?: string;
     general?: string;
+    form?: string;
   }>({});
   const [error, setError] = useState<string | null>(null);
-  const [signupSuccess, setSignupSuccess] = useState(false);
   
   if (!isOpen) return null;
   
@@ -51,6 +50,7 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormErrors({});
+    setError(null);
     
     const formData = new FormData(e.currentTarget);
     const firstName = String(formData.get('firstName') || '');
@@ -62,29 +62,22 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
     }
     
     setIsLoading(true);
-    const supabase = createClient();
     
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-          },
-        },
-      });
-
+      const { error } = await AuthService.signUp(email, password, firstName);
+      
       if (error) {
+        console.error("Signup error:", error.message);
         setError(error.message);
+        setIsLoading(false);
         return;
       }
-
-      setSignupSuccess(true);
-    } catch (error: any) {
-      setError(error.message || "An error occurred during signup");
-    } finally {
+      
+      setIsLoading(false);
+      onClose();
+    } catch (error: unknown) {
+      console.error("Unexpected error during signup:", error);
+      setError(error instanceof Error ? error.message : "An unexpected error occurred");
       setIsLoading(false);
     }
   };
@@ -92,24 +85,20 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setFormErrors({});
-    
-    const supabase = createClient();
+    setError(null);
     
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/auth/callback',
-        },
-      });
+      const { error } = await AuthService.signInWithOAuth('google');
       
       if (error) {
+        console.error("Google sign-in error:", error.message);
         setError(error.message);
+        setIsGoogleLoading(false);
+        return;
       }
-    } catch (error: any) {
-      setError(error.message || "An error occurred during Google sign-in");
-    } finally {
+    } catch (error: unknown) {
+      console.error("Unexpected error during Google sign-in:", error);
+      setError(error instanceof Error ? error.message : "An unexpected error occurred");
       setIsGoogleLoading(false);
     }
   };

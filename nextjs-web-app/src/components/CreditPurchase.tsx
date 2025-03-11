@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { PLANS } from '@/lib/stripe';
+import { PLANS } from '@/lib/payment';
 
 interface CreditPurchaseProps {
   subscriptionTier: string;

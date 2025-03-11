@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
 import { SignupModal } from "@/components/SignupModal";
-import { createClient } from "@/lib/supabase/client";
+import { AuthService } from "@/lib/auth";
 
 export default function SignupPage() {
   const { theme } = useTheme();
@@ -14,8 +14,8 @@ export default function SignupPage() {
   useEffect(() => {
     // Check if user is already logged in
     const checkUser = async () => {
-      const supabase = createClient();
-      await supabase.auth.getUser();
+      const supabase = AuthService.createClient();
+      await AuthService.getCurrentUser(supabase);
       
       // No need to redirect to dashboard if user is logged in
     };

@@ -11,7 +11,8 @@ import { toast } from "react-hot-toast";
 import Image from "next/image";
 import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/lib/supabase/client";
+import { AuthService } from "@/lib/auth";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { useTokenStore } from "@/store/useTokenStore";
 import { User } from "@supabase/supabase-js";
 
@@ -36,9 +37,29 @@ export default function Home() {
   // Check for user auth state on component mount
   useEffect(() => {
     const checkUser = async () => {
-      const supabase = createClient();
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+      try {
+        // Use AuthService instead of direct Supabase client
+        const supabase = AuthService.createClient();
+        const { user, error } = await AuthService.getCurrentUser(supabase);
+        
+        if (error) {
+          console.error("Error checking user:", error);
+          return;
+        }
+        
+        // Update user session if user is logged in
+        if (user) {
+          // Get additional user details if needed
+          setUser(user);
+          await syncTokensWithDB(user.id);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error("Error checking user:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     checkUser();
@@ -100,12 +121,12 @@ export default function Home() {
         
         // Force auth state check
         const checkUser = async () => {
-          const supabase = createClient();
-          const { data } = await supabase.auth.getUser();
-          setUser(data.user);
+          const supabase = AuthService.createClient();
+          const { user } = await AuthService.getCurrentUser(supabase);
+          setUser(user);
           
-          if (data.user) {
-            await syncTokensWithDB(data.user.id);
+          if (user) {
+            await syncTokensWithDB(user.id);
           }
         };
         
@@ -171,7 +192,7 @@ export default function Home() {
     if (!userId) return;
     
     try {
-      const supabase = createClient();
+      const supabase = AuthService.createClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('credits')
@@ -263,6 +284,9 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen w-full">
+      <div className="absolute top-4 right-4 z-50">
+        <AuthButton />
+      </div>
       {showAlertModal && (
         <AlertModal
           isOpen={showAlertModal}

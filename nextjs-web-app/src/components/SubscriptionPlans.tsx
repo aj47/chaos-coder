@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { PLANS } from '@/lib/stripe';
+import { PLANS } from '@/lib/payment';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { AlertModal } from './AlertModal';
