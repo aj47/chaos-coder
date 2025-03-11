@@ -8,13 +8,12 @@ export default async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all paths except:
-     * - api/stripe/webhook (Stripe webhooks)
+     * Match all request paths except for the ones starting with:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (images, etc)
+     * Feel free to modify this pattern to include more paths.
      */
-    '/((?!api/stripe/webhook|_next/static|_next/image|favicon.ico|.*\\.(svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }; 
