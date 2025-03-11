@@ -108,7 +108,6 @@ export default function DashboardPage() {
               credits: number;
               subscription_tier?: string;
               subscription_status?: string;
-              max_daily_credits?: number;
             };
             
             setCredits(profile.credits);

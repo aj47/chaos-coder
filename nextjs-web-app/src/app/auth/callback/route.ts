@@ -29,22 +29,7 @@ export async function GET(request: NextRequest) {
     // For OAuth logins (like Google), extract the first name from user info
     // and store it in user metadata if it doesn't exist yet
     if (data?.user) {
-      const user = data.user;
-      const supabase = await AuthService.createServerClient(cookieStore);
-      
-      // Check if we need to update user metadata with first name
-      if (!user.user_metadata?.first_name) {
-        // For Google OAuth, the name is in the user_metadata.full_name
-        if (user.app_metadata.provider === 'google' && user.user_metadata.full_name) {
-          const fullName = user.user_metadata.full_name;
-          const firstName = fullName.split(' ')[0]; // Extract first name from full name
-          
-          // Update user metadata with first name
-          await supabase.auth.updateUser({
-            data: { first_name: firstName }
-          });
-        }
-      }
+      // No longer need to update first_name as it's been removed from the schema
     }
 
     // Redirect to the dashboard page on successful authentication

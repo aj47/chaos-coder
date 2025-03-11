@@ -1,18 +1,18 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Get the max credits for a given subscription tier
+ * Get the daily credits for a given subscription tier
  */
-export function getMaxCreditsForTier(tier: string): number {
+export function getBaseCreditsForTier(tier: string): number {
   switch (tier.toLowerCase()) {
     case 'free':
-      return 5;
+      return 30;
     case 'pro':
-      return 25;
+      return 100;
     case 'ultra':
-      return 200;
+      return 1000;
     default:
-      return 5; // Default to free tier
+      return 30; // Default to free tier
   }
 }
 
@@ -28,7 +28,7 @@ export async function checkAndRefreshCredits(
     // Get the user's profile
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, credits, subscription_tier')
+      .select('id, credits, subscription_tier, last_credit_refresh')
       .eq('id', userId)
       .single();
 
@@ -42,65 +42,55 @@ export async function checkAndRefreshCredits(
       return { credits: 0, refreshed: false };
     }
 
-    // Get the max credits for the user's tier
-    const maxCredits = getMaxCreditsForTier(profile.subscription_tier || 'free');
+    // Get the base credits for the user's tier
+    const baseCredits = getBaseCreditsForTier(profile.subscription_tier || 'free');
     
-    // Check if we need to refresh by making a separate query to check if last_credit_refresh exists
-    // and if user's credits are below their tier's max
-    if (profile.credits < maxCredits) {
+    // Check if we need to refresh
+    // Refresh if credits are below base amount OR last refresh was not today
+    const shouldRefresh = 
+      profile.credits < baseCredits || 
+      !profile.last_credit_refresh || 
+      new Date(profile.last_credit_refresh).toDateString() !== new Date().toDateString();
+    
+    if (shouldRefresh) {
       try {
-        // Try to check last_credit_refresh if it exists
-        const { data: refreshData, error: refreshError } = await supabase
-          .from('profiles')
-          .select('last_credit_refresh')
-          .eq('id', userId)
-          .single();
-        
-        const shouldRefresh = refreshError || // Column might not exist yet
-          !refreshData?.last_credit_refresh || // Value is null
-          new Date(refreshData.last_credit_refresh).toDateString() !== new Date().toDateString(); // Last refresh was not today
-        
-        if (shouldRefresh) {
-          // Update the user's credits and attempt to set refresh timestamp
-          // If last_credit_refresh doesn't exist, this will still update credits
-          const { data: updatedProfile, error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              credits: maxCredits,
-              ...(refreshData !== null ? { last_credit_refresh: new Date().toISOString() } : {})
-            })
-            .eq('id', userId)
-            .select('credits')
-            .single();
-          
-          if (updateError) {
-            console.error('Error updating credits:', updateError);
-            return { credits: profile.credits, refreshed: false };
-          }
-          
-          return { 
-            credits: updatedProfile.credits, 
-            refreshed: true 
-          };
-        }
-      } catch (err) {
-        console.error('Error checking last_credit_refresh:', err);
-        
-        // Fallback: update credits anyway if they're below max
+        // Update the user's credits and refresh timestamp
         const { data: updatedProfile, error: updateError } = await supabase
           .from('profiles')
-          .update({ credits: maxCredits })
+          .update({
+            credits: baseCredits,
+            last_credit_refresh: new Date().toISOString()
+          })
           .eq('id', userId)
           .select('credits')
           .single();
         
-        if (!updateError && updatedProfile) {
-          return { credits: updatedProfile.credits, refreshed: true };
+        if (updateError) {
+          console.error('Error updating credits:', updateError);
+          return { credits: profile.credits, refreshed: false };
         }
+        
+        // Add entry to credit history table for audit trail
+        await supabase
+          .from('credit_history')
+          .insert({
+            user_id: userId,
+            amount: baseCredits,
+            type: 'daily_reset',
+            description: `Daily credit reset for ${profile.subscription_tier} tier`
+          });
+        
+        return { 
+          credits: updatedProfile.credits, 
+          refreshed: true 
+        };
+      } catch (err) {
+        console.error('Error refreshing credits:', err);
+        return { credits: profile.credits, refreshed: false };
       }
     }
     
-    // No refresh needed or possible
+    // No refresh needed
     return { 
       credits: profile.credits, 
       refreshed: false 

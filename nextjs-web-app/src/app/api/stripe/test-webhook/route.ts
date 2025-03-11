@@ -52,7 +52,6 @@ export async function GET(req: NextRequest) {
       .update({
         subscription_tier: tier,
         subscription_status: 'active',
-        max_monthly_credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
       })
       .eq('id', userId);
     

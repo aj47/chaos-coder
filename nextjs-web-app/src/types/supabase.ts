@@ -12,7 +12,6 @@ export interface Database {
       profiles: {
         Row: {
           id: string
-          first_name: string | null
           created_at: string
           updated_at: string
           credits: number
@@ -23,7 +22,6 @@ export interface Database {
         }
         Insert: {
           id: string
-          first_name?: string | null
           created_at?: string
           updated_at?: string
           credits?: number
@@ -34,7 +32,6 @@ export interface Database {
         }
         Update: {
           id?: string
-          first_name?: string | null
           created_at?: string
           updated_at?: string
           credits?: number
@@ -69,6 +66,4 @@ export interface Database {
 }
 
 // Type for user metadata stored in Supabase Auth
-export type UserMetadata = {
-  first_name?: string
-} 
+export type UserMetadata = Record<string, unknown> 

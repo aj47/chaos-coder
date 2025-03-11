@@ -542,19 +542,19 @@ export class PaymentService {
       try {
         console.log(`🔄 Updating profile for user ${userId} with tier: ${tier}`);
         
-        const updateData = {
-          stripe_customer_id: customerId,
+        const profileData = {
           subscription_tier: tier,
-          subscription_status: subscription.status,
+          subscription_status: 'active',
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscription.id,
           subscription_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
           subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          max_monthly_credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
         };
         
-        console.log(`📊 Update data:`, updateData);
+        console.log(`📊 Update data:`, profileData);
         
         const { error } = await (supabase as any).from('profiles')
-          .update(updateData)
+          .update(profileData)
           .eq('id', userId);
         
         if (error) {
@@ -569,7 +569,7 @@ export class PaymentService {
           console.log(`🔍 Verifying profile update for user ${userId}`);
           const { data: updatedProfile, error: verifyError } = await (supabase as any)
             .from('profiles')
-            .select('subscription_tier, subscription_status, max_monthly_credits')
+            .select('subscription_tier, subscription_status')
             .eq('id', userId)
             .single();
             
@@ -649,7 +649,6 @@ export class PaymentService {
           .update({
             subscription_tier: 'free',
             subscription_status: 'canceled',
-            max_monthly_credits: 30,
           })
           .eq('id', userId);
         
@@ -789,7 +788,6 @@ export class PaymentService {
           .update({
             subscription_tier: 'free',
             subscription_status: 'canceled',
-            max_monthly_credits: 30,
           })
           .eq('id', userId);
       } catch (error) {

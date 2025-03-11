@@ -225,11 +225,7 @@ export class AuthService {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            first_name: firstName.trim() || 'User',
-          },
-        },
+        // No longer storing first_name as per updated schema
       });
       
       return { data, error };
