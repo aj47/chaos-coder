@@ -199,9 +199,9 @@ export class PaymentService {
             quantity: 1,
           },
         ],
-        // discounts: [{
-        //   coupon: process.env.STRIPE_DISCOUNT_COUPON || 'jYKdD3MY',
-        // }],
+        discounts: [{
+          coupon: process.env.STRIPE_DISCOUNT_COUPON || 'jYKdD3MY',
+        }],
         mode: 'subscription',
         success_url: `${this.getSiteUrl()}/dashboard?checkout=success`,
         cancel_url: `${this.getSiteUrl()}/dashboard?checkout=cancelled`,
@@ -437,6 +437,7 @@ export class PaymentService {
   private static async handleSubscriptionChange(subscription: StripeSubscription) {
     console.log(`🔄 Processing subscription change for subscription: ${subscription.id}`);
     console.log(`📊 Subscription status: ${subscription.status}`);
+    console.log(`📊 Full subscription data:`, JSON.stringify(subscription, null, 2));
     
     const supabase = await AuthService.createServerClient();
     
@@ -493,6 +494,10 @@ export class PaymentService {
       // Determine the subscription tier from the product
       const productId = subscription.items.data[0]?.price.product;
       console.log(`📊 Product ID from subscription: ${productId}`);
+      console.log(`📊 Environment variables for product IDs:
+        - STRIPE_PRO_PRODUCT_ID: ${process.env.STRIPE_PRO_PRODUCT_ID || 'Not set'}
+        - STRIPE_ULTRA_PRODUCT_ID: ${process.env.STRIPE_ULTRA_PRODUCT_ID || 'Not set'}
+      `);
       
       const product = await stripe.products.retrieve(productId as string);
       console.log(`📊 Product details:`, {
@@ -549,10 +554,7 @@ export class PaymentService {
           max_monthly_credits: tier === 'ultra' ? 1000 : tier === 'pro' ? 100 : 30,
         };
         
-        console.log(`📊 Profile update data:`, updateData);
-        
-        // Log the exact SQL query that will be executed
-        console.log(`🔄 Executing update query: UPDATE profiles SET subscription_tier = '${tier}', subscription_status = '${subscription.status}' WHERE id = '${userId}'`);
+        console.log(`📊 Update data:`, updateData);
         
         const { error } = await (supabase as any).from('profiles')
           .update(updateData)
@@ -565,39 +567,27 @@ export class PaymentService {
         
         console.log(`✅ Successfully updated profile for user ${userId} to ${tier} tier`);
         
-        // Verify the update was successful with multiple approaches
+        // Verify the update was successful
         try {
-          console.log(`🔍 Verifying profile update with direct query...`);
-          const { data: directProfile, error: directError } = await (supabase as any)
+          console.log(`🔍 Verifying profile update for user ${userId}`);
+          const { data: updatedProfile, error: verifyError } = await (supabase as any)
             .from('profiles')
-            .select('subscription_tier, subscription_status, credits')
+            .select('subscription_tier, subscription_status, max_monthly_credits')
             .eq('id', userId)
             .single();
             
-          if (directError) {
-            console.error('❌ Error with direct profile query:', directError);
+          if (verifyError) {
+            console.error('❌ Error verifying profile update:', verifyError);
           } else {
-            console.log(`📊 Direct profile query result:`, directProfile);
+            console.log(`📊 Updated profile state:`, updatedProfile);
+            if (updatedProfile.subscription_tier !== tier) {
+              console.error(`❌ Profile update verification failed: expected tier ${tier}, got ${updatedProfile.subscription_tier}`);
+            } else {
+              console.log(`✅ Profile update verification successful: tier is now ${updatedProfile.subscription_tier}`);
+            }
           }
-        } catch (directQueryError) {
-          console.error('❌ Exception in direct profile query:', directQueryError);
-        }
-        
-        // Try a raw SQL query as a last resort
-        try {
-          console.log(`🔍 Verifying with raw SQL query...`);
-          const { data: rawData, error: rawError } = await (supabase as any).rpc(
-            'exec_sql',
-            { sql: `SELECT subscription_tier, subscription_status, credits FROM profiles WHERE id = '${userId}'` }
-          );
-          
-          if (rawError) {
-            console.error('❌ Error with raw SQL query:', rawError);
-          } else {
-            console.log(`📊 Raw SQL query result:`, rawData);
-          }
-        } catch (rawQueryError) {
-          console.error('❌ Exception in raw SQL query:', rawQueryError);
+        } catch (verifyError) {
+          console.error('❌ Exception during profile update verification:', verifyError);
         }
         
         // Record in subscription history

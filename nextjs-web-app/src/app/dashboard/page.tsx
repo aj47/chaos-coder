@@ -285,6 +285,16 @@ export default function DashboardPage() {
       console.log(`Access token length: ${sessionData.session.access_token.length}`);
       console.log(`Access token first 10 chars: ${sessionData.session.access_token.substring(0, 10)}...`);
       
+      // Get the current user to verify authentication
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        console.error(`User error:`, userError);
+        setError("Could not verify your user account");
+        setIsUpgrading(false);
+        return;
+      }
+      
+      console.log(`User verified: ${userData.user.id}`);
       console.log(`Starting Stripe checkout process for tier: ${plan}`);
       
       // Make the API call with credentials included to pass cookies
@@ -299,7 +309,9 @@ export default function DashboardPage() {
         body: JSON.stringify({ 
           tier: plan,
           // Include the token directly in the request body as a fallback
-          accessToken: sessionData.session.access_token 
+          accessToken: sessionData.session.access_token,
+          // Include user ID for additional verification
+          userId: userData.user.id
         }),
       });
       

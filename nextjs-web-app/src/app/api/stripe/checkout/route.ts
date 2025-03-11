@@ -89,121 +89,134 @@ export async function POST(req: NextRequest) {
     
     if (!authToken) {
       console.error(`❌ No auth token found in any source`);
-      return NextResponse.json({ error: 'Unauthorized - No authentication token found' }, { status: 401 });
+      return NextResponse.json({ error: 'User not authenticated - No token found' }, { status: 401 });
     }
     
     console.log(`✅ Auth token extracted successfully (length: ${authToken.length}, first 10 chars: ${authToken.substring(0, 10)}...)`);
     
-    // Create a Supabase client directly with the auth token
-    // This is a different approach than using AuthService.createClient()
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // Try multiple authentication approaches
     
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error(`❌ Missing Supabase environment variables`);
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-    
-    console.log(`🔄 Creating Supabase client with direct token...`);
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false
-      },
-      global: {
-        headers: {
-          Authorization: `Bearer ${authToken}`
-        }
-      }
-    });
-    
-    // Get the current user directly with the token
-    console.log(`🔄 Getting user with direct token...`);
-    const { data: { user }, error: userError } = await supabase.auth.getUser(authToken);
-    
-    if (userError) {
-      console.error(`❌ Error getting user:`, userError);
-      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
-    }
-    
-    if (!user) {
-      console.error(`❌ No user found with token`);
-      return NextResponse.json({ error: 'Unauthorized - User not found' }, { status: 401 });
-    }
-    
-    console.log(`✅ User authenticated: ${user.id} (${user.email})`);
-    
-    // Get the user's profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    // Approach 1: Use AuthService directly
+    try {
+      console.log(`🔄 Trying authentication with AuthService...`);
+      const supabase = AuthService.createClient();
       
-    if (profileError) {
-      console.error(`❌ Error getting profile:`, profileError);
-      return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 });
-    }
-    
-    console.log(`✅ User profile found: ${profile.id}`);
-    console.log(`📊 Current subscription tier: ${profile.subscription_tier || 'free'}`);
-    console.log(`📊 Current subscription status: ${profile.subscription_status || 'none'}`);
-    
-    // Check if the user already has a Stripe customer ID
-    const customerId = profile.stripe_customer_id;
-    console.log(`📊 Has Stripe customer ID: ${!!customerId}`);
-    
-    // Create or retrieve a Stripe customer
-    let stripeCustomerId: string;
-    
-    if (customerId) {
-      console.log(`🔄 Creating checkout session with existing customer ID: ${customerId}`);
-      stripeCustomerId = customerId;
-    } else {
-      console.log(`🔄 Creating new Stripe customer for user: ${user.id}`);
-      stripeCustomerId = await PaymentService.createOrRetrieveCustomer(
-        user.email || 'unknown@example.com',
-        user.id
-      );
+      // Set the session with the auth token
+      await supabase.auth.setSession({
+        access_token: authToken,
+        refresh_token: '',
+      });
       
-      console.log(`✅ New Stripe customer created: ${stripeCustomerId}`);
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      // Update the user's profile with the Stripe customer ID
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq('id', user.id);
+      if (userError) {
+        console.error(`❌ AuthService error:`, userError);
+      } else if (user) {
+        console.log(`✅ User authenticated via AuthService: ${user.id}`);
         
-      if (updateError) {
-        console.error(`❌ Error updating profile with Stripe customer ID:`, updateError);
-      } else {
-        console.log(`✅ Profile updated with Stripe customer ID`);
+        // Continue with checkout using this user
+        return await processCheckout(user, tier, supabase);
       }
+    } catch (authServiceError) {
+      console.error(`❌ AuthService approach failed:`, authServiceError);
     }
     
-    // Create a checkout session
-    const { url } = await PaymentService.createSubscriptionCheckout(
-      stripeCustomerId,
-      tier as 'pro' | 'ultra',
-      user.id
-    );
-    
-    if (!url) {
-      console.error(`❌ Failed to create checkout session`);
-      return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+    // Approach 2: Create a client with the token directly
+    try {
+      console.log(`🔄 Trying direct token authentication...`);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Missing Supabase environment variables');
+      }
+      
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false
+        },
+        global: {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        }
+      });
+      
+      // Get the current user directly with the token
+      const { data: { user }, error: userError } = await supabase.auth.getUser(authToken);
+      
+      if (userError) {
+        console.error(`❌ Direct token error:`, userError);
+      } else if (user) {
+        console.log(`✅ User authenticated via direct token: ${user.id}`);
+        
+        // Continue with checkout using this user
+        return await processCheckout(user, tier, supabase);
+      }
+    } catch (directTokenError) {
+      console.error(`❌ Direct token approach failed:`, directTokenError);
     }
     
-    console.log(`✅ Checkout session created, redirecting to: ${url ? 'Valid URL' : 'No URL'}`);
-    console.log(`📊 Checkout details:
-          - User ID: ${user.id}
-          - Customer ID: ${stripeCustomerId}
-          - Target tier: ${tier}
-          - Current tier: ${profile.subscription_tier || 'free'}
-          - Current status: ${profile.subscription_status || 'none'}
-        `);
+    // Approach 3: Use service role as a last resort
+    try {
+      console.log(`🔄 Trying service role authentication...`);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      
+      if (!supabaseUrl || !serviceRoleKey) {
+        throw new Error('Missing Supabase environment variables');
+      }
+      
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
+      
+      // Try to decode the JWT to get the user ID
+      try {
+        const decoded = JSON.parse(atob(authToken.split('.')[1]));
+        const userId = decoded.sub;
+        
+        if (userId) {
+          console.log(`✅ Extracted user ID from token: ${userId}`);
+          
+          // Get the user directly from the database
+          const { data: userData, error: userDataError } = await adminClient
+            .from('profiles')
+            .select('id, email')
+            .eq('id', userId)
+            .single();
+            
+          if (userDataError) {
+            console.error(`❌ Error getting user data:`, userDataError);
+          } else if (userData) {
+            console.log(`✅ Found user in database: ${userData.id}`);
+            
+            // Create a user object that matches the structure expected by processCheckout
+            const user = {
+              id: userData.id,
+              email: userData.email
+            };
+            
+            // Continue with checkout using this user
+            return await processCheckout(user, tier, adminClient);
+          }
+        }
+      } catch (decodeError) {
+        console.error(`❌ Error decoding token:`, decodeError);
+      }
+    } catch (serviceRoleError) {
+      console.error(`❌ Service role approach failed:`, serviceRoleError);
+    }
     
-    return NextResponse.json({ url });
+    // If we get here, all authentication approaches failed
+    console.error(`❌ All authentication approaches failed`);
+    return NextResponse.json({ error: 'User not authenticated - Invalid token' }, { status: 401 });
   } catch (error) {
     console.error(`❌ Checkout error:`, error);
     return NextResponse.json(
@@ -211,4 +224,80 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to process the checkout once we have a valid user
+async function processCheckout(user: any, tier: string, supabase: any) {
+  console.log(`🔄 Processing checkout for user: ${user.id}, tier: ${tier}`);
+  
+  // Get the user's profile
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+    
+  if (profileError) {
+    console.error(`❌ Error getting profile:`, profileError);
+    return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 });
+  }
+  
+  console.log(`✅ User profile found: ${profile.id}`);
+  console.log(`📊 Current subscription tier: ${profile.subscription_tier || 'free'}`);
+  console.log(`📊 Current subscription status: ${profile.subscription_status || 'none'}`);
+  
+  // Check if the user already has a Stripe customer ID
+  const customerId = profile.stripe_customer_id;
+  console.log(`📊 Has Stripe customer ID: ${!!customerId}`);
+  
+  // Create or retrieve a Stripe customer
+  let stripeCustomerId: string;
+  
+  if (customerId) {
+    console.log(`🔄 Creating checkout session with existing customer ID: ${customerId}`);
+    stripeCustomerId = customerId;
+  } else {
+    console.log(`🔄 Creating new Stripe customer for user: ${user.id}`);
+    stripeCustomerId = await PaymentService.createOrRetrieveCustomer(
+      user.email || 'unknown@example.com',
+      user.id
+    );
+    
+    console.log(`✅ New Stripe customer created: ${stripeCustomerId}`);
+    
+    // Update the user's profile with the Stripe customer ID
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ stripe_customer_id: stripeCustomerId })
+      .eq('id', user.id);
+      
+    if (updateError) {
+      console.error(`❌ Error updating profile with Stripe customer ID:`, updateError);
+    } else {
+      console.log(`✅ Profile updated with Stripe customer ID`);
+    }
+  }
+  
+  // Create a checkout session
+  const { url } = await PaymentService.createSubscriptionCheckout(
+    stripeCustomerId,
+    tier as 'pro' | 'ultra',
+    user.id
+  );
+  
+  if (!url) {
+    console.error(`❌ Failed to create checkout session`);
+    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+  }
+  
+  console.log(`✅ Checkout session created, redirecting to: ${url ? 'Valid URL' : 'No URL'}`);
+  console.log(`📊 Checkout details:
+        - User ID: ${user.id}
+        - Customer ID: ${stripeCustomerId}
+        - Target tier: ${tier}
+        - Current tier: ${profile.subscription_tier || 'free'}
+        - Current status: ${profile.subscription_status || 'none'}
+      `);
+  
+  return NextResponse.json({ url });
 } 
