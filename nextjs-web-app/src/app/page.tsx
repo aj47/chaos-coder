@@ -12,8 +12,7 @@ import Image from "next/image";
 import { DESIGN_STYLES, DEFAULT_STYLES } from "@/config/styles";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthService } from "@/lib/auth";
-import { AuthButton } from "@/components/auth/AuthButton";
-import { useTokenStore } from "@/store/useTokenStore";
+import { useAuth } from "@/context/AuthContext";
 import { User } from "@supabase/supabase-js";
 
 export default function Home() {
@@ -29,7 +28,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   
   // Token store state
-  const setTokens = useTokenStore((state) => state.setTokens);
+  const { setTokens } = useAuth();
 
   // Animated gradient positions
   const [gradientPosition, setGradientPosition] = useState(0);
@@ -51,7 +50,7 @@ export default function Home() {
         if (user) {
           // Get additional user details if needed
           setUser(user);
-          await syncTokensWithDB(user.id);
+          await syncTokensWithDB();
         } else {
           setUser(null);
         }
@@ -126,7 +125,7 @@ export default function Home() {
           setUser(user);
           
           if (user) {
-            await syncTokensWithDB(user.id);
+            await syncTokensWithDB();
           }
         };
         
@@ -188,15 +187,15 @@ export default function Home() {
   };
 
   // Function to sync tokens with the database
-  const syncTokensWithDB = async (userId: string) => {
-    if (!userId) return;
+  const syncTokensWithDB = async () => {
+    if (!user || !user.id) return;
     
     try {
       const supabase = AuthService.createClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('credits')
-        .eq('id', userId)
+        .eq('id', user.id)
         .single();
       
       if (error) {
@@ -261,7 +260,7 @@ export default function Home() {
       // After submission is complete, sync tokens with the database
       // to ensure the displayed token count is accurate
       if (user?.id) {
-        await syncTokensWithDB(user.id);
+        await syncTokensWithDB();
       }
 
       const encodedPrompt = encodeURIComponent(prompt);
@@ -285,7 +284,7 @@ export default function Home() {
   return (
     <div className="relative min-h-screen w-full">
       <div className="absolute top-4 right-4 z-50">
-        <AuthButton />
+        {/* AuthButton component removed */}
       </div>
       {showAlertModal && (
         <AlertModal

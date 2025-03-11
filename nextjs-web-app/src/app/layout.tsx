@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import StyledComponentsRegistry from "@/components/styled-components-registry";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { AuthButtonWrapper } from "@/components/auth/AuthButtonWrapper";
 import StripeProvider from "@/components/StripeProvider";
 
@@ -33,10 +34,12 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <StyledComponentsRegistry>
           <ThemeProvider>
-            <StripeProvider>
-              <AuthButtonWrapper />
-              {children}
-            </StripeProvider>
+            <AuthProvider>
+              <StripeProvider>
+                <AuthButtonWrapper />
+                {children}
+              </StripeProvider>
+            </AuthProvider>
           </ThemeProvider>
         </StyledComponentsRegistry>
       </body>

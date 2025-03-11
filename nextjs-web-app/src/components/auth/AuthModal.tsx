@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { AuthService } from "@/lib/auth";
 import { FcGoogle } from "react-icons/fc";
-import { useTokenStore } from "@/store/useTokenStore";
+import { useAuth } from "@/context/AuthContext";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,13 +15,13 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
   const { theme } = useTheme();
+  const { setTokens } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("User");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const setTokens = useTokenStore((state) => state.setTokens);
   
   if (!isOpen) return null;
 
@@ -56,8 +56,7 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
         // Store first name in localStorage as a backup
         localStorage.setItem('firstName', firstName);
         
-        // Let the database handle token initialization through the trigger
-        // The token store will be updated when auth state changes
+        // Context will handle token initialization when auth state changes
         
         setMessage({ 
           type: "success", 
