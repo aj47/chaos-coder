@@ -796,10 +796,26 @@ function ResultsContent() {
 export default function Results() {
   return (
     <Suspense fallback={
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Loading...</h2>
-          <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="text-center p-8">
+          <div className="relative mb-8 mx-auto">
+            {/* Multi-layered spinner with different colors and animations */}
+            <div className="w-20 h-20 border-[3px] border-blue-400/10 border-t-blue-500/80 rounded-full animate-spin"></div>
+            <div className="absolute top-0 left-0 w-20 h-20 border-[3px] border-transparent border-r-indigo-400/70 rounded-full animate-spin animate-[spin_1.5s_linear_infinite_0.2s]"></div>
+            <div className="absolute top-[3px] left-[3px] w-[74px] h-[74px] border-[3px] border-transparent border-b-purple-400/60 rounded-full animate-spin animate-[spin_2s_linear_infinite_0.3s] origin-center"></div>
+            <div className="absolute top-[6px] left-[6px] w-[68px] h-[68px] border-[3px] border-transparent border-l-rose-400/50 rounded-full animate-spin animate-[spin_2.5s_linear_infinite_0.4s] origin-center"></div>
+            
+            {/* Pulsing dot in the center */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse"></div>
+          </div>
+          
+          <h2 className="text-xl font-semibold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
+            Loading Your Designs
+          </h2>
+          
+          <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
+            Preparing your web applications...
+          </p>
         </div>
       </div>
     }>

@@ -375,17 +375,21 @@ export default function Home() {
 
                 {/* Generate Button - Moved above style settings */}
                 <RainbowButton
-                  className={`w-full ${isLoading ? 'opacity-80' : ''}`}
+                  className={`w-full ${isLoading ? 'opacity-90' : ''}`}
                   onClick={handleSubmit}
                   disabled={isLoading}
                 >
                   {isLoading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      <span>Preparing...</span>
+                    <div className="flex items-center justify-center w-full">
+                      <div className="relative mr-3">
+                        <div className="w-6 h-6 border-2 border-white/20 border-t-white/80 rounded-full animate-spin"></div>
+                        <div className="absolute top-0 left-0 w-6 h-6 border-2 border-transparent border-r-indigo-400/80 rounded-full animate-spin animate-[spin_1s_linear_infinite_0.2s]"></div>
+                        <div className="absolute top-[2px] left-[2px] w-[20px] h-[20px] border-2 border-transparent border-b-purple-400/60 rounded-full animate-spin animate-[spin_1.5s_linear_infinite_0.3s] origin-center"></div>
+                      </div>
+                      <span className="text-white font-medium bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-200 to-white animate-pulse">Generating...</span>
                     </div>
                   ) : (
-                    <span className="flex items-center">
+                    <span className="flex items-center justify-center w-full">
                       Generate {numGenerations} Website{numGenerations > 1 ? 's' : ''} Now <span className="mx-1">•</span> (
                       <span className="flex items-center">
                         {numGenerations}
@@ -394,6 +398,7 @@ export default function Home() {
                             alt="Credits"
                             width={16}
                             height={16}
+                            className="ml-1"
                           />
                       </span>
                       )
