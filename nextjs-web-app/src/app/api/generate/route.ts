@@ -9,7 +9,8 @@ export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
     
     // Parse the request body
     const body = await req.json();
