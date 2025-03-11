@@ -10,6 +10,29 @@ Chaos Coder is a Next.js application that generates five variations of web appli
 
 **Note:** All the code for this project is located in the `nextjs-web-app` folder.
 
+## Key Files
+
+This project contains several important files that form the core functionality:
+
+### Core Application Files
+- **`nextjs-web-app/src/app/results/page.tsx` (32KB)**: The main results page component that displays the generated web application variations. Handles code generation, UI rendering, voice input processing, and performance metrics tracking.
+
+- **`nextjs-web-app/src/app/dashboard/page.tsx` (24KB)**: The user dashboard component. Manages user authentication state, subscription information, credit tracking, and user profile data.
+
+- **`nextjs-web-app/src/app/page.tsx` (20KB)**: The landing page component with the primary application interface.
+
+### Service and Infrastructure Files
+- **`nextjs-web-app/src/lib/payment/index.ts` (24KB)**: The centralized payment service. Handles all Stripe integration, subscription management, customer creation, checkout sessions, webhook processing, and billing operations.
+
+- **`nextjs-web-app/db/schema-updates.sql` (20KB)**: Database schema definitions for the Supabase backend. Contains table structures, indexes, row-level security policies, and stored procedures for user authentication, credit management, and subscription tracking.
+
+### UI Components
+- **`nextjs-web-app/src/components/SubscriptionPlans.tsx` (16KB)**: Component for displaying and managing subscription tiers and plans.
+
+### Assets
+- **`nextjs-web-app/public/favicon.ico` (124KB)**: The website favicon.
+- **`nextjs-web-app/public/coin.png` (100KB)**: Image asset for the credit/token system.
+
 ## Purpose
 
 The purpose of Chaos Coder is to accelerate the development process by providing multiple variations of code solutions for web applications. By generating five different approaches at once, developers can compare and choose the best implementation for their specific needs.
