@@ -321,18 +321,28 @@ export default function AppTile({
         {isLoading ? (
           <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
             <div className="p-6 flex flex-col items-center">
-              <div className="relative">
-                <div className="w-10 h-10 border-4 border-blue-400/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-                <div className="absolute top-0 left-0 w-10 h-10 border-4 border-transparent border-r-indigo-400 rounded-full animate-spin animate-delay-150"></div>
+              <div className="relative mb-6">
+                {/* Multi-layered spinner with different colors and animations */}
+                <div className="w-16 h-16 border-[3px] border-blue-400/10 border-t-blue-500/80 rounded-full animate-spin"></div>
+                <div className="absolute top-0 left-0 w-16 h-16 border-[3px] border-transparent border-r-indigo-400/70 rounded-full animate-spin animate-[spin_1.5s_linear_infinite_0.2s]"></div>
+                <div className="absolute top-[3px] left-[3px] w-[58px] h-[58px] border-[3px] border-transparent border-b-purple-400/60 rounded-full animate-spin animate-[spin_2s_linear_infinite_0.3s] origin-center"></div>
+                <div className="absolute top-[6px] left-[6px] w-[52px] h-[52px] border-[3px] border-transparent border-l-rose-400/50 rounded-full animate-spin animate-[spin_2.5s_linear_infinite_0.4s] origin-center"></div>
+                
+                {/* Pulsing dot in the center */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse"></div>
               </div>
-              <p className={`text-sm font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"} mb-2`}>
+              
+              <p className={`text-base font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"} mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400`}>
                 Generating {title}...
               </p>
-              <div className="w-48 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 animate-pulse-width"></div>
+              
+              {/* Animated progress bar */}
+              <div className="w-48 h-2 bg-gray-200/30 dark:bg-gray-700/30 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-shimmer"></div>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                This may take a few moments
+              
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 animate-pulse">
+                Creating your design...
               </p>
             </div>
           </div>
