@@ -271,72 +271,122 @@ export default function DashboardPage() {
       const supabase = AuthService.createClient();
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
-      console.log(`Session check before API call:`, sessionData);
+      console.log(`🔍 Session check before API call:`, {
+        hasSession: !!sessionData?.session,
+        sessionError: sessionError?.message || 'none',
+        sessionExpiry: sessionData?.session?.expires_at ? new Date(sessionData.session.expires_at * 1000).toISOString() : 'none',
+        currentTime: new Date().toISOString(),
+        isExpired: sessionData?.session?.expires_at ? (sessionData.session.expires_at * 1000) < Date.now() : false
+      });
       
       if (sessionError || !sessionData.session) {
-        console.error(`Session error:`, sessionError);
+        console.error(`❌ Session error:`, sessionError);
         setError("You must be logged in to upgrade your plan");
         setIsUpgrading(false);
         return;
       }
       
       // Log the access token details for debugging
-      console.log(`Access token available: ${!!sessionData.session.access_token}`);
-      console.log(`Access token length: ${sessionData.session.access_token.length}`);
-      console.log(`Access token first 10 chars: ${sessionData.session.access_token.substring(0, 10)}...`);
+      const tokenFirstPart = sessionData.session.access_token.split('.')[0];
+      const tokenSecondPart = sessionData.session.access_token.split('.')[1];
+      console.log(`🔑 Access token analysis:`, {
+        available: !!sessionData.session.access_token,
+        length: sessionData.session.access_token.length,
+        firstPart: tokenFirstPart,
+        decodedHeader: tokenFirstPart ? JSON.parse(atob(tokenFirstPart)) : null,
+        decodedPayload: tokenSecondPart ? JSON.parse(atob(tokenSecondPart)) : null
+      });
       
       // Get the current user to verify authentication
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
-        console.error(`User error:`, userError);
+        console.error(`❌ User verification failed:`, {
+          error: userError?.message || 'No user data',
+          userData: userData || null
+        });
         setError("Could not verify your user account");
         setIsUpgrading(false);
         return;
       }
       
-      console.log(`User verified: ${userData.user.id}`);
-      console.log(`Starting Stripe checkout process for tier: ${plan}`);
+      console.log(`✅ User verification successful:`, {
+        id: userData.user.id,
+        email: userData.user.email,
+        lastSignIn: userData.user.last_sign_in_at,
+        metadata: userData.user.user_metadata
+      });
       
-      // Make the API call with credentials included to pass cookies
-      // and also include the Authorization header
-      const response = await fetch('/api/stripe/checkout', {
+      console.log(`🔄 Starting Stripe checkout process for tier: ${plan}`);
+      
+      // Log the request details before making the call
+      const requestDetails = {
+        url: '/api/stripe/checkout',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sessionData.session.access_token}`,
           'Origin': window.location.origin
         },
-        credentials: 'include', // This is crucial for passing cookies
-        body: JSON.stringify({ 
+        body: { 
           tier: plan,
-          // Include the token directly in the request body as a fallback
           accessToken: sessionData.session.access_token,
-          // Include user ID for additional verification
           userId: userData.user.id,
-          // Include additional user data to assist with verification
           userEmail: userData.user.email,
           userAuthTime: userData.user.last_sign_in_at || new Date().toISOString()
-        }),
+        }
+      };
+      console.log(`📤 Outgoing request details:`, requestDetails);
+      
+      // Make the API call with credentials included to pass cookies
+      const response = await fetch('/api/stripe/checkout', {
+        method: requestDetails.method,
+        headers: requestDetails.headers,
+        credentials: 'include', // This is crucial for passing cookies
+        body: JSON.stringify(requestDetails.body),
       });
       
-      console.log(`Checkout API response status: ${response.status}`);
+      console.log(`📥 API response details:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        url: response.url
+      });
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.log(`Checkout API error response:`, errorData);
+        console.log(`❌ Checkout API error details:`, {
+          status: response.status,
+          errorData,
+          requestUrl: response.url,
+          requestId: response.headers.get('x-request-id'),
+          corsHeaders: {
+            'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+            'access-control-allow-credentials': response.headers.get('access-control-allow-credentials')
+          }
+        });
         throw new Error(errorData.error || `HTTP error ${response.status}`);
       }
       
       const data = await response.json();
       
       if (data.url) {
-        console.log(`Redirecting to Stripe checkout: ${data.url}`);
+        console.log(`✅ Checkout session created successfully:`, {
+          checkoutUrl: data.url,
+          timestamp: new Date().toISOString()
+        });
         window.location.href = data.url;
       } else {
         throw new Error("No checkout URL returned");
       }
     } catch (err) {
-      console.log(`Upgrade error:`, err);
+      console.error(`❌ Upgrade process error:`, {
+        error: err instanceof Error ? {
+          message: err.message,
+          stack: err.stack,
+          name: err.name
+        } : err,
+        timestamp: new Date().toISOString()
+      });
       setError(`Failed to start checkout process: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setIsUpgrading(false);
     }

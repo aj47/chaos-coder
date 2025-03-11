@@ -3,7 +3,6 @@ import { PaymentService } from '@/lib/payment';
 import { AuthService } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from "@/types/supabase";
 
 // Define a type for the user object
 interface UserData {
@@ -20,6 +19,17 @@ interface CheckoutRequestBody {
   userAuthTime?: string;
 }
 
+// Define the base user data interface
+interface BaseUserData {
+  id: string;
+  email: string;
+}
+
+// Extend for additional properties in validation
+interface UnvalidatedUserData extends BaseUserData {
+  [key: string]: unknown;
+}
+
 // Add OPTIONS method handler for CORS preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -33,111 +43,157 @@ export async function OPTIONS() {
   });
 }
 
+// Update type guard with proper typing
+function isValidUserData(data: UnvalidatedUserData | null): data is UserData {
+  return (
+    data !== null &&
+    typeof data.id === 'string' &&
+    typeof data.email === 'string' &&
+    data.id.length > 0 &&
+    data.email.length > 0
+  );
+}
+
 export async function POST(req: NextRequest) {
-  console.log(`🔄 Starting checkout process`);
+  const requestId = crypto.randomUUID();
+  console.log(`🔄 [${requestId}] Starting checkout process`);
   
   try {
-    // Get the origin for CORS
-    const origin = req.headers.get('origin') || '*';
+    // Get the origin for CORS with type assertion
+    const origin = req.headers.get('origin');
+    const validOrigin = origin || 'http://localhost:3000';
     
     // Set CORS headers for the actual response
     const headers = new Headers({
-      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Origin': validOrigin,
       'Access-Control-Allow-Credentials': 'true',
+      'x-request-id': requestId
     });
     
     // Log all request headers for debugging
     const reqHeaders = Object.fromEntries(req.headers.entries());
-    console.log(`📊 Request headers:`, JSON.stringify(reqHeaders, null, 2));
+    console.log(`📊 [${requestId}] Request headers:`, JSON.stringify(reqHeaders, null, 2));
     
     // Parse the request body first to get potential access token
     const body = await req.json() as CheckoutRequestBody;
     const { tier, accessToken: bodyToken, userId, userEmail, userAuthTime } = body;
     
+    console.log(`📊 [${requestId}] Request validation:`, {
+      hasTier: !!tier,
+      isValidTier: ['pro', 'ultra'].includes(tier || ''),
+      hasBodyToken: !!bodyToken,
+      hasUserId: !!userId,
+      hasUserEmail: !!userEmail,
+      hasUserAuthTime: !!userAuthTime,
+      requestOrigin: validOrigin
+    });
+    
     if (!tier || !['pro', 'ultra'].includes(tier)) {
+      console.error(`❌ [${requestId}] Invalid tier specified:`, tier);
       return new NextResponse(
         JSON.stringify({ error: 'Invalid tier specified' }), 
         { status: 400, headers }
       );
     }
     
-    console.log(`🔄 Processing checkout for tier: ${tier}`);
-    console.log(`📊 Access token in body: ${bodyToken ? `Present (length: ${bodyToken.length})` : 'Not present'}`);
-    console.log(`📊 User ID in body: ${userId || 'Not present'}`);
-    console.log(`📊 User email: ${userEmail || 'Not present'}`);
-    console.log(`📊 Last auth time: ${userAuthTime || 'Not present'}`);
-    
     // Try to get the auth token from multiple sources
     const authToken = req.headers.get('authorization')?.replace('Bearer ', '') || bodyToken || '';
     
+    console.log(`📊 [${requestId}] Auth token sources:`, {
+      headerToken: !!req.headers.get('authorization'),
+      bodyToken: !!bodyToken,
+      finalTokenLength: authToken.length,
+      tokenStart: authToken ? `${authToken.substring(0, 10)}...` : 'none'
+    });
+    
     if (!authToken) {
-      console.error(`❌ No auth token found in any source`);
+      console.error(`❌ [${requestId}] No auth token found in any source`);
       return new NextResponse(
         JSON.stringify({ error: 'User not authenticated - No token found' }), 
         { status: 401, headers }
       );
     }
     
-    console.log(`✅ Auth token extracted successfully (length: ${authToken.length}, first 10 chars: ${authToken.substring(0, 10)}...)`);
+    // Try to decode the token to check its structure
+    try {
+      const [headerPart, payloadPart] = authToken.split('.');
+      if (headerPart && payloadPart) {
+        console.log(`🔍 [${requestId}] Token structure analysis:`, {
+          hasHeaderPart: true,
+          hasPayloadPart: true,
+          decodedHeader: JSON.parse(atob(headerPart)),
+          decodedPayload: JSON.parse(atob(payloadPart))
+        });
+      } else {
+        console.log(`🔍 [${requestId}] Token structure analysis: Invalid token format`);
+      }
+    } catch (decodeError) {
+      console.error(`❌ [${requestId}] Token decode error:`, decodeError);
+    }
     
     // Try multiple authentication approaches
     
     // Approach 1: Use AuthService directly
     try {
-      console.log(`🔄 Trying authentication with AuthService...`);
+      console.log(`🔄 [${requestId}] Trying authentication with AuthService...`);
       const supabase = AuthService.createClient();
       
-      // First try to get the user from the token
+      // Try to get the user from the token with type checking
       const { data: { user }, error: userError } = await supabase.auth.getUser(authToken);
       
-      if (userError) {
-        console.error(`❌ Failed to get user from token:`, userError);
-        throw userError;
-      }
-      
-      if (!user || !user.email) {
-        console.error(`❌ No user or email found for token`);
+      if (userError || !user || !user.email || !user.id) {
+        console.error(`❌ [${requestId}] Failed to get user from token:`, {
+          error: userError?.message,
+          name: userError?.name,
+          status: userError?.status,
+          hasUser: !!user,
+          hasEmail: !!user?.email,
+          hasId: !!user?.id
+        });
         throw new Error('Invalid user data');
       }
       
-      console.log(`✅ User authenticated:`, { 
-        id: user.id, 
-        email: user.email,
-        providedUserId: userId
-      });
+      const validatedUser: UserData = {
+        id: user.id,
+        email: user.email
+      };
       
-      // Verify the user ID matches if provided
-      if (userId && user.id !== userId) {
-        console.error(`❌ User ID mismatch: Token user ${user.id} != Provided user ${userId}`);
-        throw new Error('User ID mismatch');
-      }
+      // Now we know user data is valid
+      console.log(`✅ [${requestId}] User authenticated:`, { 
+        id: validatedUser.id, 
+        email: validatedUser.email,
+        providedUserId: userId,
+        lastSignIn: user.last_sign_in_at || 'unknown',
+        appMetadata: user.app_metadata || {},
+        userMetadata: user.user_metadata || {}
+      });
       
       // Verify the user exists in the database
       const { error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('id', user.id)
+        .eq('id', validatedUser.id)
         .single();
       
       if (profileError) {
-        console.error(`❌ User profile not found:`, profileError);
-        throw profileError;
+        console.error(`❌ [${requestId}] User profile not found:`, {
+          error: profileError.message,
+          code: profileError.code,
+          details: profileError.details
+        });
+        return NextResponse.json({ error: 'User profile not found' }, { status: 401, headers });
       }
       
-      console.log(`✅ User profile verified`);
-      
-      // If we get here, the user is authenticated
-      console.log(`✅ Authentication successful for user ${user.id}`);
-      
-      // Continue with checkout using this user
-      const userData: UserData = {
-        id: user.id,
-        email: user.email
-      };
-      
-      return await processCheckout(userData, tier, supabase);
+      return await processCheckout(validatedUser, tier, supabase, requestId, headers);
     } catch (error) {
-      console.error(`❌ Authentication error:`, error);
+      console.error(`❌ [${requestId}] Authentication error:`, {
+        error: error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : error,
+        authToken: authToken ? `${authToken.substring(0, 10)}...` : 'none'
+      });
       
       // Check if this is a token expiration error
       const isExpiredError = error instanceof Error && 
@@ -183,57 +239,72 @@ export async function POST(req: NextRequest) {
       } else if (user) {
         console.log(`✅ User authenticated via direct token: ${user.id}`);
         
-        // Continue with checkout using this user
-        return await processCheckout(user as UserData, tier, supabase);
+        // Create userData only after all validations pass
+        const userData: UserData = {
+          id: user.id,
+          email: user.email
+        };
+        
+        return await processCheckout(userData, tier, supabase, requestId, headers);
       }
     } catch (directTokenError) {
-      console.error(`❌ Direct token approach failed:`, directTokenError);
-    }
-    
-    // Approach 3: Use service role as a last resort with userId from the request body
-    if (userId) {
+      // Try approach 3: Use service role to look up user
       try {
-        console.log(`🔄 Trying service role authentication with provided userId: ${userId}`);
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        
-        if (!supabaseUrl || !serviceRoleKey) {
-          throw new Error('Missing Supabase environment variables');
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          throw new Error('Missing required environment variables');
         }
-        
-        console.log(`📊 Supabase URL: ${supabaseUrl}`);
-        console.log(`📊 Service role key available: ${!!serviceRoleKey}`);
-        
-        const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
+
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+          {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false
+            }
           }
-        });
-        
-        // Get the user directly from the database using provided userId
-        const { data: userData, error: userDataError } = await adminClient
-          .from('profiles')
-          .select('id, email')
-          .eq('id', userId)
-          .single();
+        );
+
+        // Look up user by ID if provided
+        if (userId) {
+          const { data: userData, error: userError } = await adminClient
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+          const validatedData = userData as UnvalidatedUserData;
           
-        if (userDataError) {
-          console.error(`❌ Error getting user data:`, userDataError);
-        } else if (userData) {
-          console.log(`✅ Found user in database using provided userId: ${userData.id}`);
+          if (userError || !isValidUserData(validatedData)) {
+            throw new Error('User not found or invalid data');
+          }
+
+          console.log(`✅ Found user in database using provided userId: ${validatedData.id}`);
           
-          // Create a user object that matches the structure expected by processCheckout
-          const user: UserData = {
-            id: userData.id,
-            email: userData.email
-          };
+          return await processCheckout(validatedData, tier, adminClient, requestId, headers);
+        }
+
+        // Try email lookup as last resort
+        if (userEmail) {
+          const { data: userData, error: userError } = await adminClient
+            .from('profiles')
+            .select('*')
+            .eq('email', userEmail)
+            .single();
+
+          const validatedData = userData as UnvalidatedUserData;
           
-          // Continue with checkout using this user
-          return await processCheckout(user, tier, adminClient);
+          if (userError || !isValidUserData(validatedData)) {
+            throw new Error('User not found or invalid data');
+          }
+
+          console.log(`✅ Found user in database: ${validatedData.id}`);
+          
+          return await processCheckout(validatedData, tier, adminClient, requestId, headers);
         }
       } catch (serviceRoleError) {
-        console.error(`❌ Service role approach with userId failed:`, serviceRoleError);
+        console.error(`❌ [${requestId}] Service role authentication failed:`, serviceRoleError);
+        throw serviceRoleError;
       }
     }
     
@@ -277,14 +348,14 @@ export async function POST(req: NextRequest) {
           } else if (userData) {
             console.log(`✅ Found user in database: ${userData.id}`);
             
-            // Create a user object that matches the structure expected by processCheckout
+            // Create userData only after all validations pass
             const user: UserData = {
               id: userData.id,
               email: userData.email
             };
             
             // Continue with checkout using this user
-            return await processCheckout(user, tier, adminClient);
+            return await processCheckout(user, tier, adminClient, requestId, headers);
           }
         }
       } catch (decodeError) {
@@ -302,7 +373,7 @@ export async function POST(req: NextRequest) {
       - User ID from body: ${userId || 'Not present'}
       - User email: ${userEmail || 'Not present'}
       - Last auth time: ${userAuthTime || 'Not present'}
-      - Request origin: ${origin}
+      - Request origin: ${validOrigin}
       - Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL || 'Not set'}
       - Anon key available: ${!!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - Service role key available: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}
@@ -312,20 +383,40 @@ export async function POST(req: NextRequest) {
       { status: 401, headers }
     );
   } catch (error) {
-    console.error(`❌ Checkout error:`, error);
+    console.error(`❌ [${requestId}] Checkout error:`, {
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : error
+    });
+    
+    const origin = req.headers.get('origin');
+    const fallbackOrigin = origin || 'http://localhost:3000';
+    
     return new NextResponse(
       JSON.stringify({ error: `Failed to create checkout session: ${error instanceof Error ? error.message : 'Unknown error'}` }),
-      { status: 500, headers: {
-        'Access-Control-Allow-Origin': req.headers.get('origin') || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      }}
+      { 
+        status: 500, 
+        headers: {
+          'Access-Control-Allow-Origin': fallbackOrigin,
+          'Access-Control-Allow-Credentials': 'true',
+          'x-request-id': requestId
+        }
+      }
     );
   }
 }
 
 // Helper function to process the checkout once we have a valid user
-async function processCheckout(user: UserData, tier: 'pro' | 'ultra', supabase: SupabaseClient) {
-  console.log(`🔄 Processing checkout for user: ${user.id}, tier: ${tier}`);
+async function processCheckout(
+  user: UserData, 
+  tier: 'pro' | 'ultra', 
+  supabase: SupabaseClient, 
+  requestId: string,
+  headers: Headers
+) {
+  console.log(`🔄 [${requestId}] Processing checkout for user: ${user.id}, tier: ${tier}`);
   
   // Get the user's profile
   const { data: profile, error: profileError } = await supabase
@@ -335,29 +426,32 @@ async function processCheckout(user: UserData, tier: 'pro' | 'ultra', supabase: 
     .single();
     
   if (profileError) {
-    console.error(`❌ Error getting profile:`, profileError);
-    return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 });
+    console.error(`❌ [${requestId}] Error getting profile:`, {
+      error: profileError.message,
+      code: profileError.code,
+      details: profileError.details
+    });
+    return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500, headers });
   }
   
-  console.log(`✅ User profile found: ${profile.id}`);
-  console.log(`📊 Current subscription tier: ${profile.subscription_tier || 'free'}`);
-  console.log(`📊 Current subscription status: ${profile.subscription_status || 'none'}`);
-  
-  // Check if the user already has a Stripe customer ID
-  const customerId = profile.stripe_customer_id;
-  console.log(`📊 Has Stripe customer ID: ${!!customerId}`);
+  console.log(`✅ [${requestId}] User profile details:`, {
+    id: profile.id,
+    currentTier: profile.subscription_tier || 'free',
+    status: profile.subscription_status || 'none',
+    hasStripeCustomer: !!profile.stripe_customer_id
+  });
   
   // Create or retrieve a Stripe customer
   let stripeCustomerId: string;
   
-  if (customerId) {
-    console.log(`🔄 Creating checkout session with existing customer ID: ${customerId}`);
-    stripeCustomerId = customerId;
+  if (profile.stripe_customer_id) {
+    console.log(`🔄 [${requestId}] Using existing Stripe customer: ${profile.stripe_customer_id}`);
+    stripeCustomerId = profile.stripe_customer_id;
   } else {
-    console.log(`🔄 Creating new Stripe customer for user: ${user.id}`);
+    console.log(`🔄 [${requestId}] Creating new Stripe customer for user: ${user.id}`);
     stripeCustomerId = await PaymentService.createOrRetrieveCustomer(user.email, user.id);
     
-    console.log(`✅ New Stripe customer created: ${stripeCustomerId}`);
+    console.log(`✅ [${requestId}] New Stripe customer created: ${stripeCustomerId}`);
     
     // Update the user's profile with the Stripe customer ID
     const { error: updateError } = await supabase
@@ -366,9 +460,13 @@ async function processCheckout(user: UserData, tier: 'pro' | 'ultra', supabase: 
       .eq('id', user.id);
       
     if (updateError) {
-      console.error(`❌ Error updating profile with Stripe customer ID:`, updateError);
+      console.error(`❌ [${requestId}] Error updating profile with Stripe customer ID:`, {
+        error: updateError.message,
+        code: updateError.code,
+        details: updateError.details
+      });
     } else {
-      console.log(`✅ Profile updated with Stripe customer ID`);
+      console.log(`✅ [${requestId}] Profile updated with Stripe customer ID`);
     }
   }
   
@@ -380,16 +478,17 @@ async function processCheckout(user: UserData, tier: 'pro' | 'ultra', supabase: 
   );
   
   if (!url) {
-    console.error(`❌ Failed to create checkout session`);
-    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+    console.error(`❌ [${requestId}] Failed to create checkout session`);
+    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500, headers });
   }
   
-  console.log(`✅ Checkout session created, redirecting to: ${url ? 'Valid URL' : 'No URL'}`);
-  console.log(`📊 Checkout details:
-    - User ID: ${user.id}
-    - Customer ID: ${stripeCustomerId}
-    - Target tier: ${tier}
-  `);
+  console.log(`✅ [${requestId}] Checkout session created:`, {
+    url: url ? 'Valid URL generated' : 'No URL',
+    userId: user.id,
+    customerId: stripeCustomerId,
+    tier: tier,
+    timestamp: new Date().toISOString()
+  });
   
-  return NextResponse.json({ url });
+  return NextResponse.json({ url }, { headers });
 } 
