@@ -7,19 +7,25 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return await updateSession(request);
+  try {
+    return await updateSession(request);
+  } catch (error) {
+    console.error('Middleware error:', error);
+    // On error, still allow webhook requests
+    if (request.nextUrl.pathname === '/api/stripe/webhook') {
+      return NextResponse.next();
+    }
+    // For other routes, redirect to home page
+    return NextResponse.redirect(new URL('/', request.url));
+  }
 }
 
 export const config = {
   matcher: [
-    // Protected API routes
-    '/api/:path*',
-    
+    // Protected API routes except webhook
+    '/api/((?!stripe/webhook).*)',
     // Protected pages
     '/dashboard/:path*',
     '/account/:path*',
-    
-    // Exclude static files and Stripe webhook
-    '/((?!_next/static|_next/image|favicon.ico).*)',
   ]
 }; 
