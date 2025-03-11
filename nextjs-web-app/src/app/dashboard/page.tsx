@@ -303,7 +303,8 @@ export default function DashboardPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
+          'Origin': window.location.origin
         },
         credentials: 'include', // This is crucial for passing cookies
         body: JSON.stringify({ 
