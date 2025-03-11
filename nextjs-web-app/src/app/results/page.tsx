@@ -11,7 +11,7 @@ import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import { SignupModal } from "@/components/SignupModal";
 import { AlertModal } from "@/components/AlertModal";
-import { useTokenStore } from "@/store/useTokenStore";
+import { useAuth } from "@/context/AuthContext";
 import { 
   DEFAULT_STYLES, 
   isPredefinedStyle, 
@@ -74,7 +74,7 @@ function ResultsContent() {
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const { theme } = useTheme();
-  const setTokens = useTokenStore((state) => state.setTokens);
+  const { setTokens } = useAuth();
 
   // Reference for animation
   const containerRef = useRef<HTMLDivElement>(null);

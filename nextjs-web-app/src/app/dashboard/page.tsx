@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { useTokenStore } from "@/store/useTokenStore";
+import { useAuth } from "@/context/AuthContext";
 import { AuthService } from "@/lib/auth";
 import { checkAndRefreshCredits } from "@/lib/credits";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
@@ -15,11 +15,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Use individual selectors to avoid creating new objects on each render
-  const tokens = useTokenStore(state => state.tokens);
-  const setTokens = useTokenStore(state => state.setTokens);
-  const tokenLoading = useTokenStore(state => state.isLoading);
-  const syncTokensWithDB = useTokenStore(state => state.syncTokensWithDB);
+  // Use our new auth context instead of zustand store
+  const { user, tokens, setTokens, syncTokensWithDB, isLoading } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,31 +28,27 @@ export default function DashboardPage() {
   const [creditsRefreshed, setCreditsRefreshed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const supabase = AuthService.createClient();
-        const { user, error } = await AuthService.getCurrentUser(supabase);
-        
-        if (error || !user) {
-          console.error("Error loading user:", error);
+        // Only redirect if we're sure the user isn't logged in (not during loading)
+        if (!isLoading && !user) {
           router.push("/");
           return;
         }
         
-        setUserId(user.id);
-        
-        // Immediately sync token store with database
-        await syncTokensWithDB(user.id);
+        // If still loading, wait for it to complete
+        if (isLoading) {
+          return;
+        }
         
         // Set user email
-        setUserEmail(user.email || null);
+        setUserEmail(user?.email || null);
         
         // Check if this is a new login (using sessionStorage to track login state)
         const isNewLogin = !sessionStorage.getItem('dashboard_visited');
-        if (isNewLogin) {
+        if (isNewLogin && user) {
           // Set a welcome message for new logins
           setSuccessMessage(`Welcome back, ${user.email}!`);
           
@@ -68,62 +61,66 @@ export default function DashboardPage() {
           }, 5000);
         }
         
+        const supabase = AuthService.createClient();
+        
         // Check if credits need to be refreshed for the day
-        const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
-          supabase,
-          user.id
-        );
-        
-        if (refreshed) {
-          setCredits(refreshedCredits);
-          setTokens(refreshedCredits);
-          setCreditsRefreshed(true);
+        if (user) {
+          const { credits: refreshedCredits, refreshed } = await checkAndRefreshCredits(
+            supabase,
+            user.id
+          );
           
-          // Hide the refreshed message after 5 seconds
-          setTimeout(() => {
-            setCreditsRefreshed(false);
-          }, 5000);
-        }
-        
-        // Fetch user profile to get subscription info - adding logging
-        console.log('Fetching user profile for:', user.id);
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*') // Get all columns for debugging
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-        } else if (profileData) {
-          console.log("Profile data received:", profileData);
-          // First cast to unknown then to the expected type
-          const profile = profileData as unknown as {
-            credits: number;
-            subscription_tier?: string;
-            subscription_status?: string;
-            max_daily_credits?: number;
-            stripe_subscription_id?: string;
-            stripe_customer_id?: string;
-          };
-          
-          console.log("Parsed profile data:", profile);
-          console.log("Current credits value:", profile.credits);
-          
-          // Only update credits if they weren't just refreshed
-          if (!refreshed) {
-            console.log("Setting credits from profile:", profile.credits);
-            setCredits(profile.credits);
+          if (refreshed) {
+            setCredits(refreshedCredits);
+            setTokens(refreshedCredits);
+            setCreditsRefreshed(true);
             
-            // Update token store to ensure AuthButton displays correct value
-            console.log("Updating token store with:", profile.credits);
-            setTokens(profile.credits); // Update token store with credits from profile
-          } else {
-            console.log("Not updating credits from profile as they were just refreshed");
+            // Hide the refreshed message after 5 seconds
+            setTimeout(() => {
+              setCreditsRefreshed(false);
+            }, 5000);
           }
           
-          setSubscriptionTier(profile.subscription_tier || "free");
-          setSubscriptionStatus(profile.subscription_status || null);
+          // Fetch user profile to get subscription info - adding logging
+          console.log('Fetching user profile for:', user.id);
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*') // Get all columns for debugging
+            .eq('id', user.id)
+            .single();
+          
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+          } else if (profileData) {
+            console.log("Profile data received:", profileData);
+            // First cast to unknown then to the expected type
+            const profile = profileData as unknown as {
+              credits: number;
+              subscription_tier?: string;
+              subscription_status?: string;
+              max_daily_credits?: number;
+              stripe_subscription_id?: string;
+              stripe_customer_id?: string;
+            };
+            
+            console.log("Parsed profile data:", profile);
+            console.log("Current credits value:", profile.credits);
+            
+            // Only update credits if they weren't just refreshed
+            if (!refreshed) {
+              console.log("Setting credits from profile:", profile.credits);
+              setCredits(profile.credits);
+              
+              // Update token store to ensure AuthButton displays correct value
+              console.log("Updating token store with:", profile.credits);
+              setTokens(profile.credits); // Update token store with credits from profile
+            } else {
+              console.log("Not updating credits from profile as they were just refreshed");
+            }
+            
+            setSubscriptionTier(profile.subscription_tier || "free");
+            setSubscriptionStatus(profile.subscription_status || null);
+          }
         }
       } catch (err) {
         console.error("Error checking user:", err);
@@ -142,7 +139,7 @@ export default function DashboardPage() {
         sessionStorage.removeItem('dashboard_visited');
       }
     };
-  }, [router, setTokens, syncTokensWithDB]);
+  }, [router, user, setTokens, syncTokensWithDB, isLoading]);
 
   // Check for successful Stripe session
   useEffect(() => {
@@ -481,13 +478,13 @@ export default function DashboardPage() {
 
   // Add an effect to force refresh tokens when needed - OPTIMIZE THIS
   useEffect(() => {
-    // If we have a userId but credits/tokens aren't loaded, try to sync
+    // If we have a user but credits/tokens aren't loaded, try to sync
     // Only sync if tokens is actually 0, not if it has a valid value
-    if (userId && tokens === 0 && !tokenLoading) {
-      console.log("Force syncing tokens for user", userId);
-      syncTokensWithDB(userId);
+    if (user && tokens === 0 && !loading) {
+      console.log("Force syncing tokens for user", user.id);
+      syncTokensWithDB();
     }
-  }, [userId, tokens, tokenLoading, syncTokensWithDB]);
+  }, [user, tokens, loading, syncTokensWithDB]);
 
   // Remove excessive logging in production
   // console.log("Dashboard render - tokens:", tokens, "credits:", credits, "loading:", loading, "tokenLoading:", tokenLoading);
