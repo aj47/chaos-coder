@@ -107,7 +107,6 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 STRIPE_PRO_PRICE_ID=your_stripe_pro_price_id
 STRIPE_ULTRA_PRICE_ID=your_stripe_ultra_price_id
-STRIPE_DISCOUNT_COUPON=optional_discount_coupon_id
 
 # Site URL
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
