@@ -189,9 +189,9 @@ export class PaymentService {
             quantity: 1,
           },
         ],
-        discounts: [{
-          coupon: process.env.STRIPE_DISCOUNT_COUPON || 'jYKdD3MY',
-        }],
+        // discounts: [{
+        //   coupon: process.env.STRIPE_DISCOUNT_COUPON || 'jYKdD3MY',
+        // }],
         mode: 'subscription',
         success_url: `${this.getSiteUrl()}/dashboard?checkout=success`,
         cancel_url: `${this.getSiteUrl()}/dashboard?checkout=cancelled`,

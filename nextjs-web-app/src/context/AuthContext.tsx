@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       if (error) {
-        console.error("Error fetching tokens:", error);
+        console.error("Error syncing tokens with DB:", error);
         return;
       }
 
@@ -154,21 +154,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check current session
     const checkUser = async () => {
       try {
+        console.log('AuthContext: Checking current user');
         const { user, error } = await AuthService.getCurrentUser(supabase);
 
         if (error) {
-          console.error("Error fetching user:", error);
+          console.error("AuthContext: Error fetching user:", error);
           await signOut();
           return;
         }
         
         if (user && isMounted) {
+          console.log('AuthContext: User authenticated:', { 
+            id: user.id, 
+            email: user.email,
+            lastSignInAt: user.last_sign_in_at
+          });
           setUser(user);
           await syncTokensWithDB();
+        } else {
+          console.log('AuthContext: No user found');
         }
       } catch (error) {
         if (error instanceof Error && error.name !== 'AuthSessionMissingError') {
-          console.error("Error fetching user:", error);
+          console.error("AuthContext: Unexpected error getting current user:", error);
+        } else {
+          console.log('AuthContext: No session found');
         }
       } finally {
         if (isMounted) {
@@ -182,8 +192,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
+        console.log('AuthContext: Auth state changed:', { event, hasSession: !!session });
+        
         if (event === 'SIGNED_OUT' || !session) {
           if (isMounted) {
+            console.log('AuthContext: User signed out');
             setUser(null);
             setTokens(0);
             setIsLoading(false);
@@ -193,11 +206,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
           if (isMounted) {
+            console.log('AuthContext: User signed in:', { 
+              id: session.user.id, 
+              email: session.user.email 
+            });
             setUser(session.user);
             await syncTokensWithDB();
           }
         } catch (error) {
-          console.error("Error in auth state change:", error);
+          console.error("AuthContext: Error in auth state change:", error);
           await signOut();
         } finally {
           if (isMounted) {

@@ -240,97 +240,99 @@ export default function DashboardPage() {
   }, [searchParams]);
 
   const handleSelectPlan = async (plan: string) => {
-    try {
-      setIsUpgrading(true);
-      
-      // Check if this is a downgrade request
-      const [planType, action] = plan.split(':');
-      const isDowngrade = action === 'downgrade';
-      
-      // First check if the user can make this change
-      if (isDowngrade && subscriptionStatus !== 'active') {
-        setError(`You need an active subscription to downgrade. Your current subscription status is "${subscriptionStatus || 'none'}".`);
-        return;
-      }
-      
-      if (isDowngrade) {
-        try {
-          // Call the downgrade API
-          const response = await fetch('/api/stripe/downgrade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          
-          const responseText = await response.text();
-          
-          // Parse the JSON response, if it's valid JSON
-          let responseData;
-          try {
-            responseData = JSON.parse(responseText);
-          } catch {
-            throw new Error('Received invalid response from server');
-          }
-          
-          if (!response.ok) {
-            // Special handling for server errors that might be recoverable
-            if (response.status === 500) {
-              setSuccessMessage('Plan update initiated. Refreshing to check status...');
-              
-              // Refresh the page after a delay
-              setTimeout(() => {
-                window.location.reload();
-              }, 2000);
-              return;
-            }
-            
-            throw new Error(responseData?.error || 'Unknown error occurred');
-          }
-          
-          // Success path
-          setSuccessMessage(responseData?.message || 'Subscription downgraded successfully');
-          
-          // Update the UI immediately to reflect the downgrade
-          setSubscriptionTier(planType.toLowerCase());
-          
-          // Reset state
-          setIsUpgrading(false);
-          setError(null);
-          
-          // Refresh the profile data
-          await refreshUserProfile();
-        } catch (error) {
-          setError('Failed to update subscription. Please try again later.');
-          console.error('Downgrade error:', error);
-        }
-      } else {
-        // Regular upgrade flow - redirect to Stripe Checkout
-        try {
-          // Create Stripe checkout session
-          const response = await fetch('/api/stripe/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tier: planType.toLowerCase() }),
-          });
-          
-          if (!response.ok) {
-            const { error } = await response.json();
-            throw new Error(error || 'Failed to create checkout session');
-          }
-          
-          const { url } = await response.json();
-          
-          // Redirect to checkout
-          if (url) {
-            window.location.href = url;
-          }
-        } catch (error) {
-          setError('Failed to start checkout process. Please try again later.');
-          console.error('Upgrade error:', error);
-        }
-      }
-    } finally {
-      setIsUpgrading(false);
+    setError(null);
+    setSuccessMessage(null);
+    
+    // Check if this is a downgrade request
+    const isDowngrade = plan.includes(':downgrade');
+    const planType = isDowngrade ? plan.split(':')[0] : plan;
+    
+    console.log('Starting plan selection process:', { planType, isDowngrade, currentTier: subscriptionTier });
+    
+    // Check if user is authenticated
+    if (!user) {
+      console.error('User not authenticated in handleSelectPlan');
+      setError('You must be logged in to change your subscription.');
+      return;
     }
+    
+    console.log('User authenticated:', { userId: user.id, email: user.email });
+    
+    // Log the current auth state
+    try {
+      const supabase = AuthService.createClient();
+      const { data: session } = await supabase.auth.getSession();
+      console.log('Session check before API call:', { 
+        hasSession: !!session.session,
+        expiresAt: session.session?.expires_at ? new Date(session.session.expires_at * 1000).toISOString() : 'N/A',
+        isExpired: session.session?.expires_at ? new Date(session.session.expires_at * 1000) < new Date() : 'N/A'
+      });
+    } catch (sessionError) {
+      console.error('Error checking session:', sessionError);
+    }
+    
+    setIsUpgrading(true);
+    
+    if (isDowngrade) {
+      // Handle downgrade flow - immediate change in database
+      try {
+        const response = await fetch('/api/stripe/downgrade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ tier: planType.toLowerCase() }),
+        });
+        
+        console.log('Downgrade API response status:', response.status);
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to downgrade subscription');
+        }
+        
+        setSuccessMessage(`Successfully downgraded to ${planType} plan.`);
+        await refreshUserProfile();
+      } catch (error) {
+        setError('Failed to update subscription. Please try again later.');
+        console.error('Downgrade error:', error);
+      }
+    } else {
+      // Regular upgrade flow - redirect to Stripe Checkout
+      try {
+        console.log('Starting Stripe checkout process for tier:', planType.toLowerCase());
+        
+        // Create Stripe checkout session
+        const response = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ tier: planType.toLowerCase() }),
+        });
+        
+        console.log('Checkout API response status:', response.status);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Checkout API error response:', errorData);
+          throw new Error(errorData.error || 'Failed to create checkout session');
+        }
+        
+        const { url } = await response.json();
+        console.log('Received checkout URL:', url ? 'Valid URL received' : 'No URL received');
+        
+        // Redirect to checkout
+        if (url) {
+          window.location.href = url;
+        } else {
+          throw new Error('No checkout URL received from server');
+        }
+      } catch (error) {
+        setError('Failed to start checkout process. Please try again later.');
+        console.error('Upgrade error:', error);
+      }
+    }
+    
+    setIsUpgrading(false);
   };
 
   const handlePurchaseCredits = async (amount: number) => {

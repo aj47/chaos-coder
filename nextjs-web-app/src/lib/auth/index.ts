@@ -53,21 +53,25 @@ export class AuthService {
       cookieStore = await cookies();
     }
     
+    console.log('AuthService: Creating server client with cookie store:', !!cookieStore);
+    
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
-      console.error("Supabase environment variables are not set correctly for server client!");
+      console.error("AuthService: Supabase environment variables are not set correctly for server client!");
     }
     
     // If we have a valid cookieStore, use it
     if (cookieStore) {
+      console.log('AuthService: Using cookie store for server client');
       return createClientComponentClient<Database>({
         cookies: () => cookieStore
       });
     }
     
     // Fallback to anon client if no cookies available (handle via JWT if needed)
+    console.log('AuthService: Falling back to anon client (no cookie store)');
     return createClientComponentClient<Database>({
       supabaseUrl: supabaseUrl || '',
       supabaseKey: supabaseKey || '',
@@ -98,9 +102,21 @@ export class AuthService {
   }
 
   /**
-   * Update the session in middleware
+   * Update the auth session in middleware
    */
   static async updateSession(request: NextRequest) {
+    console.log('AuthService: Updating session in middleware');
+    
+    // Log request cookies for debugging
+    const cookieHeader = request.headers.get('cookie');
+    console.log('AuthService: Request cookies header exists:', !!cookieHeader);
+    if (cookieHeader) {
+      const cookies = cookieHeader.split(';').map(c => c.trim());
+      const authCookies = cookies.filter(c => c.startsWith('sb-') || c.includes('supabase'));
+      console.log('AuthService: Auth cookies found:', authCookies.length > 0, 
+        authCookies.map(c => c.split('=')[0]));
+    }
+    
     const response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -108,18 +124,21 @@ export class AuthService {
     });
 
     const supabase = this.createMiddlewareClient(request);
+    console.log('AuthService: Middleware client created');
 
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('AuthService: Middleware auth check - User exists:', !!user);
 
       // Don't treat missing session as an error
       if (userError && userError.name !== 'AuthSessionMissingError') {
-        console.error('Error in auth middleware:', userError);
+        console.error('AuthService: Error in auth middleware:', userError);
         await supabase.auth.signOut();
         return response;
       }
 
       if (user) {
+        console.log('AuthService: User authenticated in middleware:', { id: user.id });
         // Verify the user exists in the database
         const { error: profileError } = await supabase
           .from('profiles')
@@ -128,15 +147,19 @@ export class AuthService {
           .single();
 
         if (profileError) {
-          console.error('User profile not found:', profileError);
+          console.error('AuthService: User profile not found in middleware:', profileError);
           await supabase.auth.signOut();
+        } else {
+          console.log('AuthService: User profile verified in middleware');
         }
       }
     } catch (error) {
       // Only log and handle actual errors, not missing sessions
       if (error instanceof Error && error.name !== 'AuthSessionMissingError') {
-        console.error('Error in middleware:', error);
+        console.error('AuthService: Error in middleware:', error);
         await supabase.auth.signOut();
+      } else {
+        console.log('AuthService: No session in middleware');
       }
     }
 
@@ -148,16 +171,23 @@ export class AuthService {
    */
   static async getCurrentUser(supabase: Database['supabase']) {
     try {
+      console.log('AuthService: Getting current user');
       const { data: { user }, error } = await supabase.auth.getUser();
       
       if (error && error.name !== 'AuthSessionMissingError') {
-        console.error('Error getting current user:', error);
+        console.error('AuthService: Error getting current user:', error);
         return { user: null, error };
+      }
+      
+      if (user) {
+        console.log('AuthService: User found:', { id: user.id, email: user.email });
+      } else {
+        console.log('AuthService: No user found');
       }
       
       return { user, error: null };
     } catch (error) {
-      console.error('Unexpected error getting current user:', error);
+      console.error('AuthService: Unexpected error getting current user:', error);
       return { user: null, error };
     }
   }

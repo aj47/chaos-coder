@@ -16,6 +16,10 @@ export interface Database {
           created_at: string
           updated_at: string
           credits: number
+          stripe_customer_id?: string | null
+          subscription_tier?: string | null
+          subscription_status?: string | null
+          email?: string | null
         }
         Insert: {
           id: string
@@ -23,6 +27,10 @@ export interface Database {
           created_at?: string
           updated_at?: string
           credits?: number
+          stripe_customer_id?: string | null
+          subscription_tier?: string | null
+          subscription_status?: string | null
+          email?: string | null
         }
         Update: {
           id?: string
@@ -30,6 +38,10 @@ export interface Database {
           created_at?: string
           updated_at?: string
           credits?: number
+          stripe_customer_id?: string | null
+          subscription_tier?: string | null
+          subscription_status?: string | null
+          email?: string | null
         }
         Relationships: [
           {
