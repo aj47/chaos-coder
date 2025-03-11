@@ -272,7 +272,7 @@ export default function DashboardPage() {
           const response = await fetch('/api/stripe/checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: planType.toUpperCase() }),
+            body: JSON.stringify({ tier: planType.toLowerCase() }),
           });
           
           if (!response.ok) {
