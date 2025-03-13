@@ -2,6 +2,7 @@
   "name": "web-app-generator",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -10,7 +11,8 @@
     "deploy": "ts-node deploy.ts",
     "db:migrate": "node scripts/apply-migration.js",
     "db:schema": "node scripts/apply-schema-updates.js",
-    "test:auth": "ts-node scripts/test-auth.ts"
+    "test:auth": "ts-node scripts/test-auth.ts",
+    "test:cleanup": "node scripts/test-cleanup.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.758.0",

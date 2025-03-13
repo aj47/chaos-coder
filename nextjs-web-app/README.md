@@ -2,6 +2,8 @@
 
 This is the Next.js web application for Chaos Coder, a tool that generates five variations of web applications simultaneously using AI.
 
+**Important Note:** This directory is the root of the Next.js application. All commands should be run from within this directory, not from the parent directory.
+
 ## Features
 
 - Generate five unique web application variations

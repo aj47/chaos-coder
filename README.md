@@ -8,7 +8,7 @@
 
 Chaos Coder is a Next.js application that generates five variations of web applications simultaneously using AI. This tool helps developers quickly explore different implementation possibilities for their web application ideas.
 
-**Note:** All the code for this project is located in the `nextjs-web-app` folder.
+**Important Note:** All code for this project is located in the `nextjs-web-app` directory. This is the root of the Next.js application, and all commands should be run from within this directory.
 
 ## Key Files
 
