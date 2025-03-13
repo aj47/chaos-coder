@@ -1,28 +1,51 @@
 import { NextResponse } from "next/server";
 import { cookies } from 'next/headers';
-import { AuthService } from '@/lib/auth';
+import { AuthService } from "@/lib/auth";
+import { TypedSupabaseClient } from "@/types/supabase";
 
 export const runtime = "edge";
 
-export async function GET() {
+export async function POST() {
   try {
-    const cookieStore = cookies();
-    const supabase = await AuthService.createServerClient(cookieStore);
-    const { user, error } = await AuthService.getCurrentUser(supabase);
-
-    if (error || !user) {
-      return NextResponse.json({ authenticated: false }, { status: 200 });
+    // Use the AuthService to create a server client
+    const cookieStore = await cookies();
+    const supabase = await AuthService.createServerClient({
+      getAll: () => cookieStore.getAll()
+    }) as TypedSupabaseClient;
+    
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+    
+    // Check user's credits
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', user.id)
+      .single();
+    
+    if (!userProfile || userProfile.credits < 1) {
+      return NextResponse.json(
+        { error: "Insufficient credits" },
+        { status: 402 }
+      );
     }
 
     return NextResponse.json({ 
-      authenticated: true, 
-      userId: user.id 
-    }, { status: 200 });
+      success: true,
+      credits: userProfile.credits
+    });
   } catch (error) {
-    console.error('Error checking auth:', error);
-    return NextResponse.json({ 
-      authenticated: false, 
-      error: 'Failed to check authentication status' 
-    }, { status: 500 });
+    console.error('[check-auth] Unexpected error:', error);
+    return NextResponse.json(
+      { error: "Failed to check auth status" },
+      { status: 500 }
+    );
   }
 } 

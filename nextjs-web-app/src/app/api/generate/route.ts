@@ -3,26 +3,24 @@ import { NextResponse, NextRequest } from "next/server";
 import { cookies } from 'next/headers';
 import { getStylePrompt } from "@/config/styles";
 import { AuthService } from "@/lib/auth";
+import { TypedSupabaseClient } from "@/types/supabase";
 
 export const runtime = "edge";
 
-interface DeductionResult {
-  new_credits: number;
-}
-
 export async function POST(req: NextRequest) {
+  const startTime = performance.now();
   try {
     // Use the AuthService to create a server client
     const cookieStore = await cookies();
     const supabase = await AuthService.createServerClient({
       getAll: () => cookieStore.getAll()
-    });
+    }) as TypedSupabaseClient;
     
     // Parse the request body
     const body = await req.json();
     // Log only the core request details without full body
     
-    const { prompt, variation = '', framework, customStyle, requestId } = body;
+    const { prompt, variation = '', framework, customStyle, requestId, index } = body;
     
     // Check if user is authenticated
     const { data: { user } } = await supabase.auth.getUser();
@@ -37,25 +35,25 @@ export async function POST(req: NextRequest) {
     // Check for duplicate request
     if (requestId) {
       try {
-        // Use `any` type here to bypass type checking for now
-        const { data: existingRequest, error } = await (supabase as any)
-          .from('credit_history')
+        // Create a style string that includes the index for proper ordering
+        const styleWithIndex = `${framework || customStyle || 'default'}_${index !== undefined ? index : 0}`;
+        
+        const { data: existingGeneration } = await supabase
+          .from('generations')
           .select('id')
-          .eq('user_id', user.id)
           .eq('request_id', requestId)
+          .eq('style', styleWithIndex)
           .maybeSingle();
         
-        if (error) {
-          console.error('[Generate] Error checking for duplicate request:', error);
-        } else if (existingRequest) {
-          console.log('[Generate] Duplicate request detected:', requestId);
+        if (existingGeneration) {
+          console.log('[Generate] Duplicate generation detected:', requestId);
           return NextResponse.json(
-            { error: "Duplicate request" },
+            { error: "Duplicate generation" },
             { status: 409 }
           );
         }
       } catch (error) {
-        console.error('[Generate] Error checking for duplicate request:', error);
+        console.error('[Generate] Error checking for duplicate generation:', error);
       }
     }
 
@@ -230,9 +228,8 @@ Format the code with proper indentation and spacing for readability.`;
       }
 
       try {
-        // Use a transaction to ensure atomic credit deduction
-        // Use `any` type here to bypass type checking for now
-        const { data, error: deductionError } = await (supabase as any).rpc(
+        // Use a transaction to ensure atomic credit deduction and generation storage
+        const { data, error: deductionError } = await supabase.rpc(
           'deduct_generation_credit',
           { 
             user_id: user.id,
@@ -241,6 +238,12 @@ Format the code with proper indentation and spacing for readability.`;
         );
         
         if (deductionError) {
+          if (deductionError.message === 'Duplicate request') {
+            return NextResponse.json(
+              { error: "Duplicate request", details: "This generation already exists" },
+              { status: 409 }
+            );
+          }
           console.error('[Generate] Credit deduction failed:', deductionError);
           return NextResponse.json(
             { error: "Failed to deduct credits", details: deductionError.message },
@@ -257,6 +260,27 @@ Format the code with proper indentation and spacing for readability.`;
         }
 
         const newCredits = data[0].new_credits;
+
+        // Store the generation in the database if we have a request ID
+        if (requestId) {
+          // Create a style string that includes the index for proper ordering
+          const styleWithIndex = `${framework || customStyle || 'default'}_${index !== undefined ? index : 0}`;
+          
+          const { error: generationError } = await supabase
+            .from('generations')
+            .insert({
+              request_id: requestId,
+              style: styleWithIndex,
+              code,
+              model_type: body.modelType || 'fast',
+              generation_time: (performance.now() - startTime) / 1000
+            });
+          
+          if (generationError) {
+            console.error('[Generate] Failed to store generation:', generationError);
+            // Don't fail the request if storage fails, just log it
+          }
+        }
 
         return NextResponse.json({ 
           code,
