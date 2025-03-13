@@ -222,7 +222,7 @@ export default function Home() {
     setIsLoading(true);
     
     try {
-      // Make a test request to check authentication and credits before redirecting
+      // Make a test request to check authentication and credits before proceeding
       const response = await fetch("/api/check-auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,6 +256,31 @@ export default function Home() {
         setIsLoading(false);
         return;
       }
+
+      // Create a request config object
+      const config = {
+        numGenerations,
+        styles: styles.map((style, i) =>
+          style === "custom" ? customStyles[i] : style
+        ),
+        modelTypes: Array(numGenerations).fill(0).map((_, index) => index % 2 === 0 ? "pro" : "fast")
+      };
+
+      // Save the request to the database
+      const saveResponse = await fetch("/api/save-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          config
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        throw new Error("Failed to save generation request");
+      }
+
+      const { requestId } = await saveResponse.json();
       
       // After submission is complete, sync tokens with the database
       // to ensure the displayed token count is accurate
@@ -263,17 +288,8 @@ export default function Home() {
         await syncTokensWithDB();
       }
 
-      const encodedPrompt = encodeURIComponent(prompt);
-      const encodedConfig = encodeURIComponent(
-        JSON.stringify({
-          numGenerations,
-          styles: styles.map((style, i) =>
-            style === "custom" ? customStyles[i] : style
-          ),
-        })
-      );
-
-      router.push(`/results?prompt=${encodedPrompt}&config=${encodedConfig}`);
+      // Navigate to results page with the request ID
+      router.push(`/results/${requestId}`);
     } catch (error) {
       console.error("Error:", error);
       toast.error("An error occurred. Please try again.");
