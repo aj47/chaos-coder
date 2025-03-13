@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     // Log only the core request details without full body
     
-    const { prompt, variation = '', framework, customStyle, requestId } = body;
+    const { prompt, variation = '', framework, customStyle, requestId, index } = body;
     
     // Check if user is authenticated
     const { data: { user } } = await supabase.auth.getUser();
@@ -35,11 +35,14 @@ export async function POST(req: NextRequest) {
     // Check for duplicate request
     if (requestId) {
       try {
+        // Create a style string that includes the index for proper ordering
+        const styleWithIndex = `${framework || customStyle || 'default'}_${index !== undefined ? index : 0}`;
+        
         const { data: existingGeneration } = await supabase
           .from('generations')
           .select('id')
           .eq('request_id', requestId)
-          .eq('style', framework || customStyle || 'default')
+          .eq('style', styleWithIndex)
           .maybeSingle();
         
         if (existingGeneration) {
@@ -260,11 +263,14 @@ Format the code with proper indentation and spacing for readability.`;
 
         // Store the generation in the database if we have a request ID
         if (requestId) {
+          // Create a style string that includes the index for proper ordering
+          const styleWithIndex = `${framework || customStyle || 'default'}_${index !== undefined ? index : 0}`;
+          
           const { error: generationError } = await supabase
             .from('generations')
             .insert({
               request_id: requestId,
-              style: framework || customStyle || 'default',
+              style: styleWithIndex,
               code,
               model_type: body.modelType || 'fast',
               generation_time: (performance.now() - startTime) / 1000

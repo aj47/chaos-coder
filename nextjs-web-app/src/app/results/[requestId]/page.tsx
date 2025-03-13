@@ -12,6 +12,7 @@ import { SignupModal } from "@/components/SignupModal";
 import { AlertModal } from "@/components/AlertModal";
 import { useAuth } from "@/context/AuthContext";
 import AppTile from "@/components/AppTile";
+import React from "react";
 
 // Wrapper component that uses requestId from route
 function ResultsContent() {
@@ -49,119 +50,49 @@ function ResultsContent() {
       modelTypes: string[];
     };
   } | null>(null);
+  // Add a ref to track if generation has started to prevent duplicate calls
+  const generationStarted = React.useRef(false);
   
   const { theme } = useTheme();
   const { setTokens } = useAuth();
 
-  // Load request data and existing generations
-  useEffect(() => {
-    const loadRequestData = async () => {
-      try {
-        const response = await fetch(`/api/requests/${requestId}`);
-        if (!response.ok) {
-          throw new Error('Failed to load request data');
-        }
-        
-        const data = await response.json();
-        setRequestData(data);
-        
-        // Initialize states based on request data
-        const initialLoadingStates = new Array(data.config.numGenerations).fill(true);
-        setLoadingStates(initialLoadingStates);
-        
-        const initialResults = new Array(data.config.numGenerations).fill("");
-        setResults(initialResults);
-        setEditedResults(initialResults);
-        
-        // Load any existing generations
-        const genResponse = await fetch(`/api/generations/${requestId}`);
-        if (genResponse.ok) {
-          const { generations } = await genResponse.json();
-          if (generations?.length) {
-            console.log('Found existing generations:', generations.length);
-            
-            // Process existing generations
-            const codes = generations.map((g: { code: string }) => g.code);
-            setResults(codes);
-            setEditedResults(codes);
-            setLoadingStates(new Array(data.config.numGenerations).fill(false));
-            
-            // Set generation times if available
-            const times: {[key: number]: number} = {};
-            generations.forEach((g: { generation_time?: number }, i: number) => {
-              if (g.generation_time) times[i] = g.generation_time;
-            });
-            setGenerationTimes(times);
-          } else {
-            // No existing generations, start the generation process
-            console.log('No existing generations found, starting generation process');
-            generateAppsWithStagger(data);
-          }
-        } else {
-          // Error fetching generations, start the generation process
-          console.log('Error fetching generations, starting generation process');
-          generateAppsWithStagger(data);
-        }
-        
-        // Set the last tile to be expanded initially
-        setExpandedAppIndex(data.config.numGenerations - 1);
-        setSelectedAppIndex(data.config.numGenerations - 1);
-      } catch (err) {
-        console.error('Error loading request data:', err);
-        setError('Failed to load request data');
-      }
-    };
-    
-    // Helper function to generate apps with staggered timing
-    const generateAppsWithStagger = async (data: { 
-      config: { numGenerations: number },
-      prompt: string 
-    }) => {
-      const batchSize = 3;
-      const delay = 500;
-      
-      for (let batch = 0; batch < Math.ceil(data.config.numGenerations / batchSize); batch++) {
-        const startIdx = batch * batchSize;
-        const endIdx = Math.min(startIdx + batchSize, data.config.numGenerations);
-        
-        await Promise.all(
-          Array.from({ length: endIdx - startIdx }).map((_, i) => {
-            const index = startIdx + i;
-            return generateApp(index, data.prompt);
-          })
-        );
-        
-        if (batch < Math.ceil(data.config.numGenerations / batchSize) - 1) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    };
-    
-    if (requestId) {
-      loadRequestData();
+  // Generate app with database storage using the data parameter directly
+  const generateAppWithData = async (index: number, data: { 
+    prompt: string,
+    config: { 
+      styles: string[],
+      modelTypes: string[],
+      numGenerations: number
     }
-  }, [requestId]); // Only depend on requestId
-
-  // Generate app with database storage
-  const generateApp = async (index: number, promptText: string) => {
-    if (!requestData) return;
+  }) => {
+    console.log(`generateAppWithData called for index ${index} with prompt: ${data.prompt.substring(0, 30)}...`);
     
     const startTime = performance.now();
     try {
-      const style = requestData.config.styles[index];
-      const modelType = requestData.config.modelTypes[index] || "fast";
+      const style = data.config.styles[index];
+      const modelType = data.config.modelTypes[index] || "fast";
+      
+      console.log(`Making API call to /api/generate with:`, {
+        prompt: data.prompt.substring(0, 30) + '...',
+        framework: style,
+        modelType,
+        requestId,
+        index
+      });
       
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: promptText,
-          style,
+          prompt: data.prompt,
+          framework: style,
           modelType,
           requestId,
           index
         }),
       });
+
+      console.log(`API response status: ${response.status}`);
 
       if (response.status === 401) {
         setAlertInfo({
@@ -188,22 +119,78 @@ function ResultsContent() {
         throw new Error("Rate limit exceeded. Please create an account to continue.");
       }
 
-      const data = await response.json();
+      // Handle 409 Conflict (duplicate generation) gracefully
+      if (response.status === 409) {
+        console.log(`Duplicate generation detected for index ${index}, fetching existing generation`);
+        // Try to fetch the existing generation for this index
+        try {
+          const genResponse = await fetch(`/api/generations/${requestId}`);
+          if (genResponse.ok) {
+            const { generations } = await genResponse.json();
+            if (generations?.length) {
+              // Find the generation with this index
+              const styleWithIndex = `${style}_${index}`;
+              // Define a type for the generation object
+              type Generation = {
+                style: string;
+                code: string;
+                generation_time?: number;
+              };
+              const existingGeneration = generations.find((g: Generation) => g.style === styleWithIndex);
+              
+              if (existingGeneration) {
+                console.log(`Found existing generation for index ${index}`);
+                setResults((prev) => {
+                  const newResults = [...prev];
+                  newResults[index] = existingGeneration.code;
+                  return newResults;
+                });
+                
+                setEditedResults((prev) => {
+                  const newResults = [...prev];
+                  newResults[index] = existingGeneration.code;
+                  return newResults;
+                });
+                
+                if (existingGeneration.generation_time) {
+                  setGenerationTimes((prev) => ({
+                    ...prev,
+                    [index]: existingGeneration.generation_time,
+                  }));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error fetching existing generation for index ${index}:`, err);
+        }
+        
+        // Mark as not loading regardless of whether we found the existing generation
+        setLoadingStates((prev) => {
+          const newStates = [...prev];
+          newStates[index] = false;
+          return newStates;
+        });
+        
+        return;
+      }
 
-      if (data.credits !== undefined) {
-        setRemainingCredits(data.credits);
-        setTokens(data.credits);
+      const responseData = await response.json();
+
+      if (responseData.credits !== undefined) {
+        setRemainingCredits(responseData.credits);
+        setTokens(responseData.credits);
       }
 
       setResults((prev) => {
         const newResults = [...prev];
-        newResults[index] = data.code;
+        newResults[index] = responseData.code;
         return newResults;
       });
 
       setEditedResults((prev) => {
         const newResults = [...prev];
-        newResults[index] = data.code;
+        newResults[index] = responseData.code;
         return newResults;
       });
 
@@ -224,6 +211,127 @@ function ResultsContent() {
       });
     }
   };
+
+  // Helper function to generate apps with staggered timing
+  const generateAppsWithStagger = async (data: { 
+    prompt: string,
+    config: { 
+      styles: string[],
+      modelTypes: string[],
+      numGenerations: number
+    }
+  }) => {
+    console.log('generateAppsWithStagger called with data:', data);
+    const batchSize = 3;
+    const delay = 500;
+    
+    for (let batch = 0; batch < Math.ceil(data.config.numGenerations / batchSize); batch++) {
+      console.log(`Processing batch ${batch + 1} of ${Math.ceil(data.config.numGenerations / batchSize)}`);
+      const startIdx = batch * batchSize;
+      const endIdx = Math.min(startIdx + batchSize, data.config.numGenerations);
+      console.log(`Batch range: ${startIdx} to ${endIdx - 1}`);
+      
+      await Promise.all(
+        Array.from({ length: endIdx - startIdx }).map((_, i) => {
+          const index = startIdx + i;
+          console.log(`Starting generation for index ${index}`);
+          return generateAppWithData(index, data);
+        })
+      );
+      
+      if (batch < Math.ceil(data.config.numGenerations / batchSize) - 1) {
+        console.log(`Waiting ${delay}ms before next batch`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  };
+
+  // Load request data and existing generations
+  useEffect(() => {
+    console.log('useEffect called with requestId:', requestId);
+    const loadRequestData = async () => {
+      console.log('loadRequestData called for requestId:', requestId);
+      try {
+        const response = await fetch(`/api/requests/${requestId}`);
+        if (!response.ok) {
+          throw new Error('Failed to load request data');
+        }
+        
+        const data = await response.json();
+        console.log('Request data loaded:', data);
+        setRequestData(data);
+        
+        // Initialize states based on request data
+        const initialLoadingStates = new Array(data.config.numGenerations).fill(true);
+        setLoadingStates(initialLoadingStates);
+        
+        const initialResults = new Array(data.config.numGenerations).fill("");
+        setResults(initialResults);
+        setEditedResults(initialResults);
+        
+        // Load any existing generations
+        console.log('Fetching existing generations for request ID:', requestId);
+        const genResponse = await fetch(`/api/generations/${requestId}`);
+        if (genResponse.ok) {
+          const { generations } = await genResponse.json();
+          console.log('Generations response:', generations);
+          if (generations?.length) {
+            console.log('Found existing generations:', generations.length);
+            
+            // Process existing generations
+            // Sort generations by index (extracted from style field)
+            const sortedGenerations = [...generations].sort((a, b) => {
+              const indexA = parseInt(a.style.split('_').pop() || '0', 10);
+              const indexB = parseInt(b.style.split('_').pop() || '0', 10);
+              return indexA - indexB;
+            });
+            
+            const codes = sortedGenerations.map((g: { code: string }) => g.code);
+            setResults(codes);
+            setEditedResults(codes);
+            setLoadingStates(new Array(data.config.numGenerations).fill(false));
+            
+            // Set generation times if available
+            const times: {[key: number]: number} = {};
+            sortedGenerations.forEach((g: { generation_time?: number, style: string }) => {
+              const index = parseInt(g.style.split('_').pop() || '0', 10);
+              if (g.generation_time) times[index] = g.generation_time;
+            });
+            setGenerationTimes(times);
+          } else {
+            // No existing generations, start the generation process
+            console.log('No existing generations found, starting generation process');
+            // Only start generation if it hasn't already started
+            if (!generationStarted.current) {
+              generationStarted.current = true;
+              generateAppsWithStagger(data);
+            }
+          }
+        } else {
+          // Error fetching generations, start the generation process
+          console.log('Error fetching generations, starting generation process');
+          // Only start generation if it hasn't already started
+          if (!generationStarted.current) {
+            generationStarted.current = true;
+            generateAppsWithStagger(data);
+          }
+        }
+        
+        // Set the last tile to be expanded initially
+        setExpandedAppIndex(data.config.numGenerations - 1);
+        setSelectedAppIndex(data.config.numGenerations - 1);
+      } catch (err) {
+        console.error('Error loading request data:', err);
+        setError('Failed to load request data');
+      }
+    };
+    
+    if (requestId) {
+      // Reset the generation started flag when requestId changes
+      generationStarted.current = false;
+      loadRequestData();
+    }
+  }, [requestId]); // Only depend on requestId
 
   // Handle tile click
   const handleTileClick = (index: number) => {
