@@ -24,7 +24,6 @@ function ResultsContent() {
   const [selectedAppIndex, setSelectedAppIndex] = useState<number>(0);
   const [expandedAppIndex, setExpandedAppIndex] = useState<number | null>(null);
   const [editedResults, setEditedResults] = useState<string[]>([]);
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isMetricsOpen, setIsMetricsOpen] = useState(false);
   const [generationTimes, setGenerationTimes] = useState<{
     [key: number]: number;
@@ -67,27 +66,41 @@ function ResultsContent() {
         setRequestData(data);
         
         // Initialize states based on request data
-        setLoadingStates(new Array(data.config.numGenerations).fill(true));
-        setResults(new Array(data.config.numGenerations).fill(""));
-        setEditedResults(new Array(data.config.numGenerations).fill(""));
+        const initialLoadingStates = new Array(data.config.numGenerations).fill(true);
+        setLoadingStates(initialLoadingStates);
+        
+        const initialResults = new Array(data.config.numGenerations).fill("");
+        setResults(initialResults);
+        setEditedResults(initialResults);
         
         // Load any existing generations
         const genResponse = await fetch(`/api/generations/${requestId}`);
         if (genResponse.ok) {
           const { generations } = await genResponse.json();
           if (generations?.length) {
-            const codes = generations.map((g: any) => g.code);
+            console.log('Found existing generations:', generations.length);
+            
+            // Process existing generations
+            const codes = generations.map((g: { code: string }) => g.code);
             setResults(codes);
             setEditedResults(codes);
             setLoadingStates(new Array(data.config.numGenerations).fill(false));
             
             // Set generation times if available
             const times: {[key: number]: number} = {};
-            generations.forEach((g: any, i: number) => {
+            generations.forEach((g: { generation_time?: number }, i: number) => {
               if (g.generation_time) times[i] = g.generation_time;
             });
             setGenerationTimes(times);
+          } else {
+            // No existing generations, start the generation process
+            console.log('No existing generations found, starting generation process');
+            generateAppsWithStagger(data);
           }
+        } else {
+          // Error fetching generations, start the generation process
+          console.log('Error fetching generations, starting generation process');
+          generateAppsWithStagger(data);
         }
         
         // Set the last tile to be expanded initially
@@ -99,10 +112,35 @@ function ResultsContent() {
       }
     };
     
+    // Helper function to generate apps with staggered timing
+    const generateAppsWithStagger = async (data: { 
+      config: { numGenerations: number },
+      prompt: string 
+    }) => {
+      const batchSize = 3;
+      const delay = 500;
+      
+      for (let batch = 0; batch < Math.ceil(data.config.numGenerations / batchSize); batch++) {
+        const startIdx = batch * batchSize;
+        const endIdx = Math.min(startIdx + batchSize, data.config.numGenerations);
+        
+        await Promise.all(
+          Array.from({ length: endIdx - startIdx }).map((_, i) => {
+            const index = startIdx + i;
+            return generateApp(index, data.prompt);
+          })
+        );
+        
+        if (batch < Math.ceil(data.config.numGenerations / batchSize) - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    };
+    
     if (requestId) {
       loadRequestData();
     }
-  }, [requestId]);
+  }, [requestId]); // Only depend on requestId
 
   // Generate app with database storage
   const generateApp = async (index: number, promptText: string) => {
@@ -186,35 +224,6 @@ function ResultsContent() {
       });
     }
   };
-
-  // Start generations when request data is loaded
-  useEffect(() => {
-    if (requestData && results.every(r => !r)) {
-      // Generate all apps in parallel with a small delay between batches
-      const generateAppsWithStagger = async () => {
-        const batchSize = 3;
-        const delay = 500;
-        
-        for (let batch = 0; batch < Math.ceil(requestData.config.numGenerations / batchSize); batch++) {
-          const startIdx = batch * batchSize;
-          const endIdx = Math.min(startIdx + batchSize, requestData.config.numGenerations);
-          
-          await Promise.all(
-            Array.from({ length: endIdx - startIdx }).map((_, i) => {
-              const index = startIdx + i;
-              return generateApp(index, requestData.prompt);
-            })
-          );
-          
-          if (batch < Math.ceil(requestData.config.numGenerations / batchSize) - 1) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
-      };
-      
-      generateAppsWithStagger();
-    }
-  }, [requestData]);
 
   // Handle tile click
   const handleTileClick = (index: number) => {
@@ -306,9 +315,26 @@ function ResultsContent() {
       >
         <div
           className={`max-w-7xl mx-auto h-[calc(100vh-2rem)] flex flex-col ${
-            theme === "light" ? "backdrop-blur-sm" : ""
+            theme === "dark" ? "" : "backdrop-blur-sm"
           }`}
         >
+          {/* Back button */}
+          <div className="mb-4">
+            <button
+              onClick={() => window.location.href = '/'}
+              className={`flex items-center px-4 py-2 rounded-lg ${
+                theme === "dark" 
+                  ? "bg-gray-800 hover:bg-gray-700 text-gray-200" 
+                  : "bg-white/80 hover:bg-white/90 text-gray-800"
+              } transition-colors duration-200`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              Back to Home
+            </button>
+          </div>
+
           {error && (
             <div
               className={`p-4 rounded-lg ${
@@ -374,14 +400,13 @@ function ResultsContent() {
       </motion.div>
       
       {isVoiceEnabled && (
-        <VoiceInput onInput={(text) => {}} theme={theme} />
+        <VoiceInput onInput={() => {}} theme={theme} />
       )}
       
       <PromptInput
-        isOpen={isPromptOpen}
+        isOpen={false}
         onSubmit={() => {}}
         isUpdateMode={true}
-        model={requestData?.config.modelTypes[selectedAppIndex] || "fast"}
         numGenerations={requestData?.config.numGenerations || 0}
       />
       
