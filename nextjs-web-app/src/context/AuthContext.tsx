@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { AuthService } from "@/lib/auth/service";
+import { CreditsService } from '../lib/credits/index';
 
 // Define the shape of our AuthContext
 type AuthContextType = {
@@ -81,22 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(newTokens);
   }, [tokens, setTokens]);
 
-  // Function to sync tokens with database
+  // Function to sync tokens with database (only pull from DB to frontend)
   const syncTokensWithDB = useCallback(async () => {
-    if (!userRef.current) return;
+    if (!userRef.current) {
+      return;
+    }
 
     try {
       const supabase = AuthService.createClient();
       
-      // Get the user's tokens from the database
+      // Get the latest profile data including credits
       const { data, error } = await supabase
         .from("profiles")
-        .select("credits")
+        .select("*")
         .eq("id", userRef.current.id)
         .single();
-      
+
       if (error) {
-        console.error("Error syncing tokens with DB:", error);
+        console.error("Error fetching profile:", error);
         return;
       }
 
@@ -110,24 +113,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setTokens]);
 
   // Function to update tokens in database
+  // SECURITY: This function now ONLY handles decrementing tokens for usage
+  // Credits can NEVER be added from the frontend
   const updateTokensInDB = useCallback(async () => {
     if (!userRef.current) return;
     
     try {
-      const supabase = AuthService.createClient();
+      // Get current credits from database
+      const currentCredits = await CreditsService.getCurrentCredits(userRef.current.id);
+      const localTokens = tokensRef.current;
       
-      const { error } = await supabase
-        .from("profiles")
-        .update({ credits: tokensRef.current })
-        .eq("id", userRef.current.id);
-      
-      if (error) {
-        console.error("Error updating tokens in DB:", error);
+      // ONLY allow decrements (usage), never allow increments
+      // If local tokens are less than DB credits, sync the lower value
+      if (localTokens < currentCredits) {
+        // Calculate how many credits were used
+        const tokensUsed = currentCredits - localTokens;
+        
+        // Record the usage through the secure deduction function
+        await CreditsService.deductCredits(
+          userRef.current.id,
+          tokensUsed,
+          'Usage tracked through client interface'
+        );
+        
+        console.log(`Deducted ${tokensUsed} credits for usage`);
+      } else if (localTokens > currentCredits) {
+        // If local tokens are higher than DB, resync from DB
+        // This prevents any attempt to add credits from frontend
+        console.warn('Local credits higher than DB credits. Resyncing from database.');
+        setTokens(currentCredits);
       }
+      // If equal, no action needed
     } catch (error) {
       console.error("Error updating tokens in DB:", error);
     }
-  }, []);
+  }, [setTokens]);
 
   // Function to sign out
   const signOut = useCallback(async () => {
