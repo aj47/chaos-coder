@@ -19,6 +19,7 @@ import {
   getStyleDisplayNames
 } from "@/config/styles";
 import AppTile from "@/components/AppTile";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // Wrapper component that uses searchParams
 function ResultsContent() {
@@ -682,7 +683,7 @@ function ResultsContent() {
   };
 
   return (
-    <AuroraBackground>
+    <div className="min-h-screen w-full bg-zinc-50 dark:bg-zinc-900">
       <AlertModal
         isOpen={showAlertModal}
         onClose={() => setShowAlertModal(false)}
@@ -735,7 +736,7 @@ function ResultsContent() {
               >
                 ← Back to Prompt
               </Link>
-            </motion.h1>
+            </div>
           </div>
 
           {error && (
@@ -852,7 +853,7 @@ function ResultsContent() {
           </div>
         </div>
       )}
-    </AuroraBackground>
+    </div>
   );
 }
 

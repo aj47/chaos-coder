@@ -18,6 +18,41 @@ import { useGenerations } from "@/context/GenerationsContext";
 import { User } from "@supabase/supabase-js";
 import { ApiClient } from "@/lib/api-client";
 import { useTheme } from "@/context/ThemeContext";
+import { FaShoppingCart, FaGamepad, FaCalendarAlt, FaChartLine, FaMusic, FaCamera } from "react-icons/fa";
+
+// Example prompts for quick start
+const examples = [
+  {
+    prompt: "A to-do list app with local storage and dark mode",
+    label: "Todo App",
+    icon: <FaCalendarAlt className="w-3 h-3" />
+  },
+  {
+    prompt: "An e-commerce product page with shopping cart functionality",
+    label: "E-commerce",
+    icon: <FaShoppingCart className="w-3 h-3" />
+  },
+  {
+    prompt: "A simple game like tic-tac-toe or memory matching",
+    label: "Game",
+    icon: <FaGamepad className="w-3 h-3" />
+  },
+  {
+    prompt: "A dashboard with charts and data visualization",
+    label: "Dashboard",
+    icon: <FaChartLine className="w-3 h-3" />
+  },
+  {
+    prompt: "A music player with playlist functionality",
+    label: "Music Player",
+    icon: <FaMusic className="w-3 h-3" />
+  },
+  {
+    prompt: "A photo gallery with image upload and filters",
+    label: "Photo Gallery",
+    icon: <FaCamera className="w-3 h-3" />
+  }
+];
 
 export default function Home() {
   const router = useRouter();
