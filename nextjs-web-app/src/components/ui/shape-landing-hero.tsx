@@ -75,11 +75,13 @@ function HeroGeometric({
   badge = "Design Collective",
   title1 = "Elevate Your Digital Vision",
   title2 = "Crafting Exceptional Websites",
+  numWebsites = 9,
   children,
 }: {
   badge?: string;
   title1?: string;
   title2?: string;
+  numWebsites?: number;
   children?: React.ReactNode;
 }) {
   const fadeUpVariants = {
@@ -187,7 +189,7 @@ function HeroGeometric({
             animate="visible"
           >
             <p className="text-sm sm:text-base md:text-lg lg:text-xl text-white/60 mb-6 sm:mb-8 font-light tracking-wide max-w-xl mx-auto px-4">
-              Enter your prompt and we will spin up 9 separate websites
+              Enter your prompt and we will spin up {numWebsites} separate websites
               {" "}
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 ">
                 IN SECONDS

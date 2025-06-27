@@ -185,6 +185,7 @@ export default function Home() {
           badge=""
           title1="Chaos Coder"
           title2={`${numGenerations}x Dev`}
+          numWebsites={numGenerations}
         >
           <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 mb-10">
             <div className="relative bg-[#1a1f2e]/80 backdrop-blur-xl rounded-2xl overflow-hidden border border-[#2a3040] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)]">
