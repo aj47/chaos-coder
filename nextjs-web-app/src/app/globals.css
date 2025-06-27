@@ -49,9 +49,62 @@
   transform: translate3d(0, 0, 0);
 }
 
+/* Efficient gradient animations - much lighter on GPU */
+@keyframes efficient-gradient {
+  0%, 100% {
+    transform: translateX(0%) translateY(0%) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateX(-10%) translateY(-5%) scale(1.05);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateX(10%) translateY(5%) scale(0.95);
+    opacity: 0.35;
+  }
+  75% {
+    transform: translateX(-5%) translateY(10%) scale(1.02);
+    opacity: 0.28;
+  }
+}
+
+@keyframes efficient-gradient-reverse {
+  0%, 100% {
+    transform: translateX(0%) translateY(0%) scale(1);
+    opacity: 0.2;
+  }
+  25% {
+    transform: translateX(8%) translateY(-8%) scale(0.98);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateX(-8%) translateY(8%) scale(1.03);
+    opacity: 0.15;
+  }
+  75% {
+    transform: translateX(5%) translateY(-5%) scale(0.97);
+    opacity: 0.22;
+  }
+}
+
+.animate-efficient-gradient {
+  animation: efficient-gradient 45s ease-in-out infinite;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.animate-efficient-gradient-reverse {
+  animation: efficient-gradient-reverse 60s ease-in-out infinite;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
-  .animate-aurora {
+  .animate-aurora,
+  .animate-efficient-gradient,
+  .animate-efficient-gradient-reverse {
     animation: none;
   }
 

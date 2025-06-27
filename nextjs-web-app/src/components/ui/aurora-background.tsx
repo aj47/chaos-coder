@@ -1,16 +1,25 @@
 "use client";
 import { cn } from "@/lib/utils";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
+import { isLowEndDevice } from "@/utils/performance";
 
-interface AuroraBackgroundProps extends React.HTMLProps<HTMLDivElement> {
+interface EfficientBackgroundProps extends React.HTMLProps<HTMLDivElement> {
   children: ReactNode;
 }
 
-export const AuroraBackground = ({
+export const EfficientBackground = ({
   className,
   children,
   ...props
-}: AuroraBackgroundProps) => {
+}: EfficientBackgroundProps) => {
+  const [shouldAnimate, setShouldAnimate] = useState(true);
+
+  useEffect(() => {
+    // Check if device has limited resources and disable animations if needed
+    const isLowEnd = isLowEndDevice();
+    setShouldAnimate(!isLowEnd);
+  }, []);
+
   return (
     <main className="min-h-screen w-full">
       <div
@@ -20,32 +29,35 @@ export const AuroraBackground = ({
         )}
         {...props}
       >
-        {/* Background container */}
+        {/* Efficient background container */}
         <div className="absolute inset-0 overflow-hidden">
-          {/* Primary aurora */}
-          <div className="absolute -inset-[10px] opacity-50">
+          {/* Primary gradient layer - no blur for better performance */}
+          <div className="absolute inset-0 opacity-30">
             <div
-              className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] via-[#8B5CF6] to-[#EC4899]
-                       animate-aurora blur-[100px]
-                       after:absolute after:inset-0 
-                       after:bg-gradient-to-t after:from-[#3B82F6] after:via-transparent after:to-transparent 
-                       after:animate-aurora after:blur-[120px]"
+              className={cn(
+                "absolute inset-0 bg-gradient-to-br from-blue-400/20 via-purple-500/15 to-pink-400/20",
+                shouldAnimate && "animate-efficient-gradient"
+              )}
             />
           </div>
 
-          {/* Secondary aurora */}
-          {/* <div className="absolute -inset-[10px] opacity-30">
+          {/* Secondary gradient layer */}
+          <div className="absolute inset-0 opacity-20">
             <div
-              className="absolute inset-0 bg-gradient-to-l from-violet-500 via-indigo-500 to-blue-500
-                       animate-aurora blur-[90px] 
-                       after:absolute after:inset-0 
-                       after:bg-gradient-to-b after:from-violet-500 after:via-transparent after:to-transparent 
-                       after:animate-aurora after:blur-[100px]"
+              className={cn(
+                "absolute inset-0 bg-gradient-to-tl from-indigo-400/15 via-violet-400/10 to-blue-500/15",
+                shouldAnimate && "animate-efficient-gradient-reverse"
+              )}
             />
-          </div> */}
+          </div>
+
+          {/* Subtle mesh pattern for texture */}
+          <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.05]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.15)_1px,transparent_0)] bg-[length:20px_20px]" />
+          </div>
 
           {/* Overlay gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-zinc-900 dark:via-zinc-900/80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/90 to-transparent dark:from-zinc-900 dark:via-zinc-900/90" />
         </div>
 
         {/* Content */}
@@ -54,3 +66,6 @@ export const AuroraBackground = ({
     </main>
   );
 };
+
+// Keep the old component for backward compatibility during transition
+export const AuroraBackground = EfficientBackground;

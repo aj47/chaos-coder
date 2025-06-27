@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { AuroraBackground } from "@/components/ui/aurora-background";
+import { EfficientBackground } from "@/components/ui/aurora-background";
 import AppTile from "@/components/AppTile";
 import CodePreviewPanel from "@/components/CodePreviewPanel";
 import { BrowserContainer } from "@/components/ui/browser-container";
@@ -241,7 +241,7 @@ function ResultsContent() {
   }, [searchParams, generateApp, numGenerations]);
 
   return (
-    <AuroraBackground>
+    <EfficientBackground>
       {showSignupModal && (
         <SignupModal
           isOpen={showSignupModal}
@@ -475,7 +475,7 @@ function ResultsContent() {
         title={appTitles[selectedAppIndex]}
         theme={theme}
       />
-    </AuroraBackground>
+    </EfficientBackground>
   );
 }
 
