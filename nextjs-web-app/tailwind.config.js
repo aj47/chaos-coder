@@ -19,25 +19,58 @@ module.exports = {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       animation: {
-        aurora: "aurora 15s linear infinite",
+        "gentle-shift": "gentle-shift 20s ease-in-out infinite",
+        "float-slow": "float-slow 15s ease-in-out infinite",
+        "float-delayed": "float-delayed 18s ease-in-out infinite 3s",
+        "float-gentle": "float-gentle 22s ease-in-out infinite 6s",
         "text-gradient": "text-gradient 1.5s linear infinite",
         "background-shine": "background-shine 2s linear infinite",
         shimmer: "shimmer 2s linear infinite",
         rainbow: "rainbow var(--speed, 2s) infinite linear",
       },
       keyframes: {
-        aurora: {
-          "0%": {
-            transform: "translate(0, 0) scale(1)",
+        "gentle-shift": {
+          "0%, 100%": {
+            transform: "translateX(0) translateY(0)",
+            opacity: "0.3",
+          },
+          "50%": {
+            transform: "translateX(10px) translateY(-5px)",
+            opacity: "0.5",
+          },
+        },
+        "float-slow": {
+          "0%, 100%": {
+            transform: "translateY(0px) scale(1)",
+            opacity: "0.2",
+          },
+          "50%": {
+            transform: "translateY(-20px) scale(1.1)",
+            opacity: "0.4",
+          },
+        },
+        "float-delayed": {
+          "0%, 100%": {
+            transform: "translateY(0px) translateX(0px)",
+            opacity: "0.1",
           },
           "33%": {
-            transform: "translate(-50%, 50%) scale(1.2)",
+            transform: "translateY(-15px) translateX(5px)",
+            opacity: "0.3",
           },
           "66%": {
-            transform: "translate(50%, 50%) scale(0.9)",
+            transform: "translateY(-10px) translateX(-3px)",
+            opacity: "0.2",
           },
-          "100%": {
-            transform: "translate(0, 0) scale(1)",
+        },
+        "float-gentle": {
+          "0%, 100%": {
+            transform: "translateY(0px) rotate(0deg)",
+            opacity: "0.15",
+          },
+          "50%": {
+            transform: "translateY(-12px) rotate(180deg)",
+            opacity: "0.35",
           },
         },
         "text-gradient": {

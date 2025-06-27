@@ -31,18 +31,82 @@
   }
 }
 
-/* Aurora animation */
-@keyframes aurora {
-  from {
-    background-position: 50% 50%, 50% 50%;
+/* Efficient background animations - minimal GPU usage */
+@keyframes gentle-shift {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+    opacity: 0.3;
   }
-  to {
-    background-position: 350% 50%, 350% 50%;
+  50% {
+    transform: translateX(10px) translateY(-5px);
+    opacity: 0.5;
   }
 }
 
-.animate-aurora {
-  animation: aurora 60s linear infinite;
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 0.4;
+  }
+}
+
+@keyframes float-delayed {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+    opacity: 0.1;
+  }
+  33% {
+    transform: translateY(-15px) translateX(5px);
+    opacity: 0.3;
+  }
+  66% {
+    transform: translateY(-10px) translateX(-3px);
+    opacity: 0.2;
+  }
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateY(-12px) rotate(180deg);
+    opacity: 0.35;
+  }
+}
+
+.animate-gentle-shift {
+  animation: gentle-shift 20s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 15s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-delayed 18s ease-in-out infinite 3s;
+}
+
+.animate-float-gentle {
+  animation: float-gentle 22s ease-in-out infinite 6s;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora {
+    animation: none;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Base styles */
