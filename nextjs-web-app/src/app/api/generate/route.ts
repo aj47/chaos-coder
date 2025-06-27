@@ -31,7 +31,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Configure Portkey with main provider (groq) and fallback (openrouter)
+    // Configure virtual keys - use environment variables if available, otherwise use defaults
+    const cerebrasVirtualKey = process.env.PORTKEY_CEREBRAS_VIRTUAL_KEY || "cerebras-b79172";
+    const groqVirtualKey = process.env.PORTKEY_GROQ_VIRTUAL_KEY || "groq-virtual-ke-9479cd";
+    const openrouterVirtualKey = process.env.PORTKEY_OPENROUTER_VIRTUAL_KEY || "openrouter-07e727";
+    const openaiVirtualKey = process.env.PORTKEY_OPENAI_VIRTUAL_KEY || "openai-9c929c";
+
+    // Configure Portkey with intelligent fallback across multiple AI providers
     const portkey = new Portkey({
       apiKey: portkeyApiKey,
       config: {
@@ -40,25 +46,25 @@ export async function POST(req: NextRequest) {
         },
         targets: [
           {
-            virtual_key: "cerebras-b79172",
+            virtual_key: cerebrasVirtualKey,
             override_params: {
               model: "qwen-3-32b",
             },
           },
           {
-            virtual_key: "groq-virtual-ke-9479cd",
+            virtual_key: groqVirtualKey,
             override_params: {
               model: "llama-3.2-1b-preview",
             },
           },
           {
-            virtual_key: "openrouter-07e727",
+            virtual_key: openrouterVirtualKey,
             override_params: {
               model: "google/gemini-flash-1.5-8b",
             },
           },
           {
-            virtual_key: "openai-9c929c",
+            virtual_key: openaiVirtualKey,
             override_params: {
               model: "gpt-4o-mini",
             },
