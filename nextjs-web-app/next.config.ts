@@ -12,44 +12,7 @@ const nextConfig: NextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
-  // Performance optimizations
-  experimental: {
-    optimizePackageImports: ['framer-motion', 'react-icons'],
-  },
-  // Bundle optimization
-  webpack: (config, { dev, isServer }) => {
-    // Optimize bundle size in production
-    if (!dev && !isServer) {
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-          framerMotion: {
-            test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
-            name: 'framer-motion',
-            chunks: 'all',
-          },
-          monaco: {
-            test: /[\\/]node_modules[\\/]@monaco-editor[\\/]/,
-            name: 'monaco-editor',
-            chunks: 'all',
-          },
-        },
-      };
-    }
-    return config;
-  },
-  // Compress responses
-  compress: true,
-  // Enable static optimization
-  trailingSlash: false,
-  // Optimize images
   images: {
-    formats: ['image/webp', 'image/avif'],
     domains: [
       'lh3.googleusercontent.com',  // Google user avatars
       'avatars.githubusercontent.com',  // GitHub avatars (in case you add GitHub auth)

@@ -5,11 +5,9 @@ import { atom, useAtom } from 'jotai';
 
 // Global state atoms
 export const isPromptOpenAtom = atom(false);
-export const isMetricsOpenAtom = atom(false);
 
 export default function KeyboardShortcuts() {
   const [isPromptOpen, setIsPromptOpen] = useAtom(isPromptOpenAtom);
-  const [isMetricsOpen, setIsMetricsOpen] = useAtom(isMetricsOpenAtom);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -19,11 +17,6 @@ export default function KeyboardShortcuts() {
             e.preventDefault();
             setIsPromptOpen(prev => !prev);
             break;
-          case 'p':
-          case 'x':
-            e.preventDefault();
-            setIsMetricsOpen(prev => !prev);
-            break;
         }
       }
     };
@@ -31,7 +24,7 @@ export default function KeyboardShortcuts() {
     // Add event listener to the document instead of window
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [setIsPromptOpen, setIsMetricsOpen]);
+  }, [setIsPromptOpen]);
 
   return null;
 }

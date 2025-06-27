@@ -11,7 +11,7 @@ import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import PromptInput from "@/components/DevTools/PromptInput";
-import PerformanceMetrics from "@/components/DevTools/PerformanceMetrics";
+
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import FullscreenPreview from "@/components/FullscreenPreview";
 import MockDeployButton from "@/components/MockDeployButton";
@@ -95,10 +95,7 @@ function ResultsContent() {
     new Array(numGenerations).fill("")
   );
   const [isPromptOpen, setIsPromptOpen] = useState(false);
-  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
-  const [generationTimes, setGenerationTimes] = useState<{
-    [key: number]: number;
-  }>({});
+
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
@@ -122,7 +119,6 @@ function ResultsContent() {
   }, []);
 
   const generateApp = useCallback(async (index: number, promptText: string) => {
-    const startTime = performance.now();
     try {
       const framework = getFramework(appTitles[index]);
 
@@ -136,21 +132,12 @@ function ResultsContent() {
         }),
       });
 
-      if (response.status === 429) {
-        // Show signup modal for rate limit
-        setShowSignupModal(true);
-        throw new Error("Rate limit exceeded. Please create an account to continue.");
-      }
-
       if (!response.ok) {
         throw new Error(`Failed to generate app ${index + 1}`);
       }
 
       const data = await response.json();
-      if (data.error === "rate_limit_exceeded") {
-        setShowSignupModal(true);
-        throw new Error("Rate limit exceeded. Please create an account to continue.");
-      } else if (data.error) {
+      if (data.error) {
         throw new Error(data.error);
       }
 
@@ -166,11 +153,7 @@ function ResultsContent() {
         return newResults;
       });
 
-      const endTime = performance.now();
-      setGenerationTimes((prev) => ({
-        ...prev,
-        [index]: (endTime - startTime) / 1000, // Convert to seconds
-      }));
+
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to generate applications"
@@ -226,18 +209,10 @@ function ResultsContent() {
       return;
     }
 
-    // Generate apps with throttling to prevent overwhelming the system
-    const generateWithThrottle = async () => {
-      for (let i = 0; i < numGenerations; i++) {
-        generateApp(i, prompt);
-        // Add small delay between requests to reduce system load
-        if (i < numGenerations - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-    };
-
-    generateWithThrottle();
+    // Generate all apps
+    for (let i = 0; i < numGenerations; i++) {
+      generateApp(i, prompt);
+    }
   }, [searchParams, generateApp, numGenerations]);
 
   return (
@@ -460,11 +435,7 @@ function ResultsContent() {
         isUpdateMode={true}
         currentCode={editedResults[selectedAppIndex]}
       />
-      <PerformanceMetrics
-        isOpen={isMetricsOpen}
-        onClose={() => setIsMetricsOpen(false)}
-        generationTimes={generationTimes}
-      />
+
       {isVoiceEnabled && (
         <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
       )}

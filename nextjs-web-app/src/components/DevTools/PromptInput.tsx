@@ -30,23 +30,9 @@ export default function PromptInput({
         const result = await onSubmit(prompt, isUpdateMode, chaosMode);
         setPrompt("");
         
-        // If onSubmit returns a value with an error property
-        if (result && typeof result === 'object' && 'error' in result) {
-          if (result.error === 'rate_limit_exceeded') {
-            setShowSignupModal(true);
-            return;
-          }
-        }
+
       } catch (error: any) {
         console.error("Error submitting prompt:", error);
-        
-        // Check for rate limit error in the caught exception
-        if (error?.error === 'rate_limit_exceeded' || 
-            (error.response && error.response.status === 429) ||
-            (error.message && error.message.includes('rate limit'))) {
-          setShowSignupModal(true);
-          return;
-        }
       }
     }
   };

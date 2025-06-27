@@ -163,37 +163,10 @@ export default function Home() {
     setIsLoading(true);
     
     try {
-      // Make a test request to check rate limit before redirecting
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: prompt.substring(0, 50), // Just send a small part of the prompt for the check
-          variation: "rate-limit-check",
-          framework: "none",
-        }),
-      });
-      
-      if (response.status === 429) {
-        // Rate limit exceeded
-        setShowSignupModal(true);
-        setIsLoading(false);
-        return;
-      }
-      
-      const data = await response.json();
-      if (data.error === "rate_limit_exceeded") {
-        setShowSignupModal(true);
-        setIsLoading(false);
-        return;
-      }
-      
-      // If no rate limit issues, proceed to results page
+      // Navigate directly to results page
       router.push(`/results?prompt=${encodeURIComponent(prompt)}&numGenerations=${numGenerations}`);
     } catch (error) {
-      console.error("Error checking rate limit:", error);
-      // Still try to navigate even if there was an error checking rate limit
-      router.push(`/results?prompt=${encodeURIComponent(prompt)}&numGenerations=${numGenerations}`);
+      console.error("Error navigating to results:", error);
     } finally {
       setIsLoading(false);
     }

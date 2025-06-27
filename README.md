@@ -20,7 +20,6 @@ The purpose of Chaos Coder is to accelerate the development process by providing
 - Real-time code preview for each variation
 - Interactive interface with theme toggling
 - Voice input support for hands-free prompting
-- Performance metrics for generation times
 - Keyboard shortcuts for quick access to tools
 
 ## Tech Stack
