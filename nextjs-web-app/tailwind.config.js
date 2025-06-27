@@ -19,27 +19,17 @@ module.exports = {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       animation: {
-        aurora: "aurora 15s linear infinite",
+        // Removed aurora animation for better GPU performance
         "text-gradient": "text-gradient 1.5s linear infinite",
         "background-shine": "background-shine 2s linear infinite",
         shimmer: "shimmer 2s linear infinite",
         rainbow: "rainbow var(--speed, 2s) infinite linear",
       },
+      backgroundImage: {
+        'radial-gradient': 'radial-gradient(circle at center, var(--tw-gradient-stops))',
+      },
       keyframes: {
-        aurora: {
-          "0%": {
-            transform: "translate(0, 0) scale(1)",
-          },
-          "33%": {
-            transform: "translate(-50%, 50%) scale(1.2)",
-          },
-          "66%": {
-            transform: "translate(50%, 50%) scale(0.9)",
-          },
-          "100%": {
-            transform: "translate(0, 0) scale(1)",
-          },
-        },
+        // Removed aurora keyframes for better GPU performance
         "text-gradient": {
           to: {
             backgroundPosition: "200% center",

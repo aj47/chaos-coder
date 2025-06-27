@@ -31,30 +31,10 @@
   }
 }
 
-/* Aurora animation - optimized for performance */
-@keyframes aurora {
-  from {
-    background-position: 50% 50%, 50% 50%;
-  }
-  to {
-    background-position: 350% 50%, 350% 50%;
-  }
-}
-
-.animate-aurora {
-  animation: aurora 60s linear infinite;
-  /* Use will-change to optimize for animation */
-  will-change: background-position;
-  /* Use transform3d to enable hardware acceleration */
-  transform: translate3d(0, 0, 0);
-}
+/* Aurora animation removed for better GPU performance */
 
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
-  .animate-aurora {
-    animation: none;
-  }
-
   * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
