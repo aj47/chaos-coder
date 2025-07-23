@@ -6,6 +6,9 @@ import { motion } from "framer-motion";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { useTheme } from "@/context/ThemeContext";
+import UserProfile from "@/components/auth/UserProfile";
+import FeatureGate from "@/components/subscription/FeatureGate";
+import { useSubscription } from "@/hooks/useSubscription";
 import {
   FaTasks,
   FaBlog,
@@ -88,11 +91,14 @@ const MIN_NUM_GENERATIONS = 1;
 const MAX_NUM_GENERATIONS = 6;
 
 export default function Home() {
+  const { theme } = useTheme();
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [numGenerations, setNumGenerations] = useState(3);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { canGenerate, generationsRemaining, isPro } = useSubscription();
   const examples = [
     {
       prompt:
@@ -131,7 +137,6 @@ export default function Home() {
       label: "Pong Game",
     },
   ];
-  const [isLoading, setIsLoading] = useState(false);
 
   // Functions for incrementing/decrementing generations
   const incrementGenerations = () => {
@@ -180,6 +185,12 @@ export default function Home() {
           onClose={() => setShowSignupModal(false)}
         />
       )}
+
+      {/* User Profile Header */}
+      <div className="absolute top-4 right-4 z-20">
+        <UserProfile />
+      </div>
+
       <div className="relative z-10">
         <HeroGeometric
           badge=""
@@ -273,16 +284,38 @@ export default function Home() {
                 )}
 
                 {/* Generate Button - Moved above style settings */}
-                <RainbowButton
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 text-lg font-medium"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
-                  ) : null}
-                  Generate Web Apps {!isLoading && <>+</>}
-                </RainbowButton>
+                <FeatureGate feature="generation">
+                  <RainbowButton
+                    onClick={handleSubmit}
+                    disabled={isLoading || !canGenerate}
+                    className="w-full flex items-center justify-center gap-2 text-lg font-medium"
+                  >
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+                    ) : null}
+                    Generate Web Apps {!isLoading && <>+</>}
+                  </RainbowButton>
+                </FeatureGate>
+
+                {/* Usage indicator for free users */}
+                {!isPro && (
+                  <div className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+                    {generationsRemaining > 0 ? (
+                      <span>
+                        {generationsRemaining} generation{generationsRemaining !== 1 ? 's' : ''} remaining today
+                      </span>
+                    ) : (
+                      <span className="text-red-500 dark:text-red-400">
+                        Daily limit reached. <button
+                          onClick={() => router.push('/pricing')}
+                          className="underline hover:no-underline"
+                        >
+                          Upgrade to Pro
+                        </button> for unlimited generations.
+                      </span>
+                    )}
+                  </div>
+                )}
                 
                 <div className="mt-4 text-center text-sm text-gray-400">
                   <p>This is an early preview. Open source at{" "}

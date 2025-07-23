@@ -1,5 +1,7 @@
 import { Portkey } from "portkey-ai";
 import { NextResponse, NextRequest } from "next/server";
+import { createClient } from '@/lib/supabase/server-client'
+import { canUserGenerate, incrementDailyGenerations, trackUsage } from '@/lib/database'
 
 export const runtime = "edge";
 
@@ -20,6 +22,26 @@ const frameworkPrompts = {
 
 export async function POST(req: NextRequest) {
   try {
+    // Check authentication
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user can generate
+    const { canGenerate, reason } = await canUserGenerate(user.id)
+    if (!canGenerate) {
+      return NextResponse.json(
+        { error: reason || 'Generation limit reached' },
+        { status: 403 }
+      )
+    }
+
     const body = await req.json();
     const { prompt, variation, framework } = body;
 
@@ -181,6 +203,10 @@ Format the code with proper indentation and spacing for readability.`;
         code = code.substring(htmlStartIndex);
       }
     }
+
+    // Increment usage count and track usage
+    await incrementDailyGenerations(user.id)
+    await trackUsage(user.id, 'generation', { prompt, variation, framework })
 
     return NextResponse.json({ code });
   } catch (error) {
