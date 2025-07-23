@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/browser-client'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useSubscription } from '@/hooks/useSubscription'
-import { FaCrown, FaCog } from 'react-icons/fa'
+import { FaCrown, FaCog, FaTachometerAlt } from 'react-icons/fa'
 
 export default function UserProfile() {
   const [user, setUser] = useState<User | null>(null)
@@ -40,21 +41,12 @@ export default function UserProfile() {
     await supabase.auth.signOut()
   }
 
-  const handleManageSubscription = async () => {
-    try {
-      const response = await fetch('/api/stripe/create-portal-session', {
-        method: 'POST',
-      })
+  const handleManageSubscription = () => {
+    router.push('/manage-subscription')
+  }
 
-      if (!response.ok) {
-        throw new Error('Failed to create portal session')
-      }
-
-      const { url } = await response.json()
-      window.location.href = url
-    } catch (err) {
-      console.error('Error opening customer portal:', err)
-    }
+  const handleDashboard = () => {
+    router.push('/dashboard')
   }
 
   if (loading) {
@@ -118,6 +110,14 @@ export default function UserProfile() {
       </div>
 
       <div className="flex items-center space-x-2">
+        <Link
+          href="/dashboard"
+          className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center space-x-1"
+        >
+          <FaTachometerAlt className="h-3 w-3" />
+          <span>Dashboard</span>
+        </Link>
+
         {subscriptionData?.subscription_status !== 'free' && (
           <button
             onClick={handleManageSubscription}

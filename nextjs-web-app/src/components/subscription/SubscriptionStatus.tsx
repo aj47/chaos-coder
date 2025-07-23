@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { FaCrown, FaExclamationTriangle, FaCog } from 'react-icons/fa'
 
@@ -17,6 +18,7 @@ interface SubscriptionData {
 }
 
 export default function SubscriptionStatus() {
+  const router = useRouter()
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,21 +42,8 @@ export default function SubscriptionStatus() {
     }
   }
 
-  const handleManageSubscription = async () => {
-    try {
-      const response = await fetch('/api/stripe/create-portal-session', {
-        method: 'POST',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to create portal session')
-      }
-      
-      const { url } = await response.json()
-      window.location.href = url
-    } catch (err) {
-      console.error('Error opening customer portal:', err)
-    }
+  const handleManageSubscription = () => {
+    router.push('/manage-subscription')
   }
 
   if (loading) {
