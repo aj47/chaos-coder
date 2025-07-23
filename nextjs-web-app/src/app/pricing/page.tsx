@@ -45,7 +45,7 @@ const SUBSCRIPTION_PLANS = {
 export default function PricingPage() {
   const { theme } = useTheme()
   const router = useRouter()
-  const { subscriptionData, loading } = useSubscription()
+  const { subscriptionData } = useSubscription()
 
   const currentPlan = subscriptionData?.subscription_plan || 'free'
 
@@ -71,7 +71,7 @@ export default function PricingPage() {
                   Pricing Plans
                 </h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Choose the plan that's right for you
+                  Choose the plan that&apos;s right for you
                 </p>
               </div>
             </div>
@@ -139,7 +139,7 @@ export default function PricingPage() {
                   Can I cancel anytime?
                 </h4>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  Yes, you can cancel your subscription at any time. You'll continue to have access to Pro features until the end of your billing period.
+                  Yes, you can cancel your subscription at any time. You&apos;ll continue to have access to Pro features until the end of your billing period.
                 </p>
               </div>
               
@@ -148,7 +148,7 @@ export default function PricingPage() {
                   What happens to my apps if I downgrade?
                 </h4>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  Your existing apps will remain accessible, but you'll be limited to the free plan's daily generation limits for new apps.
+                  Your existing apps will remain accessible, but you&apos;ll be limited to the free plan&apos;s daily generation limits for new apps.
                 </p>
               </div>
               
@@ -157,7 +157,7 @@ export default function PricingPage() {
                   Do you offer refunds?
                 </h4>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  We offer a 30-day money-back guarantee for new subscribers. Contact support if you're not satisfied.
+                  We offer a 30-day money-back guarantee for new subscribers. Contact support if you&apos;re not satisfied.
                 </p>
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function PricingPage() {
                   Do you offer team or enterprise plans?
                 </h4>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  We're working on team plans! Contact us if you're interested in enterprise features or volume discounts.
+                  We&apos;re working on team plans! Contact us if you&apos;re interested in enterprise features or volume discounts.
                 </p>
               </div>
             </div>

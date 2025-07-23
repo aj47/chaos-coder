@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { FaMicrophone, FaBolt } from "react-icons/fa";
 import { useTheme } from "@/context/ThemeContext";
-import { SignupModal } from "@/app/page";
+import { SignupModal } from "@/components/SignupModal";
 
 interface PromptInputProps {
   isOpen: boolean;

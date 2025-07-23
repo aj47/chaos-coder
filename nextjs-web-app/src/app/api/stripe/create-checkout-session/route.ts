@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, STRIPE_CONFIG } from '@/lib/stripe'
+import { stripe } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server-client'
 import { getUserProfile, updateUserProfile } from '@/lib/database'
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get or create user profile
-    let userProfile = await getUserProfile(user.id)
+    const userProfile = await getUserProfile(user.id)
     if (!userProfile) {
       return NextResponse.json(
         { error: 'User profile not found' },

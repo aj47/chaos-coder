@@ -11,8 +11,7 @@ interface SignupModalProps {
 
 export function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const { theme } = useTheme();
-  const router = useRouter();
-  
+
   if (!isOpen) return null;
   
   return (
@@ -43,7 +42,7 @@ export function SignupModal({ isOpen, onClose }: SignupModalProps) {
         </button>
         
         <h2 className="text-xl font-bold mb-4">Free Limit Reached</h2>
-        <p className="mb-6">You've reached the limit of 25 free generations. Create an account to continue using our service.</p>
+        <p className="mb-6">You&apos;ve reached the limit of 25 free generations. Create an account to continue using our service.</p>
         
         <div className="flex flex-col gap-4">
           <a 

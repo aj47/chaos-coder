@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { setSentryUser, captureError, ErrorCategory } from '@/lib/sentry'
 
 interface SubscriptionData {
   subscription_status: 'free' | 'active' | 'canceled' | 'past_due' | 'unpaid'
@@ -27,16 +28,29 @@ export function useSubscription() {
     try {
       setLoading(true)
       const response = await fetch('/api/stripe/subscription-status')
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch subscription status')
       }
-      
+
       const data = await response.json()
       setSubscriptionData(data)
       setError(null)
+
+      // Update Sentry user context with subscription data
+      setSentryUser({
+        id: 'current_user', // This will be overridden by actual user data elsewhere
+        subscription_plan: data.subscription_plan,
+        daily_generations_used: data.daily_generations_used,
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
+      captureError(
+        err instanceof Error ? err : new Error(errorMessage),
+        ErrorCategory.SUBSCRIPTION,
+        { action: 'fetch_subscription_status' }
+      )
     } finally {
       setLoading(false)
     }

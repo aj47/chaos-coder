@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-import { RainbowButton } from "@/components/ui/rainbow-button";
 
 export default function SignupPage() {
   const { theme } = useTheme();
