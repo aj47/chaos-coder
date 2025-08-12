@@ -2,31 +2,32 @@
 
 import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { useTheme } from '@/context/ThemeContext'
 import UserProfile from '@/components/auth/UserProfile'
-import SubscriptionStatus from '@/components/subscription/SubscriptionStatus'
-import { useSubscription } from '@/hooks/useSubscription'
+import TokenStatus from '@/components/tokens/TokenStatus'
+import { useTokens } from '@/hooks/useTokens'
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { theme } = useTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { subscriptionData, refreshSubscription } = useSubscription()
+  const { tokenData, refreshTokens } = useTokens()
 
   useEffect(() => {
-    // Check if we're returning from a successful Stripe checkout
-    const sessionId = searchParams.get('session_id')
-    if (sessionId) {
-      // Refresh subscription data after successful checkout
+    // Check if we're returning from a successful token purchase
+    const paymentStatus = searchParams.get('payment')
+    if (paymentStatus === 'success') {
+      // Refresh token data after successful payment
       setTimeout(() => {
-        refreshSubscription()
+        refreshTokens()
       }, 2000) // Give Stripe webhook time to process
-      
+
       // Clean up URL
       router.replace('/dashboard')
     }
-  }, [searchParams, refreshSubscription, router])
+  }, [searchParams, refreshTokens, router])
 
   return (
     <div className={`min-h-screen ${
@@ -43,7 +44,7 @@ export default function DashboardPage() {
                 Dashboard
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Manage your account and subscription
+                Manage your account and tokens
               </p>
             </div>
             <UserProfile />
@@ -54,7 +55,7 @@ export default function DashboardPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Subscription Status */}
+          {/* Token Status */}
           <div className="lg:col-span-1">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -63,9 +64,9 @@ export default function DashboardPage() {
             >
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Subscription Status
+                  Token Balance
                 </h2>
-                <SubscriptionStatus />
+                <TokenStatus />
               </div>
 
               {/* Quick Actions */}
@@ -91,10 +92,10 @@ export default function DashboardPage() {
                     className="w-full text-left px-4 py-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="font-medium text-gray-900 dark:text-white">
-                      View Pricing
+                      Buy More Tokens
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Compare plans and features
+                      Purchase token packages
                     </div>
                   </button>
                 </div>
@@ -114,78 +115,79 @@ export default function DashboardPage() {
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Daily Generations */}
+                {/* Token Balance */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-medium text-gray-900 dark:text-white">
-                      Daily Generations
+                      Available Tokens
                     </h3>
-                    <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                      {subscriptionData?.daily_generations_used || 0}
+                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                      {tokenData?.tokenBalance || 0}
                     </div>
                   </div>
-                  
-                  {subscriptionData?.subscription_plan === 'free' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">Used</span>
-                        <span className="text-gray-900 dark:text-white">
-                          {subscriptionData.daily_generations_used}/3
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${Math.min((subscriptionData.daily_generations_used / 3) * 100, 100)}%`
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Resets daily at midnight
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Cost per generation</span>
+                      <span className="text-gray-900 dark:text-white">
+                        1 token
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Apps you can generate</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {tokenData?.tokenBalance || 0}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Tokens never expire
+                    </p>
+                  </div>
+
+                  {(tokenData?.tokenBalance || 0) === 0 && (
+                    <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-700 dark:text-red-300">
+                        Out of tokens! Purchase more to continue generating apps.
                       </p>
                     </div>
                   )}
-                  
-                  {subscriptionData?.subscription_plan === 'pro' && (
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      ✨ Unlimited generations with Pro
-                    </p>
-                  )}
                 </div>
 
-                {/* Account Status */}
+                {/* Account Info */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
                   <h3 className="font-medium text-gray-900 dark:text-white mb-4">
-                    Account Status
+                    Account Information
                   </h3>
-                  
+
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Plan</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                        {subscriptionData?.subscription_plan || 'Free'}
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Email</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {tokenData?.email || 'Loading...'}
                       </span>
                     </div>
-                    
+
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Status</span>
-                      <span className={`text-sm font-medium capitalize ${
-                        subscriptionData?.subscription_status === 'active' 
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {subscriptionData?.subscription_status || 'Free'}
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Payment Model</span>
+                      <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                        Pay-per-use
                       </span>
                     </div>
-                    
-                    {subscriptionData?.subscription_plan === 'free' && (
+
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Token Expiry</span>
+                      <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                        Never
+                      </span>
+                    </div>
+
+                    {(tokenData?.tokenBalance || 0) === 0 && (
                       <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                         <button
                           onClick={() => router.push('/pricing')}
-                          className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                          className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          Upgrade to Pro
+                          Buy Tokens
                         </button>
                       </div>
                     )}
@@ -197,5 +199,20 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p>Loading dashboard...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }

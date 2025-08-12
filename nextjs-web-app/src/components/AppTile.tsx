@@ -10,6 +10,8 @@ import {
   FaPalette,
   FaShieldAlt,
   FaCode,
+  FaPlus,
+  FaChevronDown,
 } from "react-icons/fa";
 import { IconType } from "react-icons";
 
@@ -89,10 +91,12 @@ const AppTile = memo(function AppTile({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStyleDropdown, setShowStyleDropdown] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState("Standard");
+  const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
 
   const framework = frameworkMap[title];
   const LeftIcon = framework.icon;
   const RightIcon = framework.rightIcon;
+  const availableStyles = Object.keys(frameworkMap);
 
   useEffect(() => {
     setEditedCode(code);

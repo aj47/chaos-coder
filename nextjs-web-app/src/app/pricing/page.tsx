@@ -4,41 +4,51 @@ import { motion } from 'framer-motion'
 import { useTheme } from '@/context/ThemeContext'
 import { useSubscription } from '@/hooks/useSubscription'
 import UserProfile from '@/components/auth/UserProfile'
-import PricingCard from '@/components/subscription/PricingCard'
+import TokenPackageCard from '@/components/tokens/TokenPackageCard'
 import { FaArrowLeft } from 'react-icons/fa'
 import { useRouter } from 'next/navigation'
 
-// Define subscription plans locally to avoid server-side imports
-const SUBSCRIPTION_PLANS = {
-  FREE: {
-    name: 'Free',
-    price: 0,
+// Define token packages locally to avoid server-side imports
+const TOKEN_PACKAGES = {
+  STARTER: {
+    name: 'Starter Pack',
+    tokens: 100,
+    price: 10,
+    description: 'Perfect for trying out the platform',
     features: [
-      'Generate up to 3 apps per day',
-      'Basic templates',
+      '100 app generations',
+      'All templates included',
       'Community support'
     ],
-    limits: {
-      dailyGenerations: 3,
-      maxAppsStored: 5
-    }
+    popular: false
   },
-  PRO: {
-    name: 'Pro',
+  POPULAR: {
+    name: 'Popular Pack',
+    tokens: 300,
     price: 20,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_MONTHLY || '',
+    description: 'Best value for regular users',
     features: [
-      'Unlimited app generations',
-      'Premium templates',
+      '300 app generations',
+      'All templates included',
+      'Priority support',
+      'Advanced customization'
+    ],
+    popular: true
+  },
+  PREMIUM: {
+    name: 'Premium Pack',
+    tokens: 1000,
+    price: 50,
+    description: 'For power users and teams',
+    features: [
+      '1000 app generations',
+      'All templates included',
       'Priority support',
       'Advanced customization',
       'Export to GitHub',
       'Custom domains'
     ],
-    limits: {
-      dailyGenerations: -1, // unlimited
-      maxAppsStored: -1 // unlimited
-    }
+    popular: false
   }
 }
 
@@ -88,23 +98,22 @@ export default function PricingPage() {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Simple, Transparent Pricing
+            Pay-Per-Use Token Packages
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-            Start for free and upgrade when you need more power. No hidden fees, cancel anytime.
+            Buy tokens and use them whenever you need. Each app generation costs 1 token.
           </p>
         </motion.div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        {/* Token Package Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <PricingCard
-              plan={SUBSCRIPTION_PLANS.FREE}
-              isCurrentPlan={currentPlan === 'free'}
+            <TokenPackageCard
+              package={TOKEN_PACKAGES.STARTER}
             />
           </motion.div>
 
@@ -113,10 +122,19 @@ export default function PricingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <PricingCard
-              plan={SUBSCRIPTION_PLANS.PRO}
-              isCurrentPlan={currentPlan === 'pro' && subscriptionData?.subscription_status === 'active'}
+            <TokenPackageCard
+              package={TOKEN_PACKAGES.POPULAR}
               isPopular={true}
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <TokenPackageCard
+              package={TOKEN_PACKAGES.PREMIUM}
             />
           </motion.div>
         </div>

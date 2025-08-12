@@ -12,7 +12,7 @@ import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import PromptInput from "@/components/DevTools/PromptInput";
 
-import VoiceInput from "@/components/DevTools/VoiceInput";
+
 import FullscreenPreview from "@/components/FullscreenPreview";
 import MockDeployButton from "@/components/MockDeployButton";
 import { SignupModal } from "@/components/SignupModal";
@@ -96,7 +96,7 @@ function ResultsContent() {
   );
   const [isPromptOpen, setIsPromptOpen] = useState(false);
 
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const { theme } = useTheme();
@@ -173,9 +173,7 @@ function ResultsContent() {
     window.location.href = `/results?prompt=${encodeURIComponent(prompt)}`;
   };
 
-  const handleVoiceInput = (text: string) => {
-    handleNewPrompt(text, true, false);
-  };
+
 
   const handleCodeChange = (newCode: string) => {
     const newResults = [...editedResults];
@@ -436,9 +434,7 @@ function ResultsContent() {
         currentCode={editedResults[selectedAppIndex]}
       />
 
-      {isVoiceEnabled && (
-        <VoiceInput onInput={(text) => handleVoiceInput(text)} theme={theme} />
-      )}
+
       <FullscreenPreview
         isOpen={isFullscreenOpen}
         onClose={handleCloseFullscreen}

@@ -1,7 +1,7 @@
 import { Portkey } from "portkey-ai";
 import { NextResponse, NextRequest } from "next/server";
 import { createClient } from '@/lib/supabase/server-client'
-import { canUserGenerate, incrementDailyGenerations, trackUsage } from '@/lib/database'
+import { canUserGenerate, deductTokenFromUser, trackUsage } from '@/lib/database'
 import { trackGeneration, captureError, ErrorCategory, setSentryUser, trackApiCall } from '@/lib/sentry'
 import * as Sentry from "@sentry/nextjs"
 
@@ -49,12 +49,12 @@ export async function POST(req: NextRequest) {
         email: user.email,
       });
 
-      // Check if user can generate
-      const { canGenerate, reason } = await canUserGenerate(user.id)
+      // Check if user can generate (has tokens)
+      const { canGenerate, reason, tokensRemaining } = await canUserGenerate(user.id)
       if (!canGenerate) {
         trackApiCall('/api/generate', 'POST', Date.now() - startTime, 403);
         return NextResponse.json(
-          { error: reason || 'Generation limit reached' },
+          { error: reason || 'Insufficient tokens', tokensRemaining: tokensRemaining || 0 },
           { status: 403 }
         )
       }
@@ -245,9 +245,13 @@ Format the code with proper indentation and spacing for readability.`;
         success: true,
       });
 
-      // Increment usage count and track usage
-      await incrementDailyGenerations(user.id)
-      await trackUsage(user.id, 'generation', { prompt, variation, framework })
+      // Deduct token from user and track usage
+      const tokenDeducted = await deductTokenFromUser(user.id, 1)
+      if (!tokenDeducted) {
+        console.error('Failed to deduct token from user after successful generation')
+        // Still return success since generation was completed
+      }
+      await trackUsage(user.id, 'generation', { prompt, variation, framework, tokens_used: 1 })
 
       trackApiCall('/api/generate', 'POST', Date.now() - startTime, 200);
       return NextResponse.json({ code });

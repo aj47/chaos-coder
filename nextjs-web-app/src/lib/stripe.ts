@@ -5,7 +5,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia',
+  apiVersion: '2025-06-30.basil',
   typescript: true,
 })
 
@@ -16,38 +16,57 @@ export const STRIPE_CONFIG = {
   WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 } as const
 
-// Subscription plan configuration
-export const SUBSCRIPTION_PLANS = {
-  FREE: {
-    name: 'Free',
-    price: 0,
+// Token package configuration
+export const TOKEN_PACKAGES = {
+  STARTER: {
+    name: 'Starter Pack',
+    tokens: 100,
+    price: 10,
+    priceId: process.env.STRIPE_PRICE_ID_STARTER || '',
+    description: 'Perfect for trying out the platform',
     features: [
-      'Generate up to 3 apps per day',
-      'Basic templates',
+      '100 app generations',
+      'All templates included',
       'Community support'
     ],
-    limits: {
-      dailyGenerations: 3,
-      maxAppsStored: 5
-    }
+    popular: false
   },
-  PRO: {
-    name: 'Pro',
+  POPULAR: {
+    name: 'Popular Pack',
+    tokens: 300,
     price: 20,
-    priceId: STRIPE_CONFIG.PRICE_ID_MONTHLY,
+    priceId: process.env.STRIPE_PRICE_ID_POPULAR || '',
+    description: 'Best value for regular users',
     features: [
-      'Unlimited app generations',
-      'Premium templates',
+      '300 app generations',
+      'All templates included',
+      'Priority support',
+      'Advanced customization'
+    ],
+    popular: true
+  },
+  PREMIUM: {
+    name: 'Premium Pack',
+    tokens: 1000,
+    price: 50,
+    priceId: process.env.STRIPE_PRICE_ID_PREMIUM || '',
+    description: 'For power users and teams',
+    features: [
+      '1000 app generations',
+      'All templates included',
       'Priority support',
       'Advanced customization',
       'Export to GitHub',
       'Custom domains'
     ],
-    limits: {
-      dailyGenerations: -1, // unlimited
-      maxAppsStored: -1 // unlimited
-    }
+    popular: false
   }
 } as const
 
-export type SubscriptionPlan = keyof typeof SUBSCRIPTION_PLANS
+export type TokenPackage = keyof typeof TOKEN_PACKAGES
+
+// Helper function to get package details by type
+export function getTokenPackage(packageType: string) {
+  const upperType = packageType.toUpperCase() as TokenPackage
+  return TOKEN_PACKAGES[upperType] || null
+}
