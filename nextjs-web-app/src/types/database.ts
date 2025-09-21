@@ -8,7 +8,6 @@ export interface UserProfile {
   subscription_plan: 'free' | 'pro'
   daily_generations_used: number
   daily_generations_reset_date: string
-  token_balance: number
   created_at: string
   updated_at: string
 }
@@ -34,20 +33,6 @@ export interface UsageTracking {
   action_type: 'generation' | 'export' | 'deploy'
   metadata: Record<string, any>
   created_at: string
-}
-
-export interface TokenPurchase {
-  id: string
-  user_id: string
-  stripe_payment_intent_id: string
-  stripe_customer_id: string
-  package_type: 'starter' | 'popular' | 'premium'
-  tokens_purchased: number
-  amount_paid: number
-  currency: string
-  status: 'pending' | 'completed' | 'failed' | 'refunded'
-  created_at: string
-  updated_at: string
 }
 
 export interface Database {
@@ -81,17 +66,6 @@ export interface Database {
           created_at?: string
         }
         Update: Partial<Omit<UsageTracking, 'id' | 'created_at'>>
-      }
-      token_purchases: {
-        Row: TokenPurchase
-        Insert: Omit<TokenPurchase, 'id' | 'created_at' | 'updated_at'> & {
-          id?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Omit<TokenPurchase, 'id' | 'created_at'>> & {
-          updated_at?: string
-        }
       }
     }
   }

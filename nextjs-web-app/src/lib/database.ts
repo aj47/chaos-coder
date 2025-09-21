@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server-client'
-import { UserProfile, Subscription, UsageTracking, TokenPurchase } from '@/types/database'
+import { UserProfile, Subscription, UsageTracking } from '@/types/database'
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   const supabase = await createClient()
@@ -109,111 +109,61 @@ export async function trackUsage(userId: string, actionType: 'generation' | 'exp
   return true
 }
 
-export async function deductTokenFromUser(userId: string, tokensToDeduct: number = 1): Promise<boolean> {
+export async function incrementDailyGenerations(userId: string): Promise<boolean> {
   const supabase = await createClient()
-
-  // Use the database function to safely deduct tokens
-  const { data, error } = await supabase.rpc('deduct_tokens_from_user', {
-    user_id_param: userId,
-    tokens_to_deduct: tokensToDeduct
-  })
+  
+  // First reset daily count if needed
+  await supabase.rpc('reset_daily_generations')
+  
+  // Then increment the count
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({
+      daily_generations_used: supabase.raw('daily_generations_used + 1')
+    })
+    .eq('id', userId)
 
   if (error) {
-    console.error('Error deducting tokens:', error)
+    console.error('Error incrementing daily generations:', error)
     return false
   }
 
-  return data === true
+  return true
 }
 
-export async function addTokensToUser(userId: string, tokensToAdd: number): Promise<boolean> {
-  const supabase = await createClient()
-
-  // Use the database function to safely add tokens
-  const { data, error } = await supabase.rpc('add_tokens_to_user', {
-    user_id_param: userId,
-    tokens_to_add: tokensToAdd
-  })
-
-  if (error) {
-    console.error('Error adding tokens:', error)
-    return false
-  }
-
-  return data === true
-}
-
-export async function canUserGenerate(userId: string): Promise<{ canGenerate: boolean; reason?: string; tokensRemaining?: number }> {
+export async function canUserGenerate(userId: string): Promise<{ canGenerate: boolean; reason?: string }> {
   const profile = await getUserProfile(userId)
-
+  
   if (!profile) {
     return { canGenerate: false, reason: 'User profile not found' }
   }
 
-  // Check if user has tokens (each generation costs 1 token)
-  const tokensRequired = 1
-  if (profile.token_balance < tokensRequired) {
-    return {
-      canGenerate: false,
-      reason: `Insufficient tokens. You need ${tokensRequired} token to generate an app. Purchase more tokens to continue.`,
-      tokensRemaining: profile.token_balance
+  // Pro users have unlimited generations
+  if (profile.subscription_plan === 'pro' && profile.subscription_status === 'active') {
+    return { canGenerate: true }
+  }
+
+  // Free users have daily limits
+  const today = new Date().toISOString().split('T')[0]
+  const resetDate = new Date(profile.daily_generations_reset_date).toISOString().split('T')[0]
+  
+  // Reset count if it's a new day
+  if (resetDate < today) {
+    await updateUserProfile(userId, {
+      daily_generations_used: 0,
+      daily_generations_reset_date: today
+    })
+    return { canGenerate: true }
+  }
+
+  // Check if user has exceeded daily limit
+  const dailyLimit = 3 // Free tier limit
+  if (profile.daily_generations_used >= dailyLimit) {
+    return { 
+      canGenerate: false, 
+      reason: `Daily limit of ${dailyLimit} generations reached. Upgrade to Pro for unlimited generations.` 
     }
   }
 
-  return {
-    canGenerate: true,
-    tokensRemaining: profile.token_balance
-  }
-}
-
-export async function createTokenPurchase(purchaseData: Omit<TokenPurchase, 'id' | 'created_at' | 'updated_at'>): Promise<TokenPurchase | null> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('token_purchases')
-    .insert(purchaseData)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Error creating token purchase:', error)
-    return null
-  }
-
-  return data
-}
-
-export async function updateTokenPurchase(paymentIntentId: string, updates: Partial<TokenPurchase>): Promise<TokenPurchase | null> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('token_purchases')
-    .update(updates)
-    .eq('stripe_payment_intent_id', paymentIntentId)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Error updating token purchase:', error)
-    return null
-  }
-
-  return data
-}
-
-export async function getTokenPurchaseByPaymentIntent(paymentIntentId: string): Promise<TokenPurchase | null> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('token_purchases')
-    .select('*')
-    .eq('stripe_payment_intent_id', paymentIntentId)
-    .single()
-
-  if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-    console.error('Error fetching token purchase:', error)
-    return null
-  }
-
-  return data || null
+  return { canGenerate: true }
 }

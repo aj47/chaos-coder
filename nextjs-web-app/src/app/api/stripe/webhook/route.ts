@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe, STRIPE_CONFIG } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server-client'
-import { updateUserProfile, createOrUpdateSubscription, updateTokenPurchase, addTokensToUser, getTokenPurchaseByPaymentIntent } from '@/lib/database'
+import { updateUserProfile, createOrUpdateSubscription } from '@/lib/database'
 import { trackSubscription, captureError, ErrorCategory, trackApiCall } from '@/lib/sentry'
 import Stripe from 'stripe'
 
@@ -42,16 +42,6 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
-      // Token purchase events
-      case 'payment_intent.succeeded':
-        await handleTokenPurchaseSucceeded(event.data.object as Stripe.PaymentIntent)
-        break
-
-      case 'payment_intent.payment_failed':
-        await handleTokenPurchaseFailed(event.data.object as Stripe.PaymentIntent)
-        break
-
-      // Legacy subscription events (keep for existing subscribers)
       case 'customer.subscription.created':
         trackSubscription('upgrade', { plan: 'pro', event_type: 'created' })
         await handleSubscriptionChange(event.data.object as Stripe.Subscription)
@@ -202,49 +192,4 @@ async function getUserIdFromCustomerId(customerId: string): Promise<string | nul
   }
 
   return data.id
-}
-
-async function handleTokenPurchaseSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  const paymentIntentId = paymentIntent.id
-  const customerId = paymentIntent.customer as string
-
-  if (!customerId) {
-    console.error('No customer ID found for payment intent:', paymentIntentId)
-    return
-  }
-
-  // Get user ID from customer ID
-  const userId = await getUserIdFromCustomerId(customerId)
-  if (!userId) {
-    console.error('User not found for customer:', customerId)
-    return
-  }
-
-  // Get token purchase record
-  const tokenPurchase = await getTokenPurchaseByPaymentIntent(paymentIntentId)
-  if (!tokenPurchase) {
-    console.error('Token purchase not found for payment intent:', paymentIntentId)
-    return
-  }
-
-  // Update purchase status to completed
-  await updateTokenPurchase(paymentIntentId, { status: 'completed' })
-
-  // Add tokens to user balance
-  const tokensAdded = await addTokensToUser(userId, tokenPurchase.tokens_purchased)
-  if (!tokensAdded) {
-    console.error('Failed to add tokens to user:', userId)
-    return
-  }
-
-  console.log(`Successfully added ${tokenPurchase.tokens_purchased} tokens to user ${userId}`)
-}
-
-async function handleTokenPurchaseFailed(paymentIntent: Stripe.PaymentIntent) {
-  const paymentIntentId = paymentIntent.id
-
-  // Update purchase status to failed
-  await updateTokenPurchase(paymentIntentId, { status: 'failed' })
-
-  console.log(`Token purchase failed for payment intent: ${paymentIntentId}`)
 }
