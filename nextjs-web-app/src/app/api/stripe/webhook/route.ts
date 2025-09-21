@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe, STRIPE_CONFIG } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server-client'
 import { updateUserProfile, createOrUpdateSubscription } from '@/lib/database'
-import { trackSubscription, captureError, ErrorCategory, trackApiCall } from '@/lib/sentry'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
-  const startTime = Date.now();
   const body = await req.text()
   const signature = req.headers.get('stripe-signature')
 
   if (!signature) {
-    trackApiCall('/api/stripe/webhook', 'POST', Date.now() - startTime, 400);
     return NextResponse.json(
       { error: 'No signature provided' },
       { status: 400 }
@@ -28,12 +25,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (error) {
     console.error('Webhook signature verification failed:', error)
-    captureError(
-      error instanceof Error ? error : new Error('Webhook signature verification failed'),
-      ErrorCategory.PAYMENT,
-      { action: 'webhook_signature_verification' }
-    )
-    trackApiCall('/api/stripe/webhook', 'POST', Date.now() - startTime, 400);
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
@@ -43,26 +34,19 @@ export async function POST(req: NextRequest) {
   try {
     switch (event.type) {
       case 'customer.subscription.created':
-        trackSubscription('upgrade', { plan: 'pro', event_type: 'created' })
-        await handleSubscriptionChange(event.data.object as Stripe.Subscription)
-        break
       case 'customer.subscription.updated':
-        trackSubscription('renew', { plan: 'pro', event_type: 'updated' })
         await handleSubscriptionChange(event.data.object as Stripe.Subscription)
         break
 
       case 'customer.subscription.deleted':
-        trackSubscription('cancel', { plan: 'pro', event_type: 'deleted' })
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription)
         break
 
       case 'invoice.payment_succeeded':
-        trackSubscription('renew', { plan: 'pro', event_type: 'payment_succeeded' })
         await handlePaymentSucceeded(event.data.object as Stripe.Invoice)
         break
 
       case 'invoice.payment_failed':
-        trackSubscription('downgrade', { plan: 'pro', event_type: 'payment_failed' })
         await handlePaymentFailed(event.data.object as Stripe.Invoice)
         break
 
@@ -70,20 +54,9 @@ export async function POST(req: NextRequest) {
         // Unhandled event type - no action needed
     }
 
-    trackApiCall('/api/stripe/webhook', 'POST', Date.now() - startTime, 200);
     return NextResponse.json({ received: true })
   } catch (error) {
     console.error('Error processing webhook:', error)
-    captureError(
-      error instanceof Error ? error : new Error('Webhook processing failed'),
-      ErrorCategory.PAYMENT,
-      {
-        action: 'webhook_processing',
-        event_type: event.type,
-        event_id: event.id
-      }
-    )
-    trackApiCall('/api/stripe/webhook', 'POST', Date.now() - startTime, 500);
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -106,11 +79,11 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
     stripe_subscription_id: subscription.id,
     stripe_customer_id: customerId,
     stripe_price_id: subscription.items.data[0].price.id,
-    status: subscription.status as 'active' | 'canceled' | 'past_due' | 'unpaid',
-    current_period_start: (subscription as any).current_period_start ? new Date((subscription as any).current_period_start * 1000).toISOString() : new Date().toISOString(),
-    current_period_end: (subscription as any).current_period_end ? new Date((subscription as any).current_period_end * 1000).toISOString() : new Date().toISOString(),
-    cancel_at_period_end: (subscription as any).cancel_at_period_end || false,
-    canceled_at: (subscription as any).canceled_at ? new Date((subscription as any).canceled_at * 1000).toISOString() : undefined,
+    status: subscription.status as any,
+    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    cancel_at_period_end: subscription.cancel_at_period_end,
+    canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : undefined,
   })
 
   // Update user profile
@@ -122,8 +95,8 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
   const subscriptionPlan = subscription.status === 'active' ? 'pro' : 'free'
 
   await updateUserProfile(userId, {
-    subscription_status: subscriptionStatus as 'free' | 'active' | 'canceled' | 'past_due' | 'unpaid',
-    subscription_plan: subscriptionPlan as 'free' | 'pro',
+    subscription_status: subscriptionStatus as any,
+    subscription_plan: subscriptionPlan as any,
   })
 }
 
@@ -144,7 +117,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
-  if (!(invoice as any).subscription) return
+  if (!invoice.subscription) return
 
   const customerId = invoice.customer as string
   const userId = await getUserIdFromCustomerId(customerId)
@@ -162,7 +135,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
-  if (!(invoice as any).subscription) return
+  if (!invoice.subscription) return
 
   const customerId = invoice.customer as string
   const userId = await getUserIdFromCustomerId(customerId)
@@ -179,8 +152,8 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 }
 
 async function getUserIdFromCustomerId(customerId: string): Promise<string | null> {
-  const supabase = await createClient()
-
+  const supabase = createClient()
+  
   const { data, error } = await supabase
     .from('user_profiles')
     .select('id')

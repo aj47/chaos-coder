@@ -32,7 +32,7 @@ export default function AuthCodeError() {
             Authentication Error
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Sorry, we couldn&apos;t sign you in. There was an error with the authentication process.
+            Sorry, we couldn't sign you in. There was an error with the authentication process.
           </p>
         </div>
 

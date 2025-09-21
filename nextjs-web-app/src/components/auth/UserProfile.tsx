@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useSubscription } from '@/hooks/useSubscription'
 import { FaCrown, FaCog, FaTachometerAlt } from 'react-icons/fa'
-import { trackAuth, setSentryUser } from '@/lib/sentry'
 
 export default function UserProfile() {
   const [user, setUser] = useState<User | null>(null)
@@ -22,14 +21,6 @@ export default function UserProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
       setLoading(false)
-
-      // Set user context in Sentry when user is loaded
-      if (user) {
-        setSentryUser({
-          id: user.id,
-          email: user.email,
-        })
-      }
     }
 
     getUser()
@@ -37,16 +28,7 @@ export default function UserProfile() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user ?? null)
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          setSentryUser({
-            id: session.user.id,
-            email: session.user.email,
-          })
-        }
-
         if (event === 'SIGNED_OUT') {
-          trackAuth('logout')
           router.push('/login')
         }
       }
@@ -56,7 +38,6 @@ export default function UserProfile() {
   }, [supabase.auth, router])
 
   const handleSignOut = async () => {
-    trackAuth('logout')
     await supabase.auth.signOut()
   }
 

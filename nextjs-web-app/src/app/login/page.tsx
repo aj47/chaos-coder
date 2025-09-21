@@ -2,22 +2,21 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/browser-client'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { RainbowButton } from '@/components/ui/rainbow-button'
-import { trackAuth, captureError, ErrorCategory } from '@/lib/sentry'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
   const supabase = createClient()
 
   const handleGoogleLogin = async () => {
     try {
       setLoading(true)
       setError(null)
-
-      trackAuth('login', { provider: 'google' })
-
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -27,21 +26,9 @@ export default function LoginPage() {
 
       if (error) {
         setError(error.message)
-        trackAuth('error', { provider: 'google', error: error.message })
-        captureError(new Error(error.message), ErrorCategory.AUTHENTICATION, {
-          provider: 'google',
-          action: 'oauth_signin'
-        })
       }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
-      setError(errorMessage)
-      trackAuth('error', { provider: 'google', error: errorMessage })
-      captureError(
-        err instanceof Error ? err : new Error(errorMessage),
-        ErrorCategory.AUTHENTICATION,
-        { provider: 'google', action: 'oauth_signin' }
-      )
+      setError('An unexpected error occurred')
     } finally {
       setLoading(false)
     }

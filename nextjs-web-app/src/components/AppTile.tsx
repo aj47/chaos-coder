@@ -19,11 +19,6 @@ interface AppTileProps {
   onClick: () => void;
   isLoading?: boolean;
   theme: "light" | "dark";
-  code?: string;
-  onChange?: (code: string) => void;
-  isPlaceholder?: boolean;
-  onDelete?: () => void;
-  onStyleSelect?: (style: string) => void;
 }
 
 interface FrameworkInfo {
@@ -78,18 +73,7 @@ const AppTile = memo(function AppTile({
   onClick,
   isLoading,
   theme,
-  code = "",
-  onChange,
-  isPlaceholder = false,
-  onDelete,
-  onStyleSelect,
 }: AppTileProps) {
-  const [editedCode, setEditedCode] = useState(code);
-  const [previewKey, setPreviewKey] = useState(0);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showStyleDropdown, setShowStyleDropdown] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState("Standard");
-
   const framework = frameworkMap[title];
   const LeftIcon = framework.icon;
   const RightIcon = framework.rightIcon;

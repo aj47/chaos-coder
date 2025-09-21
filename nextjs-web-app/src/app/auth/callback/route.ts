@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server-client'
 import { NextRequest, NextResponse } from 'next/server'
-import { trackAuth, captureError, ErrorCategory } from '@/lib/sentry'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -12,7 +11,6 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      trackAuth('login', { provider: 'oauth', callback: true })
       const forwardedHost = request.headers.get('x-forwarded-host') // original origin before load balancer
       const isLocalEnv = process.env.NODE_ENV === 'development'
       if (isLocalEnv) {
@@ -23,13 +21,6 @@ export async function GET(request: NextRequest) {
       } else {
         return NextResponse.redirect(`${origin}${next}`)
       }
-    } else {
-      trackAuth('error', { provider: 'oauth', callback: true, error: error.message })
-      captureError(new Error(error.message), ErrorCategory.AUTHENTICATION, {
-        provider: 'oauth',
-        action: 'code_exchange',
-        code: code.substring(0, 10) + '...' // Only log first 10 chars for privacy
-      })
     }
   }
 
