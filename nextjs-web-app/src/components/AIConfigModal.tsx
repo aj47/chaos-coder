@@ -182,6 +182,11 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
                   <label className="block text-sm font-medium mb-2">Base URL</label>
                   <input
                     type="url"
+                    name="ai-base-url"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    inputMode="url"
                     value={currentConfig.baseUrl}
                     onChange={(e) => handleConfigChange('baseUrl', e.target.value)}
                     placeholder="https://api.example.com/v1"
@@ -198,6 +203,12 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
                     <label className="block text-sm font-medium mb-2">API Key</label>
                     <input
                       type="password"
+                      name="ai-api-key"
+                      autoComplete="new-password"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                       value={currentConfig.apiKey}
                       onChange={(e) => handleConfigChange('apiKey', e.target.value)}
                       placeholder="Enter your API key"
