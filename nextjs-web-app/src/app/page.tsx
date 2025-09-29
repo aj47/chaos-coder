@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { useTheme } from "@/context/ThemeContext";
+import { useAIConfig } from "@/hooks/useAIConfig";
+import AIConfigButton from "@/components/AIConfigButton";
 import {
   FaTasks,
   FaBlog,
@@ -93,6 +95,7 @@ export default function Home() {
   const [numGenerations, setNumGenerations] = useState(3);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const router = useRouter();
+  const { currentProvider, currentConfig, isConfigValid } = useAIConfig();
   const examples = [
     {
       prompt:
@@ -159,12 +162,23 @@ export default function Home() {
       return;
     }
 
+    if (!isConfigValid) {
+      setError("Please configure your AI provider settings before generating applications.");
+      return;
+    }
+
     setError(null);
     setIsLoading(true);
-    
+
     try {
-      // Navigate directly to results page
-      router.push(`/results?prompt=${encodeURIComponent(prompt)}&numGenerations=${numGenerations}`);
+      // Navigate directly to results page with AI config
+      const params = new URLSearchParams({
+        prompt,
+        numGenerations: numGenerations.toString(),
+        aiProvider: currentProvider.id,
+        aiConfig: JSON.stringify(currentConfig),
+      });
+      router.push(`/results?${params.toString()}`);
     } catch (error) {
       console.error("Error navigating to results:", error);
     } finally {
@@ -272,17 +286,24 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Generate Button - Moved above style settings */}
-                <RainbowButton
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 text-lg font-medium"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
-                  ) : null}
-                  Generate Web Apps {!isLoading && <>+</>}
-                </RainbowButton>
+                {/* AI Configuration and Generate Button */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400">AI Provider:</span>
+                    <AIConfigButton showLabel={true} />
+                  </div>
+
+                  <RainbowButton
+                    onClick={handleSubmit}
+                    disabled={isLoading || !isConfigValid}
+                    className="w-full flex items-center justify-center gap-2 text-lg font-medium"
+                  >
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+                    ) : null}
+                    Generate Web Apps {!isLoading && <>+</>}
+                  </RainbowButton>
+                </div>
                 
                 <div className="mt-4 text-center text-sm text-gray-400">
                   <p>This is an early preview. Open source at{" "}
