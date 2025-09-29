@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, memo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { FaExpand } from 'react-icons/fa';
+import { FaExpand, FaDownload } from 'react-icons/fa';
 
 
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -48,6 +48,26 @@ const CodePreviewPanel = memo(function CodePreviewPanel({
     setActiveTab(tab);
   }, []);
 
+  const handleExport = useCallback(() => {
+    try {
+      const filenameBase = (title || 'generated-app')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      const blob = new Blob([editedCode], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filenameBase || 'generated-app'}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to export code:', e);
+    }
+  }, [editedCode, title]);
+
   return (
     <div className="h-full flex flex-col">
       {showControls && (
@@ -69,6 +89,20 @@ const CodePreviewPanel = memo(function CodePreviewPanel({
                 Maximize
               </motion.button>
             )}
+            <motion.button
+              onClick={handleExport}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm ${
+                theme === "dark"
+                  ? "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+              }`}
+              title="Download HTML"
+            >
+              <FaDownload className="w-3 h-3" />
+              Export
+            </motion.button>
             {deployButton}
           </div>
           <div className="space-x-2">

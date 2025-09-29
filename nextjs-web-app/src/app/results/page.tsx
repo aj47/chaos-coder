@@ -334,6 +334,7 @@ function ResultsContent() {
                       <div className="relative h-full">
                         <CodePreviewPanel
                           code={editedResults[selectedAppIndex] || ""}
+                          title={appTitles[selectedAppIndex]}
                           onChange={handleCodeChange}
                           isLoading={loadingStates[selectedAppIndex]}
                           theme={theme}
