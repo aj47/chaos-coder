@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaArrowLeft, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaTimes, FaDownload } from 'react-icons/fa';
 import styled from 'styled-components';
 
 interface FullscreenPreviewProps {
@@ -132,6 +132,26 @@ export default function FullscreenPreview({
     };
   }, [isOpen, onClose]);
 
+  const handleExport = () => {
+    try {
+      const filenameBase = (title || 'generated-app')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filenameBase || 'generated-app'}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to export code:', e);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -158,19 +178,30 @@ export default function FullscreenPreview({
                 <FaArrowLeft />
                 Back
               </BackButton>
-              
+
               <Title theme={theme}>{title} - Fullscreen Preview</Title>
-              
-              <CloseButton
-                theme={theme}
-                onClick={onClose}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <FaTimes />
-              </CloseButton>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <BackButton
+                  theme={theme}
+                  onClick={handleExport}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaDownload />
+                  Export
+                </BackButton>
+                <CloseButton
+                  theme={theme}
+                  onClick={onClose}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <FaTimes />
+                </CloseButton>
+              </div>
             </Header>
-            
+
             <PreviewContainer>
               <PreviewFrame
                 srcDoc={code}
