@@ -128,7 +128,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
           </div>
 
           {/* Content */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
             {/* Current Status */}
             <div className={`p-4 rounded-lg ${
               isConfigValid 
