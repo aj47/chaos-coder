@@ -15,6 +15,7 @@ import PromptInput from "@/components/DevTools/PromptInput";
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import FullscreenPreview from "@/components/FullscreenPreview";
 import MockDeployButton from "@/components/MockDeployButton";
+import ExportButton from "@/components/ExportButton";
 import { SignupModal } from "@/components/SignupModal";
 import styled from "styled-components";
 
@@ -338,10 +339,17 @@ function ResultsContent() {
                           theme={theme}
                           onMaximize={handleMaximize}
                           deployButton={
-                            <MockDeployButton
-                              code={editedResults[selectedAppIndex] || ""}
-                              theme={theme}
-                            />
+                            <>
+                              <ExportButton
+                                code={editedResults[selectedAppIndex] || ""}
+                                theme={theme}
+                                filename={`${appTitles[selectedAppIndex].replace(/\s+/g, '-').toLowerCase()}.html`}
+                              />
+                              <MockDeployButton
+                                code={editedResults[selectedAppIndex] || ""}
+                                theme={theme}
+                              />
+                            </>
                           }
                         />
                       </div>
