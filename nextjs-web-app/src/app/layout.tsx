@@ -32,6 +32,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://r.stripe.com" crossOrigin="" />
+        <link rel="preconnect" href="https://m.stripe.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://r.stripe.com" />
+        <link rel="dns-prefetch" href="https://m.stripe.com" />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <StyledComponentsRegistry>
           <ThemeProvider>{children}</ThemeProvider>

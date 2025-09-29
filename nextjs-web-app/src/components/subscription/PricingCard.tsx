@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FaCheck, FaCrown } from 'react-icons/fa'
-import { stripePromise } from '@/lib/stripe-client'
+import { getStripe } from '@/lib/stripe-client'
 
 interface PricingCardProps {
   plan: {
@@ -47,7 +47,7 @@ export default function PricingCard({ plan, isCurrentPlan, isPopular }: PricingC
       const { sessionId } = await response.json()
       
       // Redirect to Stripe Checkout
-      const stripe = await stripePromise
+      const stripe = await getStripe()
       if (!stripe) {
         throw new Error('Stripe failed to load')
       }

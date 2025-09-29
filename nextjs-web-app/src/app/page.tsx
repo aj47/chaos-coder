@@ -2,47 +2,47 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { HeroGeometric } from "@/components/ui/shape-landing-hero";
+import dynamic from "next/dynamic";
+
+const HeroGeometric = dynamic(() => import("@/components/ui/shape-landing-hero").then(m => m.HeroGeometric), { ssr: false });
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { useTheme } from "@/context/ThemeContext";
 import UserProfile from "@/components/auth/UserProfile";
 import FeatureGate from "@/components/subscription/FeatureGate";
 import { useSubscription } from "@/hooks/useSubscription";
 import {
-  FaTasks,
-  FaBlog,
-  FaUserTie,
-  FaCalendarAlt,
-  FaStore,
-  FaRobot,
-  FaQuestionCircle,
-  FaMinus,
-  FaPlus,
-} from "react-icons/fa";
+  ListChecks,
+  Newspaper,
+  User as UserIcon,
+  Store,
+  Bot,
+  CircleHelp,
+  Minus,
+  Plus,
+} from "lucide-react";
 
 // Signup Modal Component
-export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { theme } = useTheme();
   const router = useRouter();
-  
+
   if (!isOpen) return null;
-  
+
   return (
-    <motion.div 
+    <div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
     >
-      <motion.div 
+      <div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         className={`relative w-full max-w-md p-6 rounded-xl shadow-2xl ${
           theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}
       >
-        <button 
+        <button
           onClick={onClose}
           className={`absolute top-4 right-4 p-1 rounded-full ${
             theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
@@ -53,24 +53,24 @@ export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
-        
+
         <h2 className="text-xl font-bold mb-4">Free Limit Reached</h2>
         <p className="mb-6">You've reached the limit of 25 free generations. Create an account to continue using our service.</p>
-        
+
         <div className="flex flex-col gap-4">
-          <a 
+          <a
             href="https://docs.google.com/forms/d/e/1FAIpQLSdBUzzrsu74cJlRhZZVSQuYAcGZ4_8RKB-G7vYZGibU7S5T4g/viewform?usp=header"
             target="_blank"
             rel="noopener noreferrer"
             className={`w-full py-2 px-4 rounded-lg font-medium text-center block ${
-              theme === 'dark' 
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
+              theme === 'dark'
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 : 'bg-indigo-500 hover:bg-indigo-600 text-white'
             }`}
           >
             Sign Up
           </a>
-          <button 
+          <button
             onClick={onClose}
             className={`w-full py-2 px-4 rounded-lg font-medium ${
               theme === 'dark'
@@ -81,8 +81,8 @@ export function SignupModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             Maybe Later
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
@@ -103,37 +103,37 @@ export default function Home() {
     {
       prompt:
         "A Pokédex web app that displays Pokémon information with search and filter functionality",
-      icon: <FaTasks className="w-4 h-4" />,
+      icon: <ListChecks className="w-4 h-4" />,
       label: "Pokédex",
     },
     {
       prompt:
         "A Father's Day card web app with customizable messages and designs",
-      icon: <FaBlog className="w-4 h-4" />,
+      icon: <Newspaper className="w-4 h-4" />,
       label: "Father's Day Card",
     },
     {
       prompt:
         "A Happy Birthday gift web app for [Insert name here] with personalized wishes and interactive elements",
-      icon: <FaUserTie className="w-4 h-4" />,
+      icon: <UserIcon className="w-4 h-4" />,
       label: "Happy Birthday Gift",
     },
     {
       prompt:
         "A classic Tetris game web app with falling blocks, line clearing, and scoring",
-      icon: <FaRobot className="w-4 h-4" />,
+      icon: <Bot className="w-4 h-4" />,
       label: "Tetris Game",
     },
     {
       prompt:
         "A Snake game web app with arrow key controls, food collection, and high score tracking",
-      icon: <FaStore className="w-4 h-4" />,
+      icon: <Store className="w-4 h-4" />,
       label: "Snake Game",
     },
     {
       prompt:
         "A classic Pong game web app with paddle controls, ball physics, and two-player mode",
-      icon: <FaQuestionCircle className="w-4 h-4" />,
+      icon: <CircleHelp className="w-4 h-4" />,
       label: "Pong Game",
     },
   ];
@@ -166,7 +166,7 @@ export default function Home() {
 
     setError(null);
     setIsLoading(true);
-    
+
     try {
       // Navigate directly to results page
       router.push(`/results?prompt=${encodeURIComponent(prompt)}&numGenerations=${numGenerations}`);
@@ -223,7 +223,7 @@ export default function Home() {
                       Number of Websites:
                     </div>
                     <div className="flex items-center justify-center">
-                      <motion.button
+                      <button
                         onClick={decrementGenerations}
                         disabled={numGenerations <= MIN_NUM_GENERATIONS}
                         className={`p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] ${numGenerations <= MIN_NUM_GENERATIONS ? 'opacity-50 cursor-not-allowed text-gray-600' : 'text-gray-400 hover:text-gray-200'} shadow-md`}
@@ -231,10 +231,10 @@ export default function Home() {
                         whileTap={numGenerations > MIN_NUM_GENERATIONS ? { scale: 0.95 } : undefined}
                         transition={{ type: "spring", stiffness: 400, damping: 17 }}
                       >
-                        <FaMinus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      </motion.button>
+                        <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </button>
                       <div className="mx-3 sm:mx-4 flex flex-col items-center">
-                        <motion.div
+                        <div
                           className="text-2xl sm:text-4xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-rose-300 font-bold"
                           key={numGenerations}
                           initial={{ scale: 1.2, opacity: 0.7 }}
@@ -246,9 +246,9 @@ export default function Home() {
                           style={gradientStyle}
                         >
                           {numGenerations}
-                        </motion.div>
+                        </div>
                       </div>
-                      <motion.button
+                      <button
                         onClick={incrementGenerations}
                         disabled={numGenerations >= MAX_NUM_GENERATIONS}
                         className={`p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-[#1a1f2e]/90 to-[#141822]/90 border border-[#2a3040] ${numGenerations >= MAX_NUM_GENERATIONS ? 'opacity-50 cursor-not-allowed text-gray-600' : 'text-gray-400 hover:text-gray-200'} shadow-md`}
@@ -256,8 +256,8 @@ export default function Home() {
                         whileTap={numGenerations < MAX_NUM_GENERATIONS ? { scale: 0.95 } : undefined}
                         transition={{ type: "spring", stiffness: 400, damping: 17 }}
                       >
-                        <FaPlus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      </motion.button>
+                        <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -316,12 +316,12 @@ export default function Home() {
                     )}
                   </div>
                 )}
-                
+
                 <div className="mt-4 text-center text-sm text-gray-400">
                   <p>This is an early preview. Open source at{" "}
-                    <a 
-                      href="https://github.com/aj47/chaos-coder" 
-                      target="_blank" 
+                    <a
+                      href="https://github.com/aj47/chaos-coder"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300 underline"
                     >

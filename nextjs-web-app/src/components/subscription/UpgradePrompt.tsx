@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FaCrown, FaTimes, FaCheck } from 'react-icons/fa'
-import { stripePromise } from '@/lib/stripe-client'
+import { getStripe } from '@/lib/stripe-client'
 
 // Define subscription plans locally to avoid server-side imports
 const SUBSCRIPTION_PLANS = {
@@ -55,7 +55,7 @@ export default function UpgradePrompt({ isOpen, onClose, reason }: UpgradePrompt
       const { sessionId } = await response.json()
       
       // Redirect to Stripe Checkout
-      const stripe = await stripePromise
+      const stripe = await getStripe()
       if (!stripe) {
         throw new Error('Stripe failed to load')
       }
