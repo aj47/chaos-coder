@@ -105,7 +105,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
-          className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl ${
+          className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl shadow-2xl ${
             theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -128,7 +128,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
             {/* Current Status */}
             <div className={`p-4 rounded-lg ${
               isConfigValid 
