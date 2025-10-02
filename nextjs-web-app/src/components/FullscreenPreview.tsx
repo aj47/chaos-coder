@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaArrowLeft, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaTimes, FaDownload } from 'react-icons/fa';
 import styled from 'styled-components';
 
 interface FullscreenPreviewProps {
@@ -92,6 +92,34 @@ const CloseButton = styled(motion.button)<{ theme: "light" | "dark" }>`
   }
 `;
 
+const DownloadButton = styled(motion.button)<{ theme: "light" | "dark" }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: ${(props) => (props.theme === "dark" ? "#16a34a" : "#22c55e")};
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${(props) => (props.theme === "dark" ? "#15803d" : "#16a34a")};
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    &:hover {
+      transform: none;
+    }
+  }
+`;
+
 const PreviewContainer = styled.div`
   flex: 1;
   overflow: hidden;
@@ -132,6 +160,27 @@ export default function FullscreenPreview({
     };
   }, [isOpen, onClose]);
 
+  const handleDownload = () => {
+    // Create a blob from the code
+    const blob = new Blob([code], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    // Create a temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    // Generate filename from title or use default
+    const filename = title
+      ? `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`
+      : `generated-app-${Date.now()}.html`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+
+    // Cleanup
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -158,17 +207,30 @@ export default function FullscreenPreview({
                 <FaArrowLeft />
                 Back
               </BackButton>
-              
+
               <Title theme={theme}>{title} - Fullscreen Preview</Title>
-              
-              <CloseButton
-                theme={theme}
-                onClick={onClose}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <FaTimes />
-              </CloseButton>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <DownloadButton
+                  theme={theme}
+                  onClick={handleDownload}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={!code}
+                >
+                  <FaDownload />
+                  Export
+                </DownloadButton>
+
+                <CloseButton
+                  theme={theme}
+                  onClick={onClose}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <FaTimes />
+                </CloseButton>
+              </div>
             </Header>
             
             <PreviewContainer>
