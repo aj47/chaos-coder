@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, memo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { FaExpand } from 'react-icons/fa';
+import { FaExpand, FaDownload } from 'react-icons/fa';
 
 
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -48,6 +48,27 @@ const CodePreviewPanel = memo(function CodePreviewPanel({
     setActiveTab(tab);
   }, []);
 
+  const handleDownload = useCallback(() => {
+    // Create a blob from the code
+    const blob = new Blob([editedCode], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    // Create a temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    // Generate filename from title or use default
+    const filename = title
+      ? `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`
+      : `generated-app-${Date.now()}.html`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+
+    // Cleanup
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [editedCode, title]);
+
   return (
     <div className="h-full flex flex-col">
       {showControls && (
@@ -69,6 +90,21 @@ const CodePreviewPanel = memo(function CodePreviewPanel({
                 Maximize
               </motion.button>
             )}
+            <motion.button
+              onClick={handleDownload}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm ${
+                theme === "dark"
+                  ? "bg-green-700 hover:bg-green-600 text-white"
+                  : "bg-green-600 hover:bg-green-700 text-white"
+              }`}
+              title="Download HTML"
+              disabled={!editedCode || isLoading}
+            >
+              <FaDownload className="w-3 h-3" />
+              Export
+            </motion.button>
             {deployButton}
           </div>
           <div className="space-x-2">
