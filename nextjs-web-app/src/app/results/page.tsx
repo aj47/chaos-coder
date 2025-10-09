@@ -11,6 +11,7 @@ import { BrowserContainer } from "@/components/ui/browser-container";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import PromptInput from "@/components/DevTools/PromptInput";
+import AIConfigButton from "@/components/AIConfigButton";
 
 import VoiceInput from "@/components/DevTools/VoiceInput";
 import FullscreenPreview from "@/components/FullscreenPreview";
@@ -118,7 +119,7 @@ function ResultsContent() {
     }
   }, []);
 
-  const generateApp = useCallback(async (index: number, promptText: string) => {
+  const generateApp = useCallback(async (index: number, promptText: string, aiProvider?: string, aiConfig?: any) => {
     try {
       const framework = getFramework(appTitles[index]);
 
@@ -129,6 +130,8 @@ function ResultsContent() {
           prompt: promptText,
           variation: variations[index],
           framework,
+          aiProvider,
+          aiConfig,
         }),
       });
 
@@ -203,15 +206,27 @@ function ResultsContent() {
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
+    const aiProvider = searchParams.get("aiProvider");
+    const aiConfigStr = searchParams.get("aiConfig");
+
     if (!prompt) {
       setError("No prompt provided");
       setLoadingStates(new Array(numGenerations).fill(false));
       return;
     }
 
+    let aiConfig = null;
+    if (aiConfigStr) {
+      try {
+        aiConfig = JSON.parse(aiConfigStr);
+      } catch (e) {
+        console.error("Failed to parse AI config:", e);
+      }
+    }
+
     // Generate all apps
     for (let i = 0; i < numGenerations; i++) {
-      generateApp(i, prompt);
+      generateApp(i, prompt, aiProvider || undefined, aiConfig);
     }
   }, [searchParams, generateApp, numGenerations]);
 
@@ -249,6 +264,7 @@ function ResultsContent() {
               </span>
             </motion.h1>
             <div className="flex items-center gap-3 sm:gap-4">
+              <AIConfigButton showLabel={false} />
               <ThemeToggle />
               <Link
                 href="/"
