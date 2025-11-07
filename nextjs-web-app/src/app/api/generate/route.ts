@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
           {
             virtual_key: "openrouter-07e727",
             override_params: {
-              model: "google/gemini-flash-1.5-8b",
+              model: "google/gemini-2.5-flash-lite",
             },
           },
           {
