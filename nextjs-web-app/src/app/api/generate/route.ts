@@ -89,7 +89,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Configure Portkey with main provider (groq) and fallback (openrouter)
+    const inceptionApiKey = process.env.INCEPTION_API_KEY;
+
+    // Configure Portkey with Mercury 2 as primary, then fallback chain
     const portkey = new Portkey({
       apiKey: portkeyApiKey,
       config: {
@@ -97,6 +99,15 @@ export async function POST(req: NextRequest) {
           mode: "fallback",
         },
         targets: [
+          // Mercury 2 by Inception Labs — fast diffusion-based reasoning model
+          ...(inceptionApiKey ? [{
+            provider: "openai",
+            api_key: inceptionApiKey,
+            base_url: "https://api.inceptionlabs.ai/v1",
+            override_params: {
+              model: "mercury-coder",
+            },
+          }] : []),
           {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
@@ -132,71 +143,9 @@ export async function POST(req: NextRequest) {
     let fullPrompt;
 
     if (isUpdate) {
-      fullPrompt = `Update the following web application based on these instructions:
-
-Instructions:
-1. Update request: ${prompt}
-2. Style: ${styleInstructions}
-
-EXISTING CODE TO MODIFY:
-\`\`\`html
-${existingCode}
-\`\`\`
-
-Technical Requirements:
-- IMPORTANT: Maintain a SINGLE HTML file structure with all HTML, CSS, and JavaScript
-- Make targeted changes based on the update request
-- Keep all working functionality that isn't explicitly changed
-- Preserve the existing styling approach and design style
-- Ensure all interactive elements continue to work
-- Add clear comments for any new or modified sections
-- Keep all CSS and JS inline, exactly as in the original format
-
-Additional Notes:
-- Return the COMPLETE updated HTML file content
-- Do not remove existing functionality unless specifically requested
-- Do NOT split into multiple files - everything must remain in one HTML file
-- Ensure the code remains well-structured and maintainable
-- Return ONLY the HTML file content without any explanations or markdown
-
-Format the code with proper indentation and spacing for readability.`;
+      fullPrompt = `Update the following web application based on these instructions:\r\n\r\nInstructions:\r\n1. Update request: ${prompt}\r\n2. Style: ${styleInstructions}\r\n\r\nEXISTING CODE TO MODIFY:\r\n\`\`\`html\r\n${existingCode}\r\n\`\`\`\r\n\r\nTechnical Requirements:\r\n- IMPORTANT: Maintain a SINGLE HTML file structure with all HTML, CSS, and JavaScript\r\n- Make targeted changes based on the update request\r\n- Keep all working functionality that isn't explicitly changed\r\n- Preserve the existing styling approach and design style\r\n- Ensure all interactive elements continue to work\r\n- Add clear comments for any new or modified sections\r\n- Keep all CSS and JS inline, exactly as in the original format\r\n\r\nAdditional Notes:\r\n- Return the COMPLETE updated HTML file content\r\n- Do not remove existing functionality unless specifically requested\r\n- Do NOT split into multiple files - everything must remain in one HTML file\r\n- Ensure the code remains well-structured and maintainable\r\n- Return ONLY the HTML file content without any explanations or markdown\r\n\r\nFormat the code with proper indentation and spacing for readability.`;
     } else {
-      fullPrompt = `Create a well-structured, modern web application:
-
-Instructions:
-1. Base functionality: ${prompt}
-2. Variation: ${variation}
-3. Style: ${styleInstructions}
-
-Technical Requirements:
-- IMPORTANT: Create a SINGLE HTML file containing ALL HTML, CSS, and JavaScript
-- Do NOT suggest or imply separate file structures - everything must be in one HTML file
-- Organize the code in this exact order:
-  1. <!DOCTYPE html> and meta tags
-  2. <title> and other head elements 
-  3. Any required CSS framework imports via CDN links
-  4. Custom CSS styles in a <style> tag in the head
-  5. HTML body with semantic markup
-  6. Any required JavaScript libraries via CDN links
-  7. Custom JavaScript in a <script> tag at the end of body
-- Use proper HTML5 semantic elements
-- Include clear spacing between sections
-- Add descriptive comments for each major component
-- Ensure responsive design with mobile-first approach
-- Use modern ES6+ JavaScript features
-- Keep the code modular and well-organized
-- Ensure all interactive elements have proper styling states (hover, active, etc.)
-- Implement the design style specified in the Style instruction
-
-Additional Notes:
-- The code must be complete and immediately runnable in a browser
-- All custom CSS and JavaScript MUST be included inline in the single HTML file
-- NO separate CSS or JS files - include everything in the HTML file
-- Code must work properly when rendered in an iframe
-- Focus on clean, maintainable code structure
-- Return ONLY the HTML file content without any explanations or markdown
-
-Format the code with proper indentation and spacing for readability.`;
+      fullPrompt = `Create a well-structured, modern web application:\r\n\r\nInstructions:\r\n1. Base functionality: ${prompt}\r\n2. Variation: ${variation}\r\n3. Style: ${styleInstructions}\r\n\r\nTechnical Requirements:\r\n- IMPORTANT: Create a SINGLE HTML file containing ALL HTML, CSS, and JavaScript\r\n- Do NOT suggest or imply separate file structures - everything must be in one HTML file\r\n- Organize the code in this exact order:\r\n  1. <!DOCTYPE html> and meta tags\r\n  2. <title> and other head elements \r\n  3. Any required CSS framework imports via CDN links\r\n  4. Custom CSS styles in a <style> tag in the head\r\n  5. HTML body with semantic markup\r\n  6. Any required JavaScript libraries via CDN links\r\n  7. Custom JavaScript in a <script> tag at the end of body\r\n- Use proper HTML5 semantic elements\r\n- Include clear spacing between sections\r\n- Add descriptive comments for each major component\r\n- Ensure responsive design with mobile-first approach\r\n- Use modern ES6+ JavaScript features\r\n- Keep the code modular and well-organized\r\n- Ensure all interactive elements have proper styling states (hover, active, etc.)\r\n- Implement the design style specified in the Style instruction\r\n\r\nAdditional Notes:\r\n- The code must be complete and immediately runnable in a browser\r\n- All custom CSS and JavaScript MUST be included inline in the single HTML file\r\n- NO separate CSS or JS files - include everything in the HTML file\r\n- Code must work properly when rendered in an iframe\r\n- Focus on clean, maintainable code structure\r\n- Return ONLY the HTML file content without any explanations or markdown\r\n\r\nFormat the code with proper indentation and spacing for readability.`;
     }
 
     try {
