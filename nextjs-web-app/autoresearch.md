@@ -42,3 +42,6 @@ The script emits `METRIC name=value` lines for pi autoresearch parsing. This ben
 ## What's Been Tried
 - Initial benchmark harness only.
 - User clarified that all baseline and experiment runs must use real LLM calls only; mock generation support was removed from the harness.
+- Lowering `max_tokens` from 4096 to 3072 improved primary latency from 13.13s to 11.16s with exactly 3 real API calls.
+- Switching Cerebras primary model from `gpt-oss-120b` to `qwen-3-32b` improved primary latency to 10.332s with a model-quality tradeoff to monitor.
+- Replacing the verbose new-app generation prompt with a concise requirements prompt improved primary latency to 9.562s while keeping the same user prompt, provider path, and 3 real API calls.

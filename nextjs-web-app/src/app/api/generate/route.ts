@@ -105,58 +105,18 @@ Additional Notes:
 
 Format the code with proper indentation and spacing for readability.`;
     } else {
-      fullPrompt = `Create a well-structured, modern web application based on the specific requirements below:
-
-CORE FUNCTIONALITY REQUEST:
+      fullPrompt = `Create a complete, modern single-file web app for:
 ${prompt}
 
-IMPORTANT: Interpret the request literally and specifically. Do not default to generic patterns like to-do lists unless explicitly requested. Be creative and think about what the user actually wants.
+Variation: ${variation || "Standard implementation."}
+Framework/styling: ${frameworkInstructions}
 
-VARIATION INSTRUCTIONS:
-${variation}
-
-FRAMEWORK REQUIREMENTS:
-${frameworkInstructions}
-
-CREATIVE INTERPRETATION GUIDELINES:
-- If the request mentions "organize" or "productivity", consider alternatives to to-do lists such as:
-  * Calendar/scheduling apps
-  * Dashboard with widgets
-  * Time tracking applications
-  * Habit tracking systems
-  * Note-taking or journaling apps
-  * Project management boards
-  * Goal setting interfaces
-- Focus on the specific domain or context mentioned in the request
-- Add unique features that make the application interesting and functional
-- Think about what would genuinely solve the user's stated problem
-
-Technical Requirements:
-- Create a single HTML file with clean, indented code structure
-- Organize the code in this order:
-  1. <!DOCTYPE html> and meta tags
-  2. <title> and other head elements
-  3. Framework CSS and JS imports
-  4. Custom CSS styles in a <style> tag
-  5. HTML body with semantic markup
-  6. JavaScript in a <script> tag at the end of body
-- Use proper HTML5 semantic elements
-- Include clear spacing between sections
-- Add descriptive comments for each major component
-- Ensure responsive design with mobile-first approach
-- Use modern ES6+ JavaScript features
-- Keep the code modular and well-organized
-- Ensure all interactive elements have proper styling states (hover, active, etc.)
-- Implement the framework-specific best practices and components
-
-Additional Notes:
-- The code must be complete and immediately runnable
-- All custom CSS and JavaScript should be included inline
-- Code must work properly when rendered in an iframe
-- Focus on clean, maintainable code structure
-- Return ONLY the HTML file content without any explanations
-
-Format the code with proper indentation and spacing for readability.`;
+Requirements:
+- Interpret the request literally and build the requested domain-specific app.
+- Return runnable HTML only: <!DOCTYPE html>, head, framework CDN imports if requested, inline CSS, semantic body, and inline JavaScript.
+- Make it responsive, visually polished, and usable in an iframe.
+- Include working interactive controls with basic accessibility states.
+- Keep the code concise but complete. Do not include markdown, explanations, or text outside the HTML.`;
     }
 
     const response = await portkey.chat.completions.create({
