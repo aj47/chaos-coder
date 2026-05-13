@@ -45,3 +45,4 @@ The script emits `METRIC name=value` lines for pi autoresearch parsing. This ben
 - Lowering `max_tokens` from 4096 to 3072 improved primary latency from 13.13s to 11.16s with exactly 3 real API calls.
 - Switching Cerebras primary model from `gpt-oss-120b` to `qwen-3-32b` improved primary latency to 10.332s with a model-quality tradeoff to monitor.
 - Replacing the verbose new-app generation prompt with a concise requirements prompt improved primary latency to 9.562s while keeping the same user prompt, provider path, and 3 real API calls.
+- Lowering `max_tokens` from 3072 to 2048 after prompt compaction improved primary latency to 8.537s with exactly 3 real API calls; continue watching output completeness/quality risk if lowering further.
