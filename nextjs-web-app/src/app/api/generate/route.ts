@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
           {
             virtual_key: "cerebras-b79172",
             override_params: {
-              model: "gpt-oss-120b",
+              model: "qwen-3-32b",
             },
           },
           {
