@@ -162,7 +162,7 @@ Format the code with proper indentation and spacing for readability.`;
     const response = await portkey.chat.completions.create({
       messages: [{ role: "user", content: fullPrompt }],
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 3072,
     });
 
     // Get the response content
