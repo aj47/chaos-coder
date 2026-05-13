@@ -105,18 +105,19 @@ Additional Notes:
 
 Format the code with proper indentation and spacing for readability.`;
     } else {
-      fullPrompt = `Create a complete, modern single-file web app for:
+      fullPrompt = `Create a compact, complete single-file web app for:
 ${prompt}
 
 Variation: ${variation || "Standard implementation."}
 Framework/styling: ${frameworkInstructions}
 
-Requirements:
-- Interpret the request literally and build the requested domain-specific app.
+Hard constraints:
 - Return runnable HTML only: <!DOCTYPE html>, head, framework CDN imports if requested, inline CSS, semantic body, and inline JavaScript.
+- Keep it under about 150 lines: no comments, no large hard-coded datasets, and no repetitive boilerplate.
+- Interpret the request literally and implement the core domain-specific functionality.
 - Make it responsive, visually polished, and usable in an iframe.
 - Include working interactive controls with basic accessibility states.
-- Keep the code concise but complete. Do not include markdown, explanations, or text outside the HTML.`;
+- Stop after the closing </html>. Do not include markdown, explanations, or text outside the HTML.`;
     }
 
     const response = await portkey.chat.completions.create({
@@ -126,7 +127,8 @@ Requirements:
     });
 
     // Get the response content
-    let code = response.choices[0].message.content || "";
+    const choice = response.choices[0];
+    let code = choice.message.content || "";
 
     // Trim out any markdown code blocks (```html, ```, etc.)
     code = code
@@ -142,7 +144,10 @@ Requirements:
       }
     }
 
-    return NextResponse.json({ code });
+    return NextResponse.json({
+      code,
+      finishReason: choice.finish_reason ?? null,
+    });
   } catch (error) {
     console.error("Error:", error);
     return NextResponse.json(

@@ -72,6 +72,8 @@ let apiStartedCount = 0;
 let firstApiStartMs = null;
 const apiTimings = [];
 const apiFailures = [];
+const apiPayloads = [];
+const payloadParsePromises = [];
 const pendingGenerateRequests = new Map();
 
 page.on("console", (message) => {
@@ -106,6 +108,24 @@ page.on("response", (response) => {
   apiTimings.push({ durationMs, status, completedAt });
   if (status < 200 || status >= 300) {
     apiFailures.push({ status, url: response.url(), durationMs });
+  } else {
+    const parsePromise = response
+      .json()
+      .then((data) => {
+        apiPayloads.push({
+          codeChars: typeof data.code === "string" ? data.code.length : 0,
+          finishReason: data.finishReason ?? null,
+        });
+      })
+      .catch((error) => {
+        apiFailures.push({
+          status: "jsonparse",
+          url: response.url(),
+          durationMs,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    payloadParsePromises.push(parsePromise);
   }
 });
 
@@ -142,6 +162,8 @@ try {
   firstApiStartMs = null;
   apiTimings.length = 0;
   apiFailures.length = 0;
+  apiPayloads.length = 0;
+  payloadParsePromises.length = 0;
   pendingGenerateRequests.clear();
   browserErrors.length = 0;
 
@@ -182,8 +204,32 @@ try {
     );
   }
 
+  await Promise.all(payloadParsePromises);
+
+  const api = summarizeApiTimings(apiTimings);
+  const totalMsAtApiComplete = performance.now() - runStartedAt;
+  const finishLengthCount = apiPayloads.filter((payload) => payload.finishReason === "length").length;
+
   if (apiFailures.length > 0) {
+    metric("api_wall_ms", apiWallMs);
+    metric("api_max_ms", api.max);
+    metric("api_mean_ms", api.mean);
+    metric("api_min_ms", api.min);
+    metric("api_count", apiTimings.length);
+    metric("browser_error_count", browserErrors.length);
     throw new Error(`Generation API failures: ${JSON.stringify(apiFailures)}`);
+  }
+
+  if (finishLengthCount > 0) {
+    metric("generate_3_websites_ms", totalMsAtApiComplete);
+    metric("api_wall_ms", apiWallMs);
+    metric("api_max_ms", api.max);
+    metric("api_mean_ms", api.mean);
+    metric("api_min_ms", api.min);
+    metric("api_count", apiTimings.length);
+    metric("browser_error_count", browserErrors.length);
+    console.log("INFO generation_payloads=" + JSON.stringify(apiPayloads));
+    throw new Error(`Generation was truncated by max_tokens: ${JSON.stringify(apiPayloads)}`);
   }
 
   await page.waitForFunction(
@@ -201,7 +247,6 @@ try {
   );
 
   const totalMs = performance.now() - runStartedAt;
-  const api = summarizeApiTimings(apiTimings);
 
   metric("generate_3_websites_ms", totalMs);
   metric("api_wall_ms", apiWallMs);
@@ -210,6 +255,7 @@ try {
   metric("api_min_ms", api.min);
   metric("api_count", apiTimings.length);
   metric("browser_error_count", browserErrors.length);
+  console.log("INFO generation_payloads=" + JSON.stringify(apiPayloads));
 
   if (browserErrors.length > 0) {
     console.log("INFO browser_errors=" + JSON.stringify(browserErrors.slice(0, 5)));
