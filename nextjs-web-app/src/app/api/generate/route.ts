@@ -40,15 +40,15 @@ export async function POST(req: NextRequest) {
         },
         targets: [
           {
-            virtual_key: "cerebras-b79172",
-            override_params: {
-              model: "qwen-3-32b",
-            },
-          },
-          {
             virtual_key: "groq-virtual-ke-9479cd",
             override_params: {
               model: "llama-3.2-1b-preview",
+            },
+          },
+          {
+            virtual_key: "cerebras-b79172",
+            override_params: {
+              model: "qwen-3-32b",
             },
           },
           {

@@ -47,3 +47,5 @@ The script emits `METRIC name=value` lines for pi autoresearch parsing. This ben
 - Replacing the verbose new-app generation prompt with a concise requirements prompt improved primary latency to 9.562s while keeping the same user prompt, provider path, and 3 real API calls.
 - Lowering `max_tokens` from 3072 to 2048 after prompt compaction improved primary latency to 8.537s with exactly 3 real API calls; continue watching output completeness/quality risk if lowering further.
 - Lowering `max_tokens` from 2048 to 1792 gave a smaller improvement to 8.298s with exactly 3 real API calls and no browser errors; quality/completeness risk is increasing, so avoid large further cuts without extra output checks.
+- Trying `max_tokens` 1536 and 1664 both failed because real responses reported `finishReason: "length"`; do not lower below 1792 without changing output requirements and adding finish-reason monitoring.
+- Reordering providers to try Groq `llama-3.2-1b-preview` before Cerebras `qwen-3-32b` improved primary latency to 7.419s with exactly 3 real API calls; monitor generated-app quality because this uses a much smaller primary model.
