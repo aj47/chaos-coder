@@ -122,7 +122,7 @@ Requirements:
     const response = await portkey.chat.completions.create({
       messages: [{ role: "user", content: fullPrompt }],
       temperature: 0.7,
-      max_tokens: 2048,
+      max_tokens: 1792,
     });
 
     // Get the response content
