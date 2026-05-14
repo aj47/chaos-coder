@@ -55,3 +55,9 @@ The script emits `METRIC name=value` lines for pi autoresearch parsing. This ben
 - Lowering Groq-first temperature from 0.7 to 0.2 at 1792 with finish-reason monitoring failed: all 3 responses reported `finishReason: "length"`; lower temperature did not fix completeness.
 - Raising Groq-first `max_tokens` from 1792 to 2048 with finish-reason monitoring still failed: all 3 responses reported `finishReason: "length"`; Groq-first appears fast but incomplete for this workload at these caps.
 - Rewriting the prompt to ask for a compact complete app under ~150 lines, with no comments/large datasets/repetitive boilerplate and explicit `</html>` stop, succeeded with finish-reason monitoring: all 3 responses stopped naturally and primary latency improved to 4.93s.
+- Trying `max_tokens` 1536 after compact prompt still failed: 2/3 real responses reported `finishReason: "length"`; keep 1792 as the lowest validated compact-prompt cap so far.
+- Trying `max_tokens` 1664 after compact prompt failed: 1/3 real responses reported `finishReason: "length"`; 1792 remains the lowest validated compact-prompt cap.
+- Tightening the compact prompt from ~150 lines to ~120 lines failed: 1/3 real responses still reported `finishReason: "length"` and latency was worse; line-count pressure did not reliably shorten output.
+- Trying `max_tokens` 1728 after compact prompt completed naturally for all 3 responses, but was slower (7.978s) than the 1792-token best (4.93s); likely provider/noise/output-length effects dominate this small cap change.
+- Shortening framework/variation instruction strings failed: 1/3 real responses reported `finishReason: "length"` and latency was worse; terse variant labels may reduce helpful guidance and cause longer/incomplete outputs.
+- Hoisting the Portkey client/config to module scope did not produce a valid run: 2/3 real responses reported `finishReason: "length"`; client-construction overhead is unlikely to be the main bottleneck.
